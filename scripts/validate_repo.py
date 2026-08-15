@@ -13,7 +13,7 @@ from social_content_engine.data.normalize import normalize_threads_post
 
 ROOT = Path(__file__).resolve().parents[1]
 HEXISH_TOKEN = re.compile(
-    r"(?i)(access[_-]?token|client[_-]?secret)\s*[=:]\s*['\"]?[A-Za-z0-9_-]{20,}"
+    r"(?i)(access[_-]?token|client[_-]?secret|api[_-]?key)\s*[=:]\s*['\"]?[^\s'\"]{20,}"
 )
 
 
@@ -97,7 +97,18 @@ def validate_tasks(errors: List[str]) -> None:
 
 
 def scan_secrets(errors: List[str]) -> None:
-    suffixes = {".py", ".md", ".json", ".toml", ".yml", ".yaml"}
+    suffixes = {
+        ".py",
+        ".md",
+        ".json",
+        ".toml",
+        ".yml",
+        ".yaml",
+        ".sh",
+        ".txt",
+        ".env",
+        ".example",
+    }
     for path in ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in suffixes:
             continue

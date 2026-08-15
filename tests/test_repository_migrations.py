@@ -101,6 +101,24 @@ def replace_analyzer_tables_with_m0_reserved_shape(path: Path) -> None:
 
 
 class RepositoryMigrationTest(unittest.TestCase):
+    def test_records_all_migrations_and_rejects_checksum_tampering(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "test.sqlite3"
+            with Repository(path) as repository:
+                rows = repository.connection.execute(
+                    "SELECT version, migration_sha256 FROM schema_migrations ORDER BY version"
+                ).fetchall()
+                self.assertEqual(list(range(1, 8)), [row["version"] for row in rows])
+                for row in rows:
+                    self.assertRegex(row["migration_sha256"], r"^[0-9a-f]{64}$")
+                repository.connection.execute(
+                    "UPDATE schema_migrations SET migration_sha256 = ? WHERE version = 4",
+                    ("0" * 64,),
+                )
+                repository.connection.commit()
+            with self.assertRaisesRegex(RuntimeError, "checksum mismatch for version 4"):
+                Repository(path)
+
     def test_backfills_legacy_m0_post_and_is_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "legacy.sqlite3"
