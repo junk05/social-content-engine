@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-016",
+  "status": "PASS_WITH_VOLUME_CONSTRAINT",
+  "dataset": {
+    "key": "m2-live-canary",
+    "version": 1,
+    "status": "FINALIZED",
+    "members": 1
+  },
+  "analysis": {
+    "successful_items": 1,
+    "first_line_features": 1,
+    "parent_ending_features": 1
+  },
+  "pattern_mining": {
+    "selected_instances": 1,
+    "singletons": 1,
+    "promoted_patterns": 0,
+    "report_candidates": 0,
+    "promotion_minimum_distinct_posts": 2
+  },
+  "interpretation": "The live dataset has only one post, so no cross-post Pattern can be promoted. The zero-candidate report is the correct result and is not replaced with synthetic evidence.",
+  "synthetic_contract_test": {
+    "minimum_report_candidates_tested": 10,
+    "purpose": "Verify deterministic report capacity only; not live evidence."
+  },
+  "local_verification": {
+    "tests": 104,
+    "python": "3.9.6",
+    "database_integrity_check": "ok",
+    "foreign_key_errors": 0
+  },
+  "github_actions": {
+    "workflow": "CI",
+    "run_id": 31898616391,
+    "commit": "a53e8511eaa226bfa44916781b233b4438e034ef",
+    "python_versions": [
+      "3.9",
+      "3.12"
+    ],
+    "conclusion": "success"
+  },
+  "constraint_reference": "spec/evidence/M2_VOLUME_CONSTRAINT.json",
+  "data_policy": "Live report artifacts remain under ignored data/reports. No source text, post identifier, username, permalink, raw response, or credential is committed."
+}

@@ -35,7 +35,7 @@
     {"id":"M2-013","owner":"COLLECTOR","title":"Verify public metric availability and store only observed metrics","status":"COMPLETE","depends_on":["M2-004","M2-005"]},
     {"id":"M2-014","owner":"QA_REVIEWER","title":"Validate migrations, dedupe, batches, features, patterns, security, and regression","status":"COMPLETE","depends_on":["M2-007","M2-012","M2-013"]},
     {"id":"M2-015","owner":"COLLECTOR","title":"Reach 100 unique public posts or record measured API constraint evidence","status":"COMPLETE","depends_on":["M2-005","M2-014"]},
-    {"id":"M2-016","owner":"QA_REVIEWER","title":"Generate and verify dataset and Pattern Report evidence with CI","status":"READY","depends_on":["M2-012","M2-014","M2-015"]},
+    {"id":"M2-016","owner":"QA_REVIEWER","title":"Generate and verify dataset and Pattern Report evidence with CI","status":"COMPLETE","depends_on":["M2-012","M2-014","M2-015"]},
     {"id":"M2-017","owner":"ORCHESTRATOR","title":"Mark M2 complete only after Definition of Done passes","status":"BLOCKED","depends_on":["M2-016"]}
   ]
 }
