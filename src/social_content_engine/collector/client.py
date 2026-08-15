@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, Mapping, cast
 
 BASE_URL = "https://graph.threads.net"
+POST_INSIGHT_METRICS = ("views", "likes", "replies", "reposts", "quotes", "shares")
 
 
 def utc_now() -> str:
@@ -66,6 +67,20 @@ class ThreadsClient:
         if until:
             params["until"] = until
         return self._get("/keyword_search", params)
+
+    def post_insights(
+        self,
+        *,
+        thread_id: str,
+        metrics: str = ",".join(POST_INSIGHT_METRICS),
+    ) -> HttpCapture:
+        if not thread_id or "/" in thread_id:
+            raise ValueError("thread_id must be a non-empty opaque ID")
+        requested = metrics.split(",")
+        if not requested or any(metric not in POST_INSIGHT_METRICS for metric in requested):
+            raise ValueError("metrics must contain only documented post insight metrics")
+        endpoint = "/" + urllib.parse.quote(thread_id, safe="") + "/insights"
+        return self._get(endpoint, {"metric": metrics})
 
     def _get(self, endpoint: str, params: Mapping[str, str]) -> HttpCapture:
         persisted_params = dict(params)

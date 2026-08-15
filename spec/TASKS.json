@@ -32,7 +32,7 @@
     {"id":"M2-010","owner":"DATA","title":"Define and migrate Pattern Instance and abstract Pattern contracts","status":"COMPLETE","depends_on":["M2-008","M2-009"]},
     {"id":"M2-011","owner":"INTELLIGENCE","title":"Implement reproducible clustering and Pattern materialization","status":"COMPLETE","depends_on":["M2-010"]},
     {"id":"M2-012","owner":"INTELLIGENCE","title":"Implement support ranking and human-review Pattern Report","status":"READY","depends_on":["M2-011"]},
-    {"id":"M2-013","owner":"COLLECTOR","title":"Verify public metric availability and store only observed metrics","status":"READY","depends_on":["M2-004","M2-005"]},
+    {"id":"M2-013","owner":"COLLECTOR","title":"Verify public metric availability and store only observed metrics","status":"COMPLETE","depends_on":["M2-004","M2-005"]},
     {"id":"M2-014","owner":"QA_REVIEWER","title":"Validate migrations, dedupe, batches, features, patterns, security, and regression","status":"READY","depends_on":["M2-007","M2-012","M2-013"]},
     {"id":"M2-015","owner":"COLLECTOR","title":"Reach 100 unique public posts or record measured API constraint evidence","status":"READY","depends_on":["M2-005","M2-014"]},
     {"id":"M2-016","owner":"QA_REVIEWER","title":"Generate and verify dataset and Pattern Report evidence with CI","status":"READY","depends_on":["M2-012","M2-014","M2-015"]},

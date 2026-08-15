@@ -54,6 +54,32 @@ class ClientTest(unittest.TestCase):
                 query="q", search_type="RECENT", fields="id", limit=1, search_mode="INVALID"
             )
 
+    @patch("social_content_engine.collector.client.urllib.request.urlopen")
+    def test_post_insights_uses_documented_metrics_without_token_provenance(
+        self, urlopen: object
+    ) -> None:
+        setattr(urlopen, "return_value", FakeResponse(b'{"data": []}'))
+        capture = ThreadsClient("insights-secret").post_insights(thread_id="thread:123")
+        request = getattr(urlopen, "call_args").args[0]
+        self.assertIn("/thread%3A123/insights?", request.full_url)
+        self.assertIn("access_token=insights-secret", request.full_url)
+        self.assertEqual(
+            "views,likes,replies,reposts,quotes,shares", capture.request_params["metric"]
+        )
+        self.assertNotIn("access_token", capture.request_params)
+        self.assertNotIn("insights-secret", repr(capture))
+
+    @patch("social_content_engine.collector.client.urllib.request.urlopen")
+    def test_post_insights_does_not_retry_403(self, urlopen: object) -> None:
+        error = urllib.error.HTTPError(
+            "https://graph.threads.net/id/insights", 403, "forbidden", Message(),
+            io.BytesIO(b'{"error":{"message":"forbidden"}}'),
+        )
+        setattr(urlopen, "side_effect", error)
+        result = ThreadsClient("token", max_retries=2).post_insights(thread_id="id")
+        self.assertEqual(403, result.status)
+        self.assertEqual(1, getattr(urlopen, "call_count"))
+
     @patch("social_content_engine.collector.client.time.sleep")
     @patch("social_content_engine.collector.client.urllib.request.urlopen")
     def test_retries_429_with_bound(self, urlopen: object, sleep: object) -> None:

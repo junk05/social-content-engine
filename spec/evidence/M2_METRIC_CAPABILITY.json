@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-08-16T02:26:47+09:00",
+  "endpoint": "/{thread_id}/insights",
+  "official_reference": "https://www.postman.com/meta/threads/request/ndeeu6p/get-post-insights",
+  "requested_metrics": [
+    "views",
+    "likes",
+    "replies",
+    "reposts",
+    "quotes",
+    "shares"
+  ],
+  "http_status": 500,
+  "api_error": {
+    "type": "THApiException",
+    "code": 10,
+    "message_class": "APPLICATION_PERMISSION_REQUIRED"
+  },
+  "stored_metric_count": 0,
+  "capability_status": "PERMISSION_DENIED_FOR_CURRENT_APP_OR_TOKEN",
+  "public_post_metric_availability": "UNKNOWN",
+  "notes": [
+    "The exact raw response remains in ignored local evidence storage.",
+    "No access token, source post identifier, username, permalink, or raw body is committed.",
+    "No metric value was inferred from the error response."
+  ]
+}
