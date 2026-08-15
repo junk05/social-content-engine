@@ -42,17 +42,29 @@ class ThreadsClient:
         fields: str,
         limit: int,
         after: str = "",
+        search_mode: str = "KEYWORD",
+        since: str = "",
+        until: str = "",
     ) -> HttpCapture:
         if search_type not in {"TOP", "RECENT"}:
             raise ValueError("search_type must be TOP or RECENT")
+        if search_mode not in {"KEYWORD", "TAG"}:
+            raise ValueError("search_mode must be KEYWORD or TAG")
+        if limit < 1 or limit > 50:
+            raise ValueError("limit must be between 1 and 50")
         params = {
             "q": query,
             "search_type": search_type,
+            "search_mode": search_mode,
             "fields": fields,
             "limit": str(limit),
         }
         if after:
             params["after"] = after
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
         return self._get("/keyword_search", params)
 
     def _get(self, endpoint: str, params: Mapping[str, str]) -> HttpCapture:

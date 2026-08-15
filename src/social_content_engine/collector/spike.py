@@ -34,8 +34,8 @@ def main(argv: Sequence[str] = ()) -> int:
     if not token:
         print("HG-01: set THREADS_ACCESS_TOKEN before running the live spike", file=sys.stderr)
         return 2
-    if args.limit < 1 or args.limit > 100:
-        print("--limit must be between 1 and 100", file=sys.stderr)
+    if args.limit < 1 or args.limit > 50:
+        print("--limit must be between 1 and 50", file=sys.stderr)
         return 2
 
     client = ThreadsClient(token)

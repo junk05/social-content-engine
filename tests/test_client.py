@@ -29,12 +29,30 @@ class ClientTest(unittest.TestCase):
     def test_token_is_sent_but_not_returned_in_provenance(self, urlopen: object) -> None:
         setattr(urlopen, "return_value", FakeResponse())
         capture = ThreadsClient("very-secret-token").keyword_search(
-            query="恋愛", search_type="RECENT", fields="id,text", limit=1
+            query="恋愛",
+            search_type="RECENT",
+            fields="id,text",
+            limit=1,
+            search_mode="TAG",
+            since="2026-01-01",
+            until="2026-02-01",
         )
         request = getattr(urlopen, "call_args").args[0]
         self.assertIn("access_token=very-secret-token", request.full_url)
         self.assertNotIn("access_token", capture.request_params)
         self.assertNotIn("very-secret-token", repr(capture))
+        self.assertEqual("TAG", capture.request_params["search_mode"])
+        self.assertEqual("2026-01-01", capture.request_params["since"])
+        self.assertEqual("2026-02-01", capture.request_params["until"])
+
+    def test_keyword_search_guards_documented_local_bounds(self) -> None:
+        client = ThreadsClient("token")
+        with self.assertRaises(ValueError):
+            client.keyword_search(query="q", search_type="RECENT", fields="id", limit=51)
+        with self.assertRaises(ValueError):
+            client.keyword_search(
+                query="q", search_type="RECENT", fields="id", limit=1, search_mode="INVALID"
+            )
 
     @patch("social_content_engine.collector.client.time.sleep")
     @patch("social_content_engine.collector.client.urllib.request.urlopen")
