@@ -53,13 +53,13 @@ def ingest_response(
         ).encode("utf-8")
         raw_sha = hashlib.sha256(raw_item).hexdigest()
         normalized_item = normalize_threads_post(item, raw_sha, normalized_at=retrieved_at)
-        repository.add_raw_post(
+        raw_post_id = repository.add_raw_post(
             collection_run_id=run_id,
             source_post_id=normalized_item["source_post_id"],
             raw_json=raw_item,
             raw_sha256=raw_sha,
             retrieved_at=retrieved_at,
         )
-        repository.upsert_normalized_post(normalized_item)
+        repository.upsert_normalized_post(normalized_item, source_raw_post_id=raw_post_id)
         normalized.append(normalized_item)
     return normalized

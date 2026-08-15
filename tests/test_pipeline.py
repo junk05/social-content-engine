@@ -35,6 +35,10 @@ class PipelineTest(unittest.TestCase):
                 self.assertEqual(2, repository.count("raw_posts"))
                 self.assertEqual(1, repository.count("normalized_posts"))
                 self.assertEqual(2, repository.count("collection_runs"))
+                versions = repository.connection.execute(
+                    "SELECT COUNT(*) FROM normalized_post_versions"
+                ).fetchone()[0]
+                self.assertEqual(1, versions)
                 rows = repository.connection.execute(
                     "SELECT raw_response, raw_response_sha256 FROM collection_runs ORDER BY id"
                 ).fetchall()

@@ -80,7 +80,7 @@ def analyze_post(
             "analysis_run_id": run_id,
             "source": post["source"],
             "source_post_id": post["source_post_id"],
-            "normalized_post_version": 1,
+            "normalized_post_version": post["normalized_post_version"],
             "analyzer_version": ANALYZER_VERSION,
             "taxonomy_version": TAXONOMY_VERSION,
             "prompt_version": PROMPT_VERSION,
