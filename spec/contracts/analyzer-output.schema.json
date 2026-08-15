@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/social-content-engine/analyzer-output.schema.json",
+  "title": "M1 Analyzer Output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "analysis_run_id", "source_post_id", "taxonomy_version",
+    "analyzer_version", "prompt_version", "model", "input_sha256", "actions",
+    "psychology_hypotheses", "structures", "content", "warnings", "analyzed_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "analysis_run_id": {"type": "string", "minLength": 1},
+    "source_post_id": {"type": "string", "minLength": 1},
+    "taxonomy_version": {"const": "M1_TAXONOMY_V1"},
+    "analyzer_version": {"type": "string", "minLength": 1},
+    "prompt_version": {"type": "string", "minLength": 1},
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "name", "parameters"],
+      "properties": {
+        "provider": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "parameters": {"type": "object"}
+      }
+    },
+    "input_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "actions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/actionItem"}
+    },
+    "psychology_hypotheses": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/psychologyItem"}
+    },
+    "structures": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/structureItem"}
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_topic", "secondary_topics", "entities", "keywords"],
+      "properties": {
+        "primary_topic": {"type": "string"},
+        "secondary_topics": {"$ref": "#/$defs/stringArray"},
+        "entities": {"$ref": "#/$defs/stringArray"},
+        "keywords": {"$ref": "#/$defs/stringArray"}
+      }
+    },
+    "warnings": {"$ref": "#/$defs/stringArray"},
+    "analyzed_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "stringArray": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quote", "start", "end"],
+      "properties": {
+        "quote": {"type": "string", "minLength": 1},
+        "start": {"type": "integer", "minimum": 0},
+        "end": {"type": "integer", "minimum": 1}
+      }
+    },
+    "baseItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "confidence", "evidence"],
+      "properties": {
+        "label": {"type": "string"},
+        "confidence": {"enum": ["HIGH", "MEDIUM", "LOW"]},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/evidence"}
+        }
+      }
+    },
+    "actionItem": {
+      "allOf": [
+        {"$ref": "#/$defs/baseItem"},
+        {"properties": {"label": {"enum": ["ASK", "ASSERT", "SHARE_EXPERIENCE", "ADVISE", "INVITE_RESPONSE", "EXPRESS_EMOTION", "EXPLAIN", "COMPARE", "ANNOUNCE", "OTHER"]}}}
+      ]
+    },
+    "psychologyItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "confidence", "evidence", "inference"],
+      "properties": {
+        "label": {"enum": ["SEEKING_VALIDATION", "SEEKING_CONNECTION", "UNCERTAINTY", "CONFLICT", "SELF_REFLECTION", "HOPE", "FRUSTRATION", "FEAR_OR_ANXIETY_EXPRESSED", "DESIRE_OR_LONGING", "BOUNDARY_SETTING", "OTHER"]},
+        "confidence": {"enum": ["HIGH", "MEDIUM", "LOW"]},
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/evidence"}
+        },
+        "inference": {"const": true}
+      }
+    },
+    "structureItem": {
+      "allOf": [
+        {"$ref": "#/$defs/baseItem"},
+        {"properties": {"label": {"enum": ["HOOK_FIRST", "QUESTION_LED", "STORY_ARC", "PROBLEM_SOLUTION", "LIST_OR_ENUMERATION", "CONTRAST", "CALL_TO_ACTION", "OPEN_LOOP", "SHORT_PUNCHY", "LONG_FORM", "OTHER"]}}}
+      ]
+    }
+  }
+}
