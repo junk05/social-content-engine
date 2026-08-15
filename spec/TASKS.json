@@ -6,9 +6,9 @@
     {"id":"M0-002","owner":"DATA","title":"Create raw and normalized contracts and SQLite repository","status":"COMPLETE","depends_on":[]},
     {"id":"M0-003","owner":"COLLECTOR","title":"Implement low-volume keyword search spike and exact raw capture","status":"COMPLETE","depends_on":["M0-001"]},
     {"id":"M0-004","owner":"DATA","title":"Normalize, preserve provenance, and deduplicate fixture data","status":"COMPLETE","depends_on":["M0-002","M0-003"]},
-    {"id":"M0-005","owner":"QA_REVIEWER","title":"Validate schemas, fixtures, tests, and CI","status":"IN_PROGRESS","depends_on":["M0-004"]},
+    {"id":"M0-005","owner":"QA_REVIEWER","title":"Validate schemas, fixtures, tests, and CI","status":"COMPLETE","depends_on":["M0-004"]},
     {"id":"M0-006","owner":"COLLECTOR","title":"Capture at least one real public Threads post","status":"COMPLETE","depends_on":["M0-003","M0-005"]},
-    {"id":"M0-007","owner":"QA_REVIEWER","title":"Sanitize live response into a committed fixture and confirm CI","status":"LOCAL_COMPLETE_CI_PENDING","depends_on":["M0-006"]},
+    {"id":"M0-007","owner":"QA_REVIEWER","title":"Sanitize live response into a committed fixture and confirm CI","status":"COMPLETE","depends_on":["M0-006"]},
     {"id":"M0-008","owner":"COLLECTOR","title":"Provide minimal Meta OAuth, deauthorization, and data-deletion callbacks","status":"COMPLETE","depends_on":["M0-001"]}
   ]
 }

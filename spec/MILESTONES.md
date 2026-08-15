@@ -2,7 +2,7 @@
 
 ## M0 — Real Threads data capture
 
-Status: `LIVE_VERIFIED_LOCAL_CI_PENDING`
+Status: `COMPLETE`
 
 Definition of Done:
 
@@ -21,9 +21,9 @@ The pipeline for items 4–7 is verified with a synthetic fixture. Satisfying th
 items with real data, beginning with item 3, requires a live credential and is
 tracked by HG-01 until configured.
 
-Items 1–9 are now locally verified with a real API response and a committed,
-sanitized fixture. Item 10 remains pending until the commits are pushed and the
-GitHub Actions workflow passes. Evidence: `evidence/M0_LIVE_VERIFICATION.json`.
+Items 1–10 are verified. The real API response was preserved locally, its
+sanitized fixture was committed, and GitHub Actions passed on Python 3.9 and
+3.12. Evidence: `evidence/M0_LIVE_VERIFICATION.json`.
 
 ## Deferred until M0 completion
 

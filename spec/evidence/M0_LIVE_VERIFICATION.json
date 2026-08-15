@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "LIVE_VERIFIED_LOCAL",
+  "status": "M0_COMPLETE",
   "verified_at": "2026-08-16T00:07:09+09:00",
   "source": "threads",
   "endpoint": "/keyword_search",
@@ -20,5 +20,12 @@
     "paging_traversal_verified": false
   },
   "fixture": "tests/fixtures/threads_keyword_search_live_sanitized.json",
+  "ci": {
+    "head_sha": "c5bb17804181f472e5ee6b43a70dfb413638061b",
+    "run_id": 31892304108,
+    "url": "https://github.com/junk05/social-content-engine/actions/runs/31892304108",
+    "python_3_9": "PASS",
+    "python_3_12": "PASS"
+  },
   "notes": "The live post was manually published by the authenticated Tester account because development-mode searches returned no App-role-external results. IDs, username, permalink, timestamp, cursor values, and text were sanitized before committing the fixture."
 }
