@@ -21,7 +21,7 @@ Items 1–10 are verified. The real API response was preserved locally, its sani
 
 ## M1 — Analyzer
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M1_ANALYZER.md` (`M1-ANALYZER-V1`).
 
@@ -41,6 +41,10 @@ Definition of Done:
 10. No credentials, live raw responses, or unsupported private inferences are committed.
 
 M1 does not include content generation, automatic publishing, virality prediction, creator profiling, dashboards, or Fortune Engine integration.
+
+Items 1–10 are verified. Local validation passed with 41 tests, and GitHub
+Actions passed on Python 3.9 and 3.12. Evidence:
+`evidence/M1_VERIFICATION.json`.
 
 ## Deferred until later milestones
 

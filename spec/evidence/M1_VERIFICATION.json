@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "milestone": "M1",
+  "status": "COMPLETE",
+  "verified_at": "2026-08-15T15:38:28Z",
+  "verified_commit": "2d532ccd130ad35d385be22afa695ffc38838f56",
+  "definition_of_done": {
+    "canonical_input_and_sha256": "PASS",
+    "output_schema_and_taxonomy": "PASS",
+    "append_only_persistence": "PASS",
+    "adapter_boundary_and_deterministic_mock": "PASS",
+    "evidence_span_validation": "PASS",
+    "orchestration_replay_and_cli": "PASS",
+    "golden_cases": "PASS",
+    "m0_regression": "PASS",
+    "credential_and_live_raw_exclusion": "PASS"
+  },
+  "local_verification": {
+    "command": "PATH=.venv/bin:$PATH sh scripts/check.sh",
+    "tests": 41,
+    "result": "PASS"
+  },
+  "ci": {
+    "run_id": 31893241181,
+    "url": "https://github.com/junk05/social-content-engine/actions/runs/31893241181",
+    "python_3_9": "PASS",
+    "python_3_12": "PASS"
+  },
+  "notes": [
+    "M0 raw capture, normalization, and provenance contracts were not changed.",
+    "No model credential or paid external model call is required for M1 verification."
+  ]
+}
