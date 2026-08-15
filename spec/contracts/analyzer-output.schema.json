@@ -44,8 +44,12 @@
       "additionalProperties": false,
       "required": ["primary_topic", "secondary_topics", "entities", "keywords"],
       "properties": {
-        "primary_topic": {"type": "string"},
-        "secondary_topics": {"$ref": "#/$defs/stringArray"},
+        "primary_topic": {"type": "string", "maxLength": 64},
+        "secondary_topics": {
+          "type": "array",
+          "items": {"type": "string", "maxLength": 64},
+          "uniqueItems": true
+        },
         "entities": {"$ref": "#/$defs/stringArray"},
         "keywords": {"$ref": "#/$defs/stringArray"}
       }
