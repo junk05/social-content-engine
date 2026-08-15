@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-006",
+  "status": "PASS_WITH_PARTIAL_DATASET",
+  "dataset_key": "m2-live-canary",
+  "dataset_version": 1,
+  "finalized_at": "2026-08-15T16:52:34+00:00",
+  "selected_members": 1,
+  "skipped_without_raw_provenance": 0,
+  "selection_spec_sha256": "03691f0962af5aaa0ef340d8f841af262e70903aa278a9695c5890e45effa441",
+  "immutability": "FINALIZED snapshot mutation is rejected by Repository APIs and SQLite triggers.",
+  "constraint_reference": "spec/evidence/M2_COLLECTION_CANARY.json",
+  "committed_data_policy": "No source post text, identifier, username, permalink, live raw response, or credential is committed."
+}

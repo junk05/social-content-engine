@@ -16,6 +16,7 @@ sce-threads-spike = "social_content_engine.collector.spike:main"
 sce-meta-callbacks = "social_content_engine.callbacks.server:main"
 sce-analyze = "social_content_engine.analyzer.cli:main"
 sce-threads-batch = "social_content_engine.collector.batch:main"
+sce-build-dataset = "social_content_engine.data.dataset:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
