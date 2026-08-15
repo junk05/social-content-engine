@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 data/raw/
+data/checkpoints/
+data/reports/
 .mypy_cache/
 .ruff_cache/
 dist/

@@ -38,6 +38,22 @@ def ingest_response(
         raw_response_sha256=response_sha,
         collector_version=collector_version,
     )
+    return derive_posts_from_response(
+        repository,
+        collection_run_id=run_id,
+        raw_response=raw_response,
+        completed_at=completed_at,
+    )
+
+
+def derive_posts_from_response(
+    repository: Repository,
+    *,
+    collection_run_id: int,
+    raw_response: bytes,
+    completed_at: str,
+) -> List[Dict[str, Any]]:
+    """Derive run-linked raw items and normalized versions from a stored response."""
     payload = json.loads(raw_response.decode("utf-8"))
     items = payload.get("data", [])
     if not isinstance(items, list):
@@ -54,7 +70,7 @@ def ingest_response(
         raw_sha = hashlib.sha256(raw_item).hexdigest()
         normalized_item = normalize_threads_post(item, raw_sha, normalized_at=retrieved_at)
         raw_post_id = repository.add_raw_post(
-            collection_run_id=run_id,
+            collection_run_id=collection_run_id,
             source_post_id=normalized_item["source_post_id"],
             raw_json=raw_item,
             raw_sha256=raw_sha,

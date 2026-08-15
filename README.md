@@ -109,3 +109,21 @@ versioned analysis run instead:
 Only normalized M0 data is read. Analyzer runs and validated output are appended
 to `analysis_runs` and `post_analysis`; raw and normalized evidence is not
 rewritten. See [the M1 contract](spec/M1_ANALYZER.md).
+
+## M2 bounded collection
+
+Run a credential-safe, resumable TOP/RECENT batch. Exact response bodies,
+collection-run provenance, normalized versions, checkpoints, and the summary
+report stay under ignored local `data/` paths.
+
+```bash
+export THREADS_ACCESS_TOKEN='...'
+.venv/bin/sce-threads-batch \
+  --query '恋愛' --query '人間関係' --query '心理' --query '美容' --query '仕事' \
+  --search-type RECENT --search-type TOP \
+  --page-limit 25 --max-requests 10 --target-unique 100 --hard-cap 200
+```
+
+Live requests are sequential with a minimum two-second interval. Empty pages,
+repeated cursors, request caps, HTTP errors, and malformed responses are explicit
+stop reasons; unavailable results or metrics are never fabricated.

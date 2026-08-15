@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-005",
+  "status": "PASS_WITH_COVERAGE_CONSTRAINT",
+  "executed_at": "2026-08-15T16:50:17Z",
+  "credential_handling": "THREADS_ACCESS_TOKEN was read from an ignored environment file and was not printed or persisted in request provenance.",
+  "runs": [
+    {
+      "kind": "single_genre_recent_canary",
+      "genres": ["恋愛"],
+      "search_types": ["RECENT"],
+      "requests": 1,
+      "http_statuses": [200],
+      "unique_posts": 0,
+      "stop_evidence": "EMPTY_PAGE"
+    },
+    {
+      "kind": "single_genre_top_canary",
+      "genres": ["恋愛"],
+      "search_types": ["TOP"],
+      "requests": 1,
+      "http_statuses": [200],
+      "unique_posts": 0,
+      "stop_evidence": "EMPTY_PAGE"
+    },
+    {
+      "kind": "known_sanitized_test_post_canary",
+      "genres": ["test_marker"],
+      "search_types": ["RECENT"],
+      "requests": 1,
+      "http_statuses": [200],
+      "unique_posts": 1,
+      "stop_evidence": "REQUEST_CAP_REACHED"
+    },
+    {
+      "kind": "five_genre_expansion_start",
+      "genres": ["恋愛", "人間関係", "心理", "美容", "仕事"],
+      "search_types": ["RECENT", "TOP"],
+      "requests": 10,
+      "http_statuses": [200, 200, 200, 200, 200, 200, 200, 200, 200, 200],
+      "unique_posts": 0,
+      "stop_evidence": "ALL_QUERY_PAGES_EMPTY"
+    }
+  ],
+  "local_provenance": {
+    "new_collection_batches": 4,
+    "new_batch_linked_runs": 13,
+    "known_post_observations_added": 1,
+    "database_integrity_check": "ok",
+    "foreign_key_errors": 0
+  },
+  "measured_constraint": {
+    "classification": "DEVELOPMENT_MODE_PUBLIC_SEARCH_COVERAGE",
+    "evidence": "The same token returned one known App-role test post but zero results for five general genres across both TOP and RECENT.",
+    "impact": "The 100-post target is not currently achievable with this App/token state; M2 must retain the measured partial result unless Meta App access changes.",
+    "unknowns": [
+      "Whether switching App mode or adding eligible tester accounts will expose broader public search results",
+      "Whether the empty result is caused by App review, role coverage, or another undocumented search constraint"
+    ]
+  },
+  "committed_data_policy": "No live raw response, source post identifier, username, permalink, or credential is committed."
+}
