@@ -1,5 +1,7 @@
 # Social Content Engine
 
+Threads分析ツール chatgpt
+
 M0 collects and preserves public Threads posts through Meta's official API. It
 does not generate or publish content.
 
