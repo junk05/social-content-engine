@@ -5,7 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -105,6 +105,8 @@ CREATE TABLE IF NOT EXISTS pattern_instances (
 """
 
 Migration = Tuple[int, str, Callable[[sqlite3.Connection], None]]
+PATTERN_INSTANCE_INPUT_CONTRACT = "M2_PATTERN_INSTANCE_INPUT_V1"
+PATTERN_SET_INPUT_CONTRACT = "M2_PATTERN_SET_INPUT_V1"
 
 
 def _utc_now() -> str:
@@ -115,6 +117,41 @@ def _canonical_json(document: Dict[str, Any]) -> str:
     return json.dumps(
         document, ensure_ascii=False, allow_nan=False, separators=(",", ":"), sort_keys=True
     )
+
+
+def pattern_instance_input_sha256(
+    *,
+    analysis_input_sha256: str,
+    first_line_input_sha256: str,
+    first_line_feature_sha256: str,
+    parent_ending_input_sha256: str,
+    parent_ending_feature_sha256: str,
+) -> str:
+    """Hash the fixed M2 pattern-instance evidence envelope."""
+    document = {
+        "contract_version": PATTERN_INSTANCE_INPUT_CONTRACT,
+        "analysis_input_sha256": analysis_input_sha256,
+        "first_line_input_sha256": first_line_input_sha256,
+        "first_line_feature_sha256": first_line_feature_sha256,
+        "parent_ending_input_sha256": parent_ending_input_sha256,
+        "parent_ending_feature_sha256": parent_ending_feature_sha256,
+    }
+    return hashlib.sha256(_canonical_json(document).encode("utf-8")).hexdigest()
+
+
+def pattern_set_input_sha256(
+    instance_input_sha256s: Sequence[str], feature_signature: Dict[str, Any]
+) -> str:
+    """Hash an order-independent set of instance evidence for pattern provenance."""
+    signature_json = _canonical_json(feature_signature)
+    document = {
+        "contract_version": PATTERN_SET_INPUT_CONTRACT,
+        "feature_signature_sha256": hashlib.sha256(
+            signature_json.encode("utf-8")
+        ).hexdigest(),
+        "instance_input_sha256s": sorted(instance_input_sha256s),
+    }
+    return hashlib.sha256(_canonical_json(document).encode("utf-8")).hexdigest()
 
 
 def _canonical_normalized_payload(post: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,6 +168,120 @@ def _canonical_normalized_payload(post: Dict[str, Any]) -> Dict[str, Any]:
         "media_type": post.get("media_type"),
         "raw_sha256": post["raw_sha256"],
     }
+
+
+_PATTERN_FORBIDDEN_KEYS = {
+    "text",
+    "quote",
+    "source_text",
+    "line_text",
+    "permalink",
+    "username",
+    "author_id",
+    "account_id",
+    "summary",
+    "description",
+}
+
+
+def _is_contract_identifier(value: Any) -> bool:
+    allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-"
+    return isinstance(value, str) and 0 < len(value) <= 128 and all(
+        character in allowed for character in value
+    )
+
+
+def _reject_pattern_leakage(value: Any) -> None:
+    if isinstance(value, dict):
+        if _PATTERN_FORBIDDEN_KEYS.intersection(value):
+            raise ValueError("pattern artifacts must not persist source text or identity")
+        for child in value.values():
+            _reject_pattern_leakage(child)
+    elif isinstance(value, list):
+        for child in value:
+            _reject_pattern_leakage(child)
+
+
+def _validate_pattern_signature(signature: Dict[str, Any]) -> None:
+    required = {
+        "first_line_hook_family",
+        "first_line_hook_subtype",
+        "parent_ending_availability",
+        "parent_cliffhanger_technique",
+    }
+    if set(signature) != required:
+        raise ValueError("pattern feature signature does not match the closed contract")
+    if signature["first_line_hook_family"] not in {
+        "EMPTY",
+        "QUESTION",
+        "CONTRARIAN",
+        "TARGETED",
+        "EMOTIONAL",
+        "OPEN_LOOP",
+        "STATEMENT",
+    }:
+        raise ValueError("invalid pattern first-line hook family")
+    if signature["first_line_hook_subtype"] not in {
+        "EMPTY",
+        "WHY_QUESTION",
+        "DIRECT_QUESTION",
+        "CONTRARIAN_ASSERTION",
+        "AUDIENCE_CALL_OUT",
+        "EMOTION_LED",
+        "CONTINUATION_CUE",
+        "PLAIN_STATEMENT",
+    }:
+        raise ValueError("invalid pattern first-line hook subtype")
+    if signature["parent_ending_availability"] not in {
+        "OBSERVED",
+        "NO_PARENT",
+        "PARENT_TEXT_UNAVAILABLE",
+        "RELATIONSHIP_AMBIGUOUS",
+    }:
+        raise ValueError("invalid pattern parent-ending availability")
+    if signature["parent_cliffhanger_technique"] not in {
+        "UNKNOWN",
+        "EXPLICIT_CONTINUATION",
+        "ELLIPSIS",
+        "UNANSWERED_QUESTION",
+        "COLON_LEAD_IN",
+        "NONE",
+    }:
+        raise ValueError("invalid pattern parent cliffhanger technique")
+
+
+def _validate_pattern_ranking(ranking: Dict[str, Any]) -> None:
+    if set(ranking) != {"method", "score", "rank"}:
+        raise ValueError("pattern ranking does not match the closed contract")
+    if not _is_contract_identifier(ranking["method"]):
+        raise ValueError("pattern ranking method is required")
+    score = ranking["score"]
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        raise ValueError("pattern ranking score must be numeric")
+    rank = ranking["rank"]
+    if isinstance(rank, bool) or not isinstance(rank, int) or rank < 1:
+        raise ValueError("pattern rank must be a positive integer")
+
+
+def _validate_pattern_provenance(provenance: Dict[str, Any]) -> None:
+    required = {
+        "dataset_snapshot_id",
+        "miner_version",
+        "feature_contract_version",
+        "input_sha256",
+    }
+    if set(provenance) != required:
+        raise ValueError("pattern provenance does not match the closed contract")
+    if not isinstance(provenance["dataset_snapshot_id"], int):
+        raise ValueError("pattern provenance requires a dataset snapshot id")
+    for key in ("miner_version", "feature_contract_version"):
+        if not _is_contract_identifier(provenance[key]):
+            raise ValueError("pattern provenance version is required")
+    value = provenance["input_sha256"]
+    if not isinstance(value, str) or len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise ValueError("pattern provenance input hash is invalid")
 
 
 def _table_columns(connection: sqlite3.Connection, table: str) -> Dict[str, sqlite3.Row]:
@@ -440,6 +591,56 @@ def _migration_6_parent_ending_features(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migration_7_pattern_evidence_contract(connection: sqlite3.Connection) -> None:
+    legacy_patterns = int(connection.execute("SELECT COUNT(*) FROM patterns").fetchone()[0])
+    legacy_instances = int(
+        connection.execute("SELECT COUNT(*) FROM pattern_instances").fetchone()[0]
+    )
+    if legacy_patterns or legacy_instances:
+        raise RuntimeError("legacy pattern tables contain unversioned data; migration refused")
+    connection.execute("DROP TABLE pattern_instances")
+    connection.execute("DROP TABLE patterns")
+    connection.execute(
+        """CREATE TABLE patterns (
+          id INTEGER PRIMARY KEY,
+          pattern_key TEXT NOT NULL,
+          version INTEGER NOT NULL CHECK(version >= 1),
+          feature_signature_json TEXT NOT NULL,
+          feature_signature_sha256 TEXT NOT NULL,
+          member_count INTEGER NOT NULL CHECK(member_count >= 2),
+          ranking_json TEXT NOT NULL,
+          provenance_json TEXT NOT NULL,
+          review_status TEXT NOT NULL
+            CHECK(review_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+          created_at TEXT NOT NULL,
+          UNIQUE(pattern_key, version)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE pattern_instances (
+          id INTEGER PRIMARY KEY,
+          pattern_id INTEGER NOT NULL REFERENCES patterns(id),
+          source TEXT NOT NULL,
+          source_post_id TEXT NOT NULL,
+          analysis_run_row_id INTEGER NOT NULL REFERENCES analysis_runs(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          normalized_version INTEGER NOT NULL CHECK(normalized_version >= 1),
+          first_line_feature_id INTEGER NOT NULL REFERENCES first_line_features(id),
+          parent_ending_feature_id INTEGER NOT NULL REFERENCES parent_ending_features(id),
+          extractor_version TEXT NOT NULL,
+          feature_contract_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          feature_json TEXT NOT NULL,
+          feature_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          FOREIGN KEY(source, source_post_id)
+            REFERENCES normalized_posts(source, source_post_id),
+          UNIQUE(pattern_id, source, source_post_id),
+          UNIQUE(pattern_id, analysis_run_row_id)
+        )"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -447,6 +648,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (4, "analysis-batches-pinned-dataset-versions-v1", _migration_4_analysis_batches),
     (5, "first-line-features-no-source-text-v1", _migration_5_first_line_features),
     (6, "parent-ending-features-thread-relationships-v1", _migration_6_parent_ending_features),
+    (7, "closed-pattern-evidence-contract-v1", _migration_7_pattern_evidence_contract),
 )
 
 
@@ -887,6 +1089,8 @@ class Repository:
             "analysis_batch_items",
             "first_line_features",
             "parent_ending_features",
+            "patterns",
+            "pattern_instances",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
@@ -1575,3 +1779,205 @@ class Repository:
             "feature_sha256": feature_sha256,
             "reused": False,
         }
+
+    def create_pattern(
+        self,
+        *,
+        pattern_key: str,
+        version: int,
+        feature_signature: Dict[str, Any],
+        ranking: Dict[str, Any],
+        provenance: Dict[str, Any],
+        review_status: str,
+        instances: Sequence[Dict[str, Any]],
+        created_at: str,
+    ) -> int:
+        """Persist one closed pattern backed by at least two distinct source posts."""
+        if not _is_contract_identifier(pattern_key) or version < 1:
+            raise ValueError("pattern identity is invalid")
+        if review_status not in {"PENDING", "APPROVED", "REJECTED"}:
+            raise ValueError("invalid pattern review status")
+        _reject_pattern_leakage(feature_signature)
+        _reject_pattern_leakage(ranking)
+        _reject_pattern_leakage(provenance)
+        _validate_pattern_signature(feature_signature)
+        _validate_pattern_ranking(ranking)
+        _validate_pattern_provenance(provenance)
+        required_instance_keys = {
+            "source",
+            "source_post_id",
+            "analysis_run_row_id",
+            "normalized_post_version_id",
+            "first_line_feature_id",
+            "parent_ending_feature_id",
+            "extractor_version",
+            "feature_contract_version",
+            "input_sha256",
+            "feature",
+            "created_at",
+        }
+        if any(set(instance) != required_instance_keys for instance in instances):
+            raise ValueError("pattern instance fields do not match the closed contract")
+        distinct_sources = {
+            (instance["source"], instance["source_post_id"]) for instance in instances
+        }
+        if len(distinct_sources) < 2:
+            raise ValueError("pattern requires at least two distinct source posts")
+        dataset_snapshot_id = int(provenance["dataset_snapshot_id"])
+        snapshot = self.connection.execute(
+            "SELECT status FROM dataset_snapshots WHERE id = ?", (dataset_snapshot_id,)
+        ).fetchone()
+        if snapshot is None or snapshot["status"] != "FINALIZED":
+            raise ValueError("pattern provenance requires a finalized dataset snapshot")
+        validated_instances = []
+        for instance in instances:
+            feature = instance["feature"]
+            if not isinstance(feature, dict):
+                raise ValueError("pattern instance feature must be an object")
+            _reject_pattern_leakage(feature)
+            _validate_pattern_signature(feature)
+            if feature != feature_signature:
+                raise ValueError("pattern instance does not match the pattern signature")
+            input_hash = instance["input_sha256"]
+            if not isinstance(input_hash, str) or len(input_hash) != 64 or any(
+                character not in "0123456789abcdef" for character in input_hash
+            ):
+                raise ValueError("pattern instance input hash is invalid")
+            if not _is_contract_identifier(instance["extractor_version"]) or not (
+                _is_contract_identifier(instance["feature_contract_version"])
+            ):
+                raise ValueError("pattern instance contract version is invalid")
+            link = self.connection.execute(
+                """SELECT analysis_runs.input_sha256 AS analysis_input_sha256,
+                          first_line_features.input_sha256 AS first_input_sha256,
+                          first_line_features.feature_sha256 AS first_feature_sha256,
+                          parent_ending_features.input_sha256 AS ending_input_sha256,
+                          parent_ending_features.feature_sha256 AS ending_feature_sha256,
+                          first_line_features.feature_json AS first_json,
+                          parent_ending_features.feature_json AS ending_json,
+                          normalized_post_versions.version AS normalized_version
+                FROM analysis_runs
+                JOIN normalized_post_versions
+                  ON normalized_post_versions.id = analysis_runs.normalized_post_version_id
+                JOIN normalized_posts
+                  ON normalized_posts.id = normalized_post_versions.normalized_post_id
+                JOIN first_line_features
+                  ON first_line_features.id = ?
+                 AND first_line_features.analysis_run_row_id = analysis_runs.id
+                 AND first_line_features.normalized_post_version_id = normalized_post_versions.id
+                JOIN parent_ending_features
+                  ON parent_ending_features.id = ?
+                 AND parent_ending_features.child_analysis_run_row_id = analysis_runs.id
+                 AND parent_ending_features.child_normalized_post_version_id =
+                     normalized_post_versions.id
+                JOIN dataset_members
+                  ON dataset_members.dataset_snapshot_id = ?
+                 AND dataset_members.normalized_post_version_id = normalized_post_versions.id
+                WHERE analysis_runs.id = ? AND analysis_runs.status = 'SUCCEEDED'
+                  AND normalized_posts.source = ? AND normalized_posts.source_post_id = ?
+                  AND normalized_post_versions.id = ?""",
+                (
+                    instance["first_line_feature_id"],
+                    instance["parent_ending_feature_id"],
+                    dataset_snapshot_id,
+                    instance["analysis_run_row_id"],
+                    instance["source"],
+                    instance["source_post_id"],
+                    instance["normalized_post_version_id"],
+                ),
+            ).fetchone()
+            if link is None:
+                raise ValueError("pattern instance provenance is inconsistent")
+            first = json.loads(str(link["first_json"]))
+            ending = json.loads(str(link["ending_json"]))
+            derived = {
+                "first_line_hook_family": first.get("hook_family"),
+                "first_line_hook_subtype": first.get("hook_subtype"),
+                "parent_ending_availability": ending.get("availability"),
+                "parent_cliffhanger_technique": ending.get("cliffhanger_technique"),
+            }
+            if derived != feature:
+                raise ValueError("pattern instance feature does not match feature evidence")
+            expected_input_hash = pattern_instance_input_sha256(
+                analysis_input_sha256=str(link["analysis_input_sha256"]),
+                first_line_input_sha256=str(link["first_input_sha256"]),
+                first_line_feature_sha256=str(link["first_feature_sha256"]),
+                parent_ending_input_sha256=str(link["ending_input_sha256"]),
+                parent_ending_feature_sha256=str(link["ending_feature_sha256"]),
+            )
+            if input_hash != expected_input_hash:
+                raise ValueError("pattern instance input hash does not match feature evidence")
+            feature_json = _canonical_json(feature)
+            validated_instances.append(
+                (
+                    instance,
+                    feature_json,
+                    hashlib.sha256(feature_json.encode("utf-8")).hexdigest(),
+                    int(link["normalized_version"]),
+                )
+            )
+        signature_json = _canonical_json(feature_signature)
+        expected_set_hash = pattern_set_input_sha256(
+            [str(instance["input_sha256"]) for instance in instances], feature_signature
+        )
+        if provenance["input_sha256"] != expected_set_hash:
+            raise ValueError("pattern provenance input hash does not match instance evidence")
+        with self.connection:
+            cursor = self.connection.execute(
+                """INSERT INTO patterns
+                (pattern_key, version, feature_signature_json, feature_signature_sha256,
+                 member_count, ranking_json, provenance_json, review_status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    pattern_key,
+                    version,
+                    signature_json,
+                    hashlib.sha256(signature_json.encode("utf-8")).hexdigest(),
+                    len(validated_instances),
+                    _canonical_json(ranking),
+                    _canonical_json(provenance),
+                    review_status,
+                    created_at,
+                ),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return a pattern id")
+            pattern_id = int(cursor.lastrowid)
+            for instance, feature_json, feature_sha256, normalized_version in validated_instances:
+                self.connection.execute(
+                    """INSERT INTO pattern_instances
+                    (pattern_id, source, source_post_id, analysis_run_row_id,
+                     normalized_post_version_id, normalized_version, first_line_feature_id,
+                     parent_ending_feature_id, extractor_version,
+                     feature_contract_version, input_sha256, feature_json, feature_sha256,
+                     created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        pattern_id,
+                        instance["source"],
+                        instance["source_post_id"],
+                        instance["analysis_run_row_id"],
+                        instance["normalized_post_version_id"],
+                        normalized_version,
+                        instance["first_line_feature_id"],
+                        instance["parent_ending_feature_id"],
+                        instance["extractor_version"],
+                        instance["feature_contract_version"],
+                        instance["input_sha256"],
+                        feature_json,
+                        feature_sha256,
+                        instance["created_at"],
+                    ),
+                )
+        return pattern_id
+
+    def review_pattern(self, pattern_id: int, review_status: str) -> None:
+        if review_status not in {"APPROVED", "REJECTED"}:
+            raise ValueError("review must approve or reject a pending pattern")
+        cursor = self.connection.execute(
+            """UPDATE patterns SET review_status = ?
+            WHERE id = ? AND review_status = 'PENDING'""",
+            (review_status, pattern_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("pattern is not pending review")
