@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-017",
+  "decision": "DO_NOT_MARK_COMPLETE",
+  "status": "TRUE_BLOCKER",
+  "checks": [
+    {"item": 1, "status": "CONSTRAINT_PROVEN_BUT_NO_COMPLETION_ADJUSTMENT", "evidence": "spec/evidence/M2_VOLUME_CONSTRAINT.json"},
+    {"item": 2, "status": "UNSUPPORTED_BY_CURRENT_API_COVERAGE", "evidence": "spec/evidence/M2_COLLECTION_CANARY.json"},
+    {"item": 3, "status": "PASS"},
+    {"item": 4, "status": "PASS"},
+    {"item": 5, "status": "PASS_WITH_METRICS_UNKNOWN", "evidence": "spec/evidence/M2_METRIC_CAPABILITY.json"},
+    {"item": 6, "status": "PASS", "evidence": "spec/evidence/M2_ANALYSIS_BATCH_CANARY.json"},
+    {"item": 7, "status": "PASS"},
+    {"item": 8, "status": "PASS_IN_TESTS"},
+    {"item": 9, "status": "BLOCKED_LIVE_CROSS_POST_EVIDENCE", "evidence": "spec/evidence/M2_PATTERN_REPORT_LIVE.json"},
+    {"item": 10, "status": "PASS_WITH_ZERO_LIVE_CANDIDATES"},
+    {"item": 11, "status": "PASS"},
+    {"item": 12, "status": "PASS", "github_actions_run_id": 31898685409},
+    {"item": 13, "status": "NOT_ELIGIBLE"}
+  ],
+  "verified_implementation": {
+    "local_tests": 104,
+    "local_python": "3.9.6",
+    "github_actions_python": ["3.9", "3.12"],
+    "github_actions_conclusion": "success",
+    "database_integrity_check": "ok",
+    "foreign_key_errors": 0
+  },
+  "blocking_condition": "The current Meta App/token returns one known App-role marker post but no general public results across five genres and TOP/RECENT. The finalized live dataset therefore contains one post and cannot produce any cross-post Pattern with two independent source references.",
+  "required_external_change": "Broader Threads keyword-search coverage must become available, for example through the applicable Meta App access/review state. After that change, rerun the bounded collection plan and M2-006 through M2-017.",
+  "non_decision": "The live Pattern threshold is not reduced to zero because doing so would falsely claim that cross-post pattern mining was empirically completed."
+}
