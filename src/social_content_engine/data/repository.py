@@ -1175,7 +1175,7 @@ class Repository:
              normalized_post_version_id, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING')""",
             values[:9]
-            + (json.dumps(values[9], ensure_ascii=False, sort_keys=True),)
+            + (_canonical_json(values[9]),)
             + values[10:]
             + (int(version["id"]),),
         )
@@ -1254,7 +1254,7 @@ class Repository:
                 identity["prompt_version"],
                 identity["model_provider"],
                 identity["model_name"],
-                json.dumps(identity["model_parameters"], ensure_ascii=False, sort_keys=True),
+                _canonical_json(identity["model_parameters"]),
                 identity["input_sha256"],
                 identity["normalized_post_version_id"],
             ),
@@ -1791,6 +1791,7 @@ class Repository:
         review_status: str,
         instances: Sequence[Dict[str, Any]],
         created_at: str,
+        replace_derived: bool = False,
     ) -> int:
         """Persist one closed pattern backed by at least two distinct source posts."""
         if not _is_contract_identifier(pattern_key) or version < 1:
@@ -1922,27 +1923,72 @@ class Repository:
         )
         if provenance["input_sha256"] != expected_set_hash:
             raise ValueError("pattern provenance input hash does not match instance evidence")
-        with self.connection:
-            cursor = self.connection.execute(
-                """INSERT INTO patterns
-                (pattern_key, version, feature_signature_json, feature_signature_sha256,
-                 member_count, ranking_json, provenance_json, review_status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    pattern_key,
-                    version,
-                    signature_json,
-                    hashlib.sha256(signature_json.encode("utf-8")).hexdigest(),
-                    len(validated_instances),
-                    _canonical_json(ranking),
-                    _canonical_json(provenance),
-                    review_status,
-                    created_at,
-                ),
+        ranking_json = _canonical_json(ranking)
+        provenance_json = _canonical_json(provenance)
+        existing = self.connection.execute(
+            "SELECT * FROM patterns WHERE pattern_key = ? AND version = ?",
+            (pattern_key, version),
+        ).fetchone()
+        if existing is not None:
+            existing_hashes = sorted(
+                str(row["input_sha256"])
+                for row in self.connection.execute(
+                    "SELECT input_sha256 FROM pattern_instances WHERE pattern_id = ?",
+                    (int(existing["id"]),),
+                ).fetchall()
             )
-            if cursor.lastrowid is None:
-                raise RuntimeError("SQLite did not return a pattern id")
-            pattern_id = int(cursor.lastrowid)
+            desired_hashes = sorted(str(instance["input_sha256"]) for instance in instances)
+            unchanged = (
+                str(existing["feature_signature_json"]) == signature_json
+                and int(existing["member_count"]) == len(validated_instances)
+                and str(existing["ranking_json"]) == ranking_json
+                and str(existing["provenance_json"]) == provenance_json
+                and existing_hashes == desired_hashes
+            )
+            if unchanged:
+                return int(existing["id"])
+            if not replace_derived:
+                raise sqlite3.IntegrityError("pattern identity already exists")
+        with self.connection:
+            if existing is None:
+                cursor = self.connection.execute(
+                    """INSERT INTO patterns
+                    (pattern_key, version, feature_signature_json, feature_signature_sha256,
+                     member_count, ranking_json, provenance_json, review_status, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        pattern_key,
+                        version,
+                        signature_json,
+                        hashlib.sha256(signature_json.encode("utf-8")).hexdigest(),
+                        len(validated_instances),
+                        ranking_json,
+                        provenance_json,
+                        review_status,
+                        created_at,
+                    ),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a pattern id")
+                pattern_id = int(cursor.lastrowid)
+            else:
+                pattern_id = int(existing["id"])
+                self.connection.execute(
+                    """UPDATE patterns SET feature_signature_json = ?,
+                              feature_signature_sha256 = ?, member_count = ?,
+                              ranking_json = ?, provenance_json = ? WHERE id = ?""",
+                    (
+                        signature_json,
+                        hashlib.sha256(signature_json.encode("utf-8")).hexdigest(),
+                        len(validated_instances),
+                        ranking_json,
+                        provenance_json,
+                        pattern_id,
+                    ),
+                )
+                self.connection.execute(
+                    "DELETE FROM pattern_instances WHERE pattern_id = ?", (pattern_id,)
+                )
             for instance, feature_json, feature_sha256, normalized_version in validated_instances:
                 self.connection.execute(
                     """INSERT INTO pattern_instances
