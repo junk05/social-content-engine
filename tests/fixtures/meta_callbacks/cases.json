@@ -1,0 +1,29 @@
+{
+  "oauth_success": {
+    "method": "GET",
+    "path": "/meta/oauth/callback",
+    "query": {"code": "fixture-authorization-code", "state": "fixture-state"},
+    "expected_status": 200,
+    "expected_body": {"status": "authorization_code_received", "message": "Exchange the code from the browser URL; it is not stored by this server."}
+  },
+  "oauth_denied": {
+    "method": "GET",
+    "path": "/meta/oauth/callback",
+    "query": {"error": "access_denied", "error_reason": "user_denied", "error_description": "Synthetic fixture", "state": "fixture-state"},
+    "expected_status": 400,
+    "expected_body": {"status": "authorization_denied", "error": "access_denied", "error_reason": "user_denied", "error_description": "Synthetic fixture"}
+  },
+  "deauthorization": {
+    "method": "POST",
+    "path": "/meta/deauthorization",
+    "payload": {"algorithm": "HMAC-SHA256", "issued_at": 1786766400, "user_id": "fixture-user-001"},
+    "expected_status": 200,
+    "expected_body": {"status": "accepted"}
+  },
+  "data_deletion": {
+    "method": "POST",
+    "path": "/meta/data-deletion",
+    "payload": {"algorithm": "HMAC-SHA256", "issued_at": 1786766400, "user_id": "fixture-user-001"},
+    "expected_status": 200
+  }
+}

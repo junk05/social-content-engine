@@ -30,3 +30,56 @@ export THREADS_ACCESS_TOKEN='...'
 The command stores the exact response body under ignored `data/raw/` and in the
 SQLite collection run, then derives normalized posts. Access tokens are excluded
 from stored request provenance.
+
+## Meta callback server
+
+The framework-free callback server provides the three URLs required by the Meta
+App dashboard. It is intended only for the M0 authorization setup.
+
+Generate a one-time OAuth state and configure secrets in the current shell. Do
+not paste or commit the App Secret.
+
+```bash
+export THREADS_APP_SECRET='Threads App Secret from Meta'
+export META_OAUTH_STATE="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export META_PUBLIC_BASE_URL='https://your-temporary-tunnel-host.example'
+export META_CALLBACK_HOST='127.0.0.1'
+export META_CALLBACK_PORT='8787'
+.venv/bin/sce-meta-callbacks
+```
+
+Expose `http://127.0.0.1:8787` through a temporary HTTPS tunnel. For example, if
+`cloudflared` is already installed:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:8787
+```
+
+Restart the server after setting `META_PUBLIC_BASE_URL` to the HTTPS origin shown
+by the tunnel. Register these exact URLs in Meta:
+
+```text
+OAuth Redirect Callback URL:
+https://<tunnel-host>/meta/oauth/callback
+
+Deauthorization Callback URL:
+https://<tunnel-host>/meta/deauthorization
+
+Data Deletion Request URL:
+https://<tunnel-host>/meta/data-deletion
+```
+
+For OAuth authorization, pass the same callback URL as `redirect_uri` and pass
+the current `META_OAUTH_STATE` as `state`. The callback verifies state and leaves
+the authorization code visible in the browser URL without saving or logging it.
+When exchanging the code at `https://graph.threads.net/oauth/access_token`, use
+the identical `redirect_uri`.
+
+The deletion response points to:
+
+```text
+https://<tunnel-host>/meta/data-deletion/status?code=<confirmation_code>
+```
+
+See [the callback contract](spec/META_CALLBACKS.md) for methods, parameters,
+responses, and signature verification rules.
