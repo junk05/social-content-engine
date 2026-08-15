@@ -370,10 +370,45 @@ def _migration_3_dataset_expansion(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migration_4_analysis_batches(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE analysis_batches (
+          id INTEGER PRIMARY KEY,
+          batch_key TEXT NOT NULL UNIQUE,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          analyzer_version TEXT NOT NULL,
+          taxonomy_version TEXT NOT NULL,
+          prompt_version TEXT NOT NULL,
+          model_provider TEXT NOT NULL,
+          model_name TEXT NOT NULL,
+          model_parameters_json TEXT NOT NULL,
+          config_sha256 TEXT NOT NULL,
+          status TEXT NOT NULL CHECK(status IN ('RUNNING', 'SUCCEEDED', 'PARTIAL_FAILED')),
+          started_at TEXT NOT NULL,
+          completed_at TEXT
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE analysis_batch_items (
+          id INTEGER PRIMARY KEY,
+          analysis_batch_id INTEGER NOT NULL REFERENCES analysis_batches(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          status TEXT NOT NULL CHECK(status IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED')),
+          analysis_run_row_id INTEGER REFERENCES analysis_runs(id),
+          error_code TEXT,
+          attempt INTEGER NOT NULL DEFAULT 0 CHECK(attempt >= 0),
+          started_at TEXT,
+          completed_at TEXT,
+          UNIQUE(analysis_batch_id, normalized_post_version_id)
+        )"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
     (3, "collection-batches-datasets-metric-observations-v1", _migration_3_dataset_expansion),
+    (4, "analysis-batches-pinned-dataset-versions-v1", _migration_4_analysis_batches),
 )
 
 
@@ -810,6 +845,8 @@ class Repository:
             "dataset_snapshots",
             "dataset_members",
             "post_metric_observations",
+            "analysis_batches",
+            "analysis_batch_items",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
@@ -832,6 +869,23 @@ class Repository:
             raise KeyError("normalized post not found: " + source + "/" + source_post_id)
         return dict(row)
 
+    def get_normalized_post_version(self, version_id: int) -> Dict[str, Any]:
+        """Load the immutable canonical payload pinned by a dataset member."""
+        row = self.connection.execute(
+            """SELECT id, version, canonical_payload_json
+            FROM normalized_post_versions WHERE id = ?""",
+            (version_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError("normalized post version not found: " + str(version_id))
+        payload = json.loads(str(row["canonical_payload_json"]))
+        if not isinstance(payload, dict):
+            raise RuntimeError("normalized post version payload is not an object")
+        result: Dict[str, Any] = dict(payload)
+        result["normalized_post_version_id"] = int(row["id"])
+        result["normalized_post_version"] = int(row["version"])
+        return result
+
     def start_analysis_run(self, metadata: Dict[str, Any]) -> int:
         """Record an analyzer attempt before calling or validating an adapter."""
         columns = (
@@ -849,6 +903,7 @@ class Repository:
             "analyzed_at",
         )
         values = tuple(metadata[name] for name in columns)
+        version_id = metadata.get("normalized_post_version_id")
         version = self.connection.execute(
             """SELECT normalized_post_versions.id
             FROM normalized_posts
@@ -856,8 +911,15 @@ class Repository:
               ON normalized_post_versions.normalized_post_id = normalized_posts.id
             WHERE normalized_posts.source = ?
               AND normalized_posts.source_post_id = ?
-              AND normalized_post_versions.version = ?""",
-            (metadata["source"], metadata["source_post_id"], metadata["normalized_post_version"]),
+              AND normalized_post_versions.version = ?
+              AND (? IS NULL OR normalized_post_versions.id = ?)""",
+            (
+                metadata["source"],
+                metadata["source_post_id"],
+                metadata["normalized_post_version"],
+                version_id,
+                version_id,
+            ),
         ).fetchone()
         if version is None:
             raise ValueError("normalized post version not found for analysis run")
@@ -924,7 +986,8 @@ class Repository:
     def find_reusable_analysis(self, identity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Return an identical successful analysis, if one already exists."""
         row = self.connection.execute(
-            """SELECT analysis_runs.analysis_run_id, post_analysis.payload_json
+            """SELECT analysis_runs.id AS analysis_run_row_id,
+                      analysis_runs.analysis_run_id, post_analysis.payload_json
             FROM analysis_runs
             JOIN post_analysis ON post_analysis.analysis_run_row_id = analysis_runs.id
             WHERE analysis_runs.source = ?
@@ -932,9 +995,11 @@ class Repository:
               AND analysis_runs.analyzer_version = ?
               AND analysis_runs.taxonomy_version = ?
               AND analysis_runs.prompt_version = ?
+              AND analysis_runs.model_provider = ?
               AND analysis_runs.model_name = ?
               AND analysis_runs.model_parameters_json = ?
               AND analysis_runs.input_sha256 = ?
+              AND analysis_runs.normalized_post_version_id = ?
               AND analysis_runs.status = 'SUCCEEDED'
             ORDER BY analysis_runs.id DESC LIMIT 1""",
             (
@@ -943,14 +1008,173 @@ class Repository:
                 identity["analyzer_version"],
                 identity["taxonomy_version"],
                 identity["prompt_version"],
+                identity["model_provider"],
                 identity["model_name"],
                 json.dumps(identity["model_parameters"], ensure_ascii=False, sort_keys=True),
                 identity["input_sha256"],
+                identity["normalized_post_version_id"],
             ),
         ).fetchone()
         if row is None:
             return None
         return {
+            "analysis_run_row_id": int(row["analysis_run_row_id"]),
             "analysis_run_id": str(row["analysis_run_id"]),
             "payload": json.loads(str(row["payload_json"])),
         }
+
+    def create_analysis_batch(
+        self,
+        batch_key: str,
+        dataset_snapshot_id: int,
+        config: Dict[str, Any],
+        *,
+        started_at: Optional[str] = None,
+    ) -> int:
+        """Create work items from an immutable finalized dataset snapshot."""
+        snapshot = self.connection.execute(
+            "SELECT status FROM dataset_snapshots WHERE id = ?", (dataset_snapshot_id,)
+        ).fetchone()
+        if snapshot is None or snapshot["status"] != "FINALIZED":
+            raise ValueError("analysis batch requires a finalized dataset snapshot")
+        parameters = config.get("model_parameters")
+        if not isinstance(parameters, dict):
+            raise ValueError("model_parameters must be an object")
+        required = (
+            "analyzer_version",
+            "taxonomy_version",
+            "prompt_version",
+            "model_provider",
+            "model_name",
+        )
+        if any(not isinstance(config.get(key), str) or not config[key] for key in required):
+            raise ValueError("analysis batch configuration is incomplete")
+        canonical_config = _canonical_json(config)
+        config_sha256 = hashlib.sha256(canonical_config.encode("utf-8")).hexdigest()
+        with self.connection:
+            cursor = self.connection.execute(
+                """INSERT INTO analysis_batches
+                (batch_key, dataset_snapshot_id, analyzer_version, taxonomy_version,
+                 prompt_version, model_provider, model_name, model_parameters_json,
+                 config_sha256, status, started_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING', ?)""",
+                (
+                    batch_key,
+                    dataset_snapshot_id,
+                    config["analyzer_version"],
+                    config["taxonomy_version"],
+                    config["prompt_version"],
+                    config["model_provider"],
+                    config["model_name"],
+                    _canonical_json(parameters),
+                    config_sha256,
+                    started_at or _utc_now(),
+                ),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return an analysis batch id")
+            batch_id = int(cursor.lastrowid)
+            self.connection.execute(
+                """INSERT INTO analysis_batch_items
+                (analysis_batch_id, normalized_post_version_id, status)
+                SELECT ?, normalized_post_version_id, 'PENDING'
+                FROM dataset_members WHERE dataset_snapshot_id = ? ORDER BY ordinal""",
+                (batch_id, dataset_snapshot_id),
+            )
+        return batch_id
+
+    def get_analysis_batch(self, batch_id: int) -> Dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM analysis_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError("analysis batch not found: " + str(batch_id))
+        result = dict(row)
+        result["model_parameters"] = json.loads(str(result.pop("model_parameters_json")))
+        return result
+
+    def pending_analysis_batch_items(self, batch_id: int) -> Tuple[Dict[str, Any], ...]:
+        rows = self.connection.execute(
+            """SELECT * FROM analysis_batch_items
+            WHERE analysis_batch_id = ? AND status != 'SUCCEEDED' ORDER BY id""",
+            (batch_id,),
+        ).fetchall()
+        return tuple(dict(row) for row in rows)
+
+    def restart_analysis_batch(self, batch_id: int) -> None:
+        with self.connection:
+            cursor = self.connection.execute(
+                """UPDATE analysis_batches
+                SET status = 'RUNNING', completed_at = NULL WHERE id = ?""",
+                (batch_id,),
+            )
+            if cursor.rowcount != 1:
+                raise KeyError("analysis batch not found: " + str(batch_id))
+            self.connection.execute(
+                """UPDATE analysis_batch_items
+                SET status = 'FAILED', error_code = 'INTERRUPTED'
+                WHERE analysis_batch_id = ? AND status = 'RUNNING'""",
+                (batch_id,),
+            )
+
+    def start_analysis_batch_item(self, item_id: int, *, started_at: str) -> int:
+        cursor = self.connection.execute(
+            """UPDATE analysis_batch_items SET status = 'RUNNING', attempt = attempt + 1,
+                       started_at = ?, completed_at = NULL, error_code = NULL
+            WHERE id = ? AND status IN ('PENDING', 'FAILED')""",
+            (started_at, item_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("analysis batch item is not retryable")
+        row = self.connection.execute(
+            "SELECT attempt FROM analysis_batch_items WHERE id = ?", (item_id,)
+        ).fetchone()
+        return int(row["attempt"])
+
+    def finish_analysis_batch_item(
+        self, item_id: int, analysis_run_row_id: int, *, completed_at: str
+    ) -> None:
+        cursor = self.connection.execute(
+            """UPDATE analysis_batch_items SET status = 'SUCCEEDED',
+                       analysis_run_row_id = ?, completed_at = ?, error_code = NULL
+            WHERE id = ? AND status = 'RUNNING'""",
+            (analysis_run_row_id, completed_at, item_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("analysis batch item is not running")
+
+    def fail_analysis_batch_item(
+        self,
+        item_id: int,
+        error_code: str,
+        *,
+        completed_at: str,
+        analysis_run_row_id: Optional[int] = None,
+    ) -> None:
+        cursor = self.connection.execute(
+            """UPDATE analysis_batch_items SET status = 'FAILED', error_code = ?,
+                       analysis_run_row_id = ?, completed_at = ?
+            WHERE id = ? AND status = 'RUNNING'""",
+            (error_code, analysis_run_row_id, completed_at, item_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("analysis batch item is not running")
+
+    def finalize_analysis_batch(self, batch_id: int, *, completed_at: str) -> str:
+        failed = int(
+            self.connection.execute(
+                """SELECT COUNT(*) FROM analysis_batch_items
+                WHERE analysis_batch_id = ? AND status != 'SUCCEEDED'""",
+                (batch_id,),
+            ).fetchone()[0]
+        )
+        status = "PARTIAL_FAILED" if failed else "SUCCEEDED"
+        self.connection.execute(
+            "UPDATE analysis_batches SET status = ?, completed_at = ? WHERE id = ?",
+            (status, completed_at, batch_id),
+        )
+        self.connection.commit()
+        return status

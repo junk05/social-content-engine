@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-007",
+  "status": "PASS",
+  "dataset_key": "m2-live-canary",
+  "dataset_version": 1,
+  "batch_key": "m2-live-canary-analysis-v1",
+  "config_sha256": "835624e32de0d97665f3355cbf92f39f7134e013b1b4136ffaf353cefe61a759",
+  "items": 1,
+  "succeeded": 1,
+  "failed": 0,
+  "attempts": 1,
+  "database_integrity_check": "ok",
+  "foreign_key_errors": 0,
+  "model": "deterministic/mock",
+  "external_model_call": false,
+  "committed_data_policy": "No analysis payload, source post text, identifier, live raw response, or credential is committed."
+}
