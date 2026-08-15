@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://social-content-engine.local/contracts/raw-capture.schema.json",
+  "type": "object",
+  "required": ["schema_version", "source", "endpoint", "retrieved_at", "request", "http", "raw_response_sha256", "collector_version", "response"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "source": {"const": "threads"},
+    "endpoint": {"type": "string", "minLength": 1},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "request": {
+      "type": "object",
+      "required": ["params"],
+      "properties": {"params": {"type": "object"}},
+      "additionalProperties": false
+    },
+    "http": {
+      "type": "object",
+      "required": ["status", "headers"],
+      "properties": {"status": {"type": "integer"}, "headers": {"type": "object"}},
+      "additionalProperties": false
+    },
+    "raw_response_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "collector_version": {"type": "string", "minLength": 1},
+    "response": {"type": "object"}
+  },
+  "additionalProperties": false
+}

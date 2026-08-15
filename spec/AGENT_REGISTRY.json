@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "agents": [
+    {
+      "id": "ORCHESTRATOR",
+      "responsibilities": ["plan", "dependency management", "review integration"],
+      "allowed_paths": ["**"],
+      "forbidden_paths": ["committed credentials"],
+      "input_artifacts": ["spec/**", "review reports"],
+      "output_artifacts": ["task decisions", "audit records"],
+      "reviewers": ["QA_REVIEWER"],
+      "dependencies": []
+    },
+    {
+      "id": "COLLECTOR",
+      "responsibilities": ["official API spike", "pagination", "retry", "raw capture"],
+      "allowed_paths": ["src/social_content_engine/collector/**", "tests/**", "spec/THREADS_API_CAPABILITIES.json"],
+      "forbidden_paths": ["content generation", "automatic publishing"],
+      "input_artifacts": ["official Meta documentation", "credentials via environment"],
+      "output_artifacts": ["raw responses", "collection run provenance"],
+      "reviewers": ["QA_REVIEWER"],
+      "dependencies": ["HG-01 for live calls"]
+    },
+    {
+      "id": "DATA",
+      "responsibilities": ["storage", "normalization", "deduplication", "provenance"],
+      "allowed_paths": ["src/social_content_engine/data/**", "spec/contracts/**", "spec/DATA_MODEL.md", "tests/**"],
+      "forbidden_paths": ["external API policy decisions"],
+      "input_artifacts": ["raw responses", "data contracts"],
+      "output_artifacts": ["normalized posts", "storage migrations"],
+      "reviewers": ["QA_REVIEWER"],
+      "dependencies": ["COLLECTOR response contract"]
+    },
+    {
+      "id": "INTELLIGENCE",
+      "responsibilities": ["post-M0 analysis and pattern mining"],
+      "allowed_paths": ["src/social_content_engine/intelligence/**", "tests/**"],
+      "forbidden_paths": ["blocking Collector or Data during M0"],
+      "input_artifacts": ["normalized posts"],
+      "output_artifacts": ["versioned analysis"],
+      "reviewers": ["QA_REVIEWER"],
+      "dependencies": ["M0 complete"]
+    },
+    {
+      "id": "QA_REVIEWER",
+      "responsibilities": ["tests", "schema validation", "security", "regression", "spec consistency"],
+      "allowed_paths": ["tests/**", "scripts/**", ".github/**", "spec/**"],
+      "forbidden_paths": ["credentials", "unspecified product scope"],
+      "input_artifacts": ["specifications", "contracts", "fixtures", "implementation"],
+      "output_artifacts": ["validation results", "review findings"],
+      "reviewers": ["ORCHESTRATOR"],
+      "dependencies": []
+    }
+  ]
+}

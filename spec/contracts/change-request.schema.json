@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["id", "status", "motivation", "affected_paths", "risk", "verification"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^CR-[0-9]{4}$"},
+    "status": {"enum": ["PROPOSED", "APPROVED", "REJECTED", "IMPLEMENTED"]},
+    "motivation": {"type": "string", "minLength": 1},
+    "affected_paths": {"type": "array", "items": {"type": "string"}},
+    "risk": {"enum": ["LOW", "MEDIUM", "HIGH"]},
+    "verification": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

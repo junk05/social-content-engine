@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "id": "fixture-thread-001",
+      "media_type": "TEXT_POST",
+      "permalink": "https://www.threads.net/@fixture/post/example",
+      "owner": {"id": "fixture-account-001"},
+      "username": "fixture_user",
+      "text": "Fixture only: a synthetic Japanese test post.",
+      "timestamp": "2026-08-15T00:00:00+0000"
+    }
+  ],
+  "paging": {"cursors": {"before": "fixture-before", "after": "fixture-after"}}
+}

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-08-15",
+  "status_definitions": {
+    "CONFIRMED": "verified with a captured live API response",
+    "DOCUMENTED": "present in official documentation but not verified live",
+    "UNAVAILABLE": "confirmed unavailable through an official permitted API",
+    "UNKNOWN": "not yet established"
+  },
+  "sources": [
+    "https://www.postman.com/meta/threads/overview",
+    "https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api",
+    "https://developers.facebook.com/docs/threads/keyword-search",
+    "https://developers.facebook.com/docs/threads/changelog"
+  ],
+  "capabilities": [
+    {"capability":"keyword_search","status":"DOCUMENTED","evidence":["GET https://graph.threads.net/keyword_search with q and threads_keyword_search permission"],"tested_at":null,"notes":"Live response not yet captured."},
+    {"capability":"top_search","status":"DOCUMENTED","evidence":["keyword_search search_type=TOP"],"tested_at":null,"notes":""},
+    {"capability":"recent_search","status":"DOCUMENTED","evidence":["keyword_search search_type=RECENT"],"tested_at":null,"notes":""},
+    {"capability":"keyword_search_pagination","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"General cursor pagination is documented; keyword-search envelope requires a live spike."},
+    {"capability":"returned_post_fields","status":"DOCUMENTED","evidence":["Official collection documents id, media, permalink, owner, username, text, timestamp, quote/repost, children and attachment fields."],"tested_at":null,"notes":"Field availability in keyword results is unverified."},
+    {"capability":"author_fields","status":"DOCUMENTED","evidence":["owner and username fields are documented."],"tested_at":null,"notes":"Owner type and stability require a live spike."},
+    {"capability":"thread_and_reply_relationships","status":"DOCUMENTED","evidence":["/{thread_id}/replies and /{thread_id}/conversation; root_post and replied_to fields."],"tested_at":null,"notes":"Visibility for arbitrary public search results is unknown."},
+    {"capability":"self_replies","status":"DOCUMENTED","evidence":["is_reply_owned_by_me and /me/replies are documented."],"tested_at":null,"notes":""},
+    {"capability":"profile_discovery","status":"DOCUMENTED","evidence":["/profile_lookup and /profile_posts with threads_profile_discovery."],"tested_at":null,"notes":"Exact username lookup is documented; partial discovery is not established."},
+    {"capability":"public_engagement_metrics","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"Insights are documented for managed accounts/posts; metrics for arbitrary public results are not established."},
+    {"capability":"like_count","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"Do not infer from insights availability."},
+    {"capability":"reply_count","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":""},
+    {"capability":"repost_and_quote_information","status":"DOCUMENTED","evidence":["is_quote_post, quoted_post, and reposted_post fields are documented."],"tested_at":null,"notes":"Counts for arbitrary public posts are unknown."},
+    {"capability":"timestamps","status":"DOCUMENTED","evidence":["timestamp field is documented."],"tested_at":null,"notes":""},
+    {"capability":"media_fields","status":"DOCUMENTED","evidence":["media_type, media_url, thumbnail_url, children, alt_text and attachment fields are documented."],"tested_at":null,"notes":""},
+    {"capability":"historical_search_depth","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"No verified maximum lookback or completeness guarantee."},
+    {"capability":"rate_limits","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"Capture response usage/rate headers and error bodies without deliberately causing 429."},
+    {"capability":"query_limitations","status":"UNKNOWN","evidence":[],"tested_at":null,"notes":"q length, result caps, language/region behavior and operator support require a low-volume spike."},
+    {"capability":"api_permissions","status":"DOCUMENTED","evidence":["threads_basic, threads_keyword_search, threads_profile_discovery, threads_read_replies and threads_manage_insights are documented scopes."],"tested_at":null,"notes":"Request only scopes required by each spike."},
+    {"capability":"authentication_requirements","status":"DOCUMENTED","evidence":["Threads use case with OAuth 2 authorization code and token exchange is documented."],"tested_at":null,"notes":"No credential is configured in this repository."}
+  ]
+}

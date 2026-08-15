@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://social-content-engine.local/contracts/normalized-post.schema.json",
+  "type": "object",
+  "required": ["schema_version", "source", "source_post_id", "raw_sha256", "normalized_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "source": {"const": "threads"},
+    "source_post_id": {"type": "string", "minLength": 1},
+    "author_id": {"type": ["string", "null"]},
+    "username": {"type": ["string", "null"]},
+    "text": {"type": ["string", "null"]},
+    "permalink": {"type": ["string", "null"]},
+    "published_at": {"type": ["string", "null"]},
+    "media_type": {"type": ["string", "null"]},
+    "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalized_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}
