@@ -13,7 +13,7 @@
 
     {"id":"M1-001","owner":"INTELLIGENCE","title":"Implement canonical Analyzer Input preprocessing and hashing","status":"COMPLETE","depends_on":["M0-007"]},
     {"id":"M1-002","owner":"INTELLIGENCE","title":"Define and validate M1 Analyzer Output contract and taxonomy","status":"COMPLETE","depends_on":["M1-001"]},
-    {"id":"M1-003","owner":"DATA","title":"Activate analysis_runs and post_analysis persistence with migrations","status":"READY","depends_on":["M1-002"]},
+    {"id":"M1-003","owner":"DATA","title":"Activate analysis_runs and post_analysis persistence with migrations","status":"COMPLETE","depends_on":["M1-002"]},
     {"id":"M1-004","owner":"INTELLIGENCE","title":"Implement analyzer adapter boundary and deterministic mock adapter","status":"READY","depends_on":["M1-002"]},
     {"id":"M1-005","owner":"INTELLIGENCE","title":"Implement evidence-span and analyzer-output validation","status":"READY","depends_on":["M1-002","M1-004"]},
     {"id":"M1-006","owner":"INTELLIGENCE","title":"Implement analyzer orchestration, replay/idempotency, and CLI","status":"READY","depends_on":["M1-003","M1-004","M1-005"]},
