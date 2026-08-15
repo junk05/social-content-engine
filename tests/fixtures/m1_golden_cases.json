@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "question-led",
+      "text": "どう思いますか？",
+      "expected_actions": ["ASK"],
+      "expected_structures": ["QUESTION_LED", "SHORT_PUNCHY"],
+      "expected_psychology": []
+    },
+    {
+      "id": "personal-experience",
+      "text": "私は昨日、初めて参加しました。",
+      "expected_actions": ["SHARE_EXPERIENCE"],
+      "expected_structures": ["SHORT_PUNCHY"],
+      "expected_psychology": []
+    },
+    {
+      "id": "advice-problem-solution",
+      "text": "困ったときは少し休んでください。",
+      "expected_actions": ["ADVISE"],
+      "expected_structures": ["PROBLEM_SOLUTION", "SHORT_PUNCHY"],
+      "expected_psychology": []
+    },
+    {
+      "id": "bounded-emotion",
+      "text": "明日の発表が不安。",
+      "expected_actions": ["EXPRESS_EMOTION"],
+      "expected_structures": ["SHORT_PUNCHY"],
+      "expected_psychology": ["FEAR_OR_ANXIETY_EXPRESSED"]
+    },
+    {
+      "id": "ambiguous",
+      "text": "今日の記録",
+      "expected_actions": [],
+      "expected_structures": ["SHORT_PUNCHY"],
+      "expected_psychology": []
+    },
+    {
+      "id": "observable-markers",
+      "text": "詳細は https://example.test #学習 @friend 😊！",
+      "expected_actions": [],
+      "expected_structures": ["SHORT_PUNCHY"],
+      "expected_psychology": [],
+      "expected_features": {
+        "url_count": 1,
+        "hashtag_count": 1,
+        "mention_count": 1,
+        "emoji_count": 1,
+        "exclamation_mark_count": 1
+      }
+    },
+    {
+      "id": "japanese-unicode-span",
+      "text": "Caféで相談。どう？",
+      "expected_normalized_text": "Caféで相談。どう？",
+      "expected_actions": ["ASK"],
+      "expected_structures": ["QUESTION_LED", "SHORT_PUNCHY"],
+      "expected_psychology": []
+    },
+    {
+      "id": "empty-text",
+      "text": "",
+      "expected_actions": [],
+      "expected_structures": [],
+      "expected_psychology": []
+    },
+    {
+      "id": "minimal-text",
+      "text": "あ",
+      "expected_actions": [],
+      "expected_structures": ["SHORT_PUNCHY"],
+      "expected_psychology": []
+    }
+  ]
+}

@@ -85,3 +85,27 @@ https://<tunnel-host>/meta/data-deletion/status?code=<confirmation_code>
 
 See [the callback contract](spec/META_CALLBACKS.md) for methods, parameters,
 responses, and signature verification rules.
+
+## M1 deterministic Analyzer
+
+Analyze a post already present in the normalized SQLite store. M1 defaults to
+the deterministic local adapter: it makes no paid API call and requires no model
+credential.
+
+```bash
+.venv/bin/sce-analyze --database data/social_content.sqlite3 --post-id '<source_post_id>'
+```
+
+An identical successful run is replayed by default. To preserve a fresh,
+versioned analysis run instead:
+
+```bash
+.venv/bin/sce-analyze \
+  --database data/social_content.sqlite3 \
+  --post-id '<source_post_id>' \
+  --force
+```
+
+Only normalized M0 data is read. Analyzer runs and validated output are appended
+to `analysis_runs` and `post_analysis`; raw and normalized evidence is not
+rewritten. See [the M1 contract](spec/M1_ANALYZER.md).

@@ -38,7 +38,7 @@ class DeterministicMockAdapter:
         if experience:
             actions.append(_item("SHARE_EXPERIENCE", "HIGH", experience))
 
-        advice = _first_span(text, ("してください", "おすすめ", "べき"))
+        advice = _first_span(text, ("してください", "ください", "おすすめ", "べき"))
         if advice:
             actions.append(_item("ADVISE", "HIGH", advice))
             structures.append(_item("PROBLEM_SOLUTION", "MEDIUM", advice))
