@@ -34,6 +34,8 @@ def add_member(
     text: str,
     ordinal: int,
     model_parameters: dict = None,
+    author_id: str = None,
+    parent_id: str = None,
 ) -> None:
     raw = json.dumps({"id": post_id, "text": text}, ensure_ascii=False).encode("utf-8")
     run_id = repository.add_collection_run(
@@ -59,7 +61,7 @@ def add_member(
             "schema_version": 1,
             "source": "threads",
             "source_post_id": post_id,
-            "author_id": None,
+            "author_id": author_id,
             "username": "fixture",
             "text": text,
             "permalink": None,
@@ -96,6 +98,15 @@ def add_member(
             now=lambda: "2026-08-16T00:01:00+00:00",
             new_run_id=lambda: "run-" + post_id,
         )
+    if parent_id is not None:
+        repository.connection.execute(
+            """INSERT INTO thread_relationships
+            (source, child_post_id, parent_post_id, root_post_id,
+             relationship_type, observed_at)
+            VALUES ('threads', ?, ?, ?, 'REPLY_TO', '2026-08-16T00:01:30+00:00')""",
+            (post_id, parent_id, parent_id),
+        )
+        repository.connection.commit()
     extract_first_line(
         repository,
         analysis.analysis_run_row_id,

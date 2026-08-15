@@ -13,7 +13,7 @@ from social_content_engine.data.repository import (
 
 MINER_VERSION = "m2-pattern-miner-v1"
 FEATURE_CONTRACT_VERSION = "M2_PATTERN_SIGNATURE_V1"
-RANKING_METHOD = "member-count-cluster-key-v1"
+RANKING_METHOD = "support-author-parent-completeness-v1"
 
 
 def _utc_now() -> str:
@@ -84,6 +84,7 @@ def _select_instances(
                   parent_ending_features.input_sha256 AS parent_ending_input_sha256,
                   parent_ending_features.feature_sha256 AS parent_ending_feature_sha256,
                   parent_ending_features.feature_json AS parent_ending_feature_json,
+                  normalized_post_versions.canonical_payload_json,
                   analysis_runs.analyzed_at
         FROM dataset_members
         JOIN dataset_snapshots ON dataset_snapshots.id = dataset_members.dataset_snapshot_id
@@ -129,8 +130,11 @@ def _select_instances(
             continue
         first = json.loads(str(row["first_line_feature_json"]))
         ending = json.loads(str(row["parent_ending_feature_json"]))
+        normalized = json.loads(str(row["canonical_payload_json"]))
         if not isinstance(first, dict) or not isinstance(ending, dict):
             raise RuntimeError("pattern feature evidence is not an object")
+        if not isinstance(normalized, dict):
+            raise RuntimeError("normalized pattern evidence is not an object")
         signature = {
             "first_line_hook_family": first.get("hook_family"),
             "first_line_hook_subtype": first.get("hook_subtype"),
@@ -156,6 +160,11 @@ def _select_instances(
             "input_sha256": instance_hash,
             "feature": signature,
             "labels": _sorted_labels(first, ending),
+            "ranking_evidence": {
+                "author_id": normalized.get("author_id"),
+                "parent_ending_observed": ending.get("availability") == "OBSERVED"
+                and bool(ending.get("windows")),
+            },
             "created_at": created_at,
         }
     return list(selected.values())
@@ -197,11 +206,53 @@ def mine_patterns(
         if not isinstance(signature, dict):
             raise RuntimeError("pattern signature is not an object")
         clusters.setdefault(_cluster_key(signature), []).append(instance)
-    ordered = sorted(clusters.items(), key=lambda item: (-len(item[1]), item[0]))
+    ranked_clusters = []
+    for cluster_key, members in clusters.items():
+        observed_authors = [
+            member["ranking_evidence"]["author_id"]
+            for member in members
+            if isinstance(member["ranking_evidence"]["author_id"], str)
+            and member["ranking_evidence"]["author_id"]
+        ]
+        parent_support = sum(
+            1 for member in members if member["ranking_evidence"]["parent_ending_observed"]
+        )
+        signature = members[0]["feature"]
+        if not isinstance(signature, dict):
+            raise RuntimeError("pattern signature is not an object")
+        completeness_per_member = sum(
+            (
+                signature.get("first_line_hook_family") != "EMPTY",
+                signature.get("first_line_hook_subtype") != "EMPTY",
+                signature.get("parent_ending_availability") == "OBSERVED",
+                signature.get("parent_cliffhanger_technique") != "UNKNOWN",
+            )
+        )
+        evidence = {
+            "member_support": len(members),
+            "distinct_observed_author_support": len(set(observed_authors)),
+            "observed_author_count": len(observed_authors),
+            "author_coverage_count": len(observed_authors),
+            "author_coverage_total": len(members),
+            "parent_ending_evidence_support": parent_support,
+            "feature_completeness": completeness_per_member * len(members),
+            "feature_completeness_max": 4 * len(members),
+        }
+        ranked_clusters.append((cluster_key, members, evidence))
+    ordered = sorted(
+        ranked_clusters,
+        key=lambda item: (
+            -int(item[2]["member_support"]),
+            -int(item[2]["distinct_observed_author_support"]),
+            -int(item[2]["parent_ending_evidence_support"]),
+            -int(item[2]["feature_completeness"]),
+            item[0],
+        ),
+    )
     promoted: List[Dict[str, Any]] = []
     singletons: List[Dict[str, Any]] = []
     promoted_rank = 0
-    for cluster_key, members in ordered:
+    for cluster_key, members, ranking_evidence in ordered:
         members.sort(key=lambda item: (str(item["source"]), str(item["source_post_id"])))
         signature = members[0]["feature"]
         if not isinstance(signature, dict):
@@ -229,6 +280,7 @@ def mine_patterns(
             "distance": 0,
             "feature_signature": signature,
             "labels": labels,
+            "ranking_evidence": ranking_evidence,
             "member_input_sha256s": sorted(str(member["input_sha256"]) for member in members),
         }
         if len(members) < 2:
@@ -239,7 +291,11 @@ def mine_patterns(
             [str(member["input_sha256"]) for member in members], signature
         )
         instances: Sequence[Dict[str, Any]] = [
-            {key: value for key, value in member.items() if key != "labels"}
+            {
+                key: value
+                for key, value in member.items()
+                if key not in {"labels", "ranking_evidence"}
+            }
             for member in members
         ]
         pattern_id = repository.create_pattern(
