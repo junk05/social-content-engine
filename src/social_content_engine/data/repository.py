@@ -346,3 +346,37 @@ class Repository:
                 WHERE id = ? AND status = 'RUNNING'""",
                 (output_sha256, row_id),
             )
+
+    def find_reusable_analysis(self, identity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Return an identical successful analysis, if one already exists."""
+        row = self.connection.execute(
+            """SELECT analysis_runs.analysis_run_id, post_analysis.payload_json
+            FROM analysis_runs
+            JOIN post_analysis ON post_analysis.analysis_run_row_id = analysis_runs.id
+            WHERE analysis_runs.source = ?
+              AND analysis_runs.source_post_id = ?
+              AND analysis_runs.analyzer_version = ?
+              AND analysis_runs.taxonomy_version = ?
+              AND analysis_runs.prompt_version = ?
+              AND analysis_runs.model_name = ?
+              AND analysis_runs.model_parameters_json = ?
+              AND analysis_runs.input_sha256 = ?
+              AND analysis_runs.status = 'SUCCEEDED'
+            ORDER BY analysis_runs.id DESC LIMIT 1""",
+            (
+                identity["source"],
+                identity["source_post_id"],
+                identity["analyzer_version"],
+                identity["taxonomy_version"],
+                identity["prompt_version"],
+                identity["model_name"],
+                json.dumps(identity["model_parameters"], ensure_ascii=False, sort_keys=True),
+                identity["input_sha256"],
+            ),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "analysis_run_id": str(row["analysis_run_id"]),
+            "payload": json.loads(str(row["payload_json"])),
+        }

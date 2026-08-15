@@ -14,6 +14,7 @@ dev = ["mypy>=1.10,<2", "ruff>=0.6,<1"]
 [project.scripts]
 sce-threads-spike = "social_content_engine.collector.spike:main"
 sce-meta-callbacks = "social_content_engine.callbacks.server:main"
+sce-analyze = "social_content_engine.analyzer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
