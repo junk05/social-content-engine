@@ -186,6 +186,28 @@ class CollectorPaginatorTest(unittest.TestCase):
         self.assertEqual("2026-01-01", fetch.calls[0]["since"])
         self.assertNotIn("access_token", fetch.calls[0])
 
+    def test_capture_hook_exposes_each_exact_page_for_a_persistence_runner(self) -> None:
+        captures = [
+            capture(
+                {
+                    "data": [{"id": "1"}],
+                    "paging": {"cursors": {"after": "next"}},
+                }
+            ),
+            capture({"data": [{"id": "2"}], "paging": {"cursors": {"after": ""}}}),
+        ]
+        observed = []
+        collect(
+            self.plan(),
+            FixtureFetch(captures),
+            sleep=lambda _: None,
+            capture_hook=lambda job, page, ordinal: observed.append(
+                (job.query, job.search_type, ordinal, page.body)
+            ),
+        )
+        self.assertEqual([0, 1], [item[2] for item in observed])
+        self.assertIn(b'"id": "1"', observed[0][3])
+
 
 if __name__ == "__main__":
     unittest.main()

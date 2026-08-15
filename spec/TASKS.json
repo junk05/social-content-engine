@@ -23,7 +23,7 @@
     {"id":"M2-001","owner":"ORCHESTRATOR","title":"Approve M2 scope, API unknowns, collection bounds, and pattern boundaries","status":"COMPLETE","depends_on":["M1-008"]},
     {"id":"M2-002","owner":"COLLECTOR","title":"Implement bounded multi-query TOP/RECENT pagination, checkpoint, and run summary","status":"COMPLETE","depends_on":["M2-001"]},
     {"id":"M2-003","owner":"DATA","title":"Implement numbered migrations and normalized post version history","status":"COMPLETE","depends_on":["M2-001"]},
-    {"id":"M2-004","owner":"DATA","title":"Persist collection batch, query, page, dedupe, dataset, and metric observation provenance","status":"READY","depends_on":["M2-002","M2-003"]},
+    {"id":"M2-004","owner":"DATA","title":"Persist collection batch, query, page, dedupe, dataset, and metric observation provenance","status":"COMPLETE","depends_on":["M2-002","M2-003"]},
     {"id":"M2-005","owner":"COLLECTOR","title":"Run bounded live canary and start multi-genre dataset expansion","status":"READY","depends_on":["M2-004"]},
     {"id":"M2-006","owner":"DATA","title":"Finalize immutable dataset snapshots from versioned normalized evidence","status":"READY","depends_on":["M2-004","M2-005"]},
     {"id":"M2-007","owner":"INTELLIGENCE","title":"Implement version-aware resumable batch Analyzer orchestration","status":"READY","depends_on":["M2-003","M2-006"]},

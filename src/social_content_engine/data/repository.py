@@ -259,9 +259,121 @@ def _migration_2_normalized_versions(connection: sqlite3.Connection) -> None:
         raise RuntimeError("analysis run could not be linked to a normalized post version")
 
 
+def _migration_3_dataset_expansion(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE collection_batches (
+          id INTEGER PRIMARY KEY,
+          batch_key TEXT NOT NULL UNIQUE,
+          status TEXT NOT NULL CHECK(status IN ('RUNNING', 'COMPLETE', 'FAILED')),
+          config_json TEXT NOT NULL,
+          config_sha256 TEXT NOT NULL,
+          started_at TEXT NOT NULL,
+          completed_at TEXT,
+          collector_version TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE collection_batch_queries (
+          id INTEGER PRIMARY KEY,
+          collection_batch_id INTEGER NOT NULL REFERENCES collection_batches(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          query_json TEXT NOT NULL,
+          query_sha256 TEXT NOT NULL,
+          UNIQUE(collection_batch_id, ordinal),
+          UNIQUE(collection_batch_id, query_sha256)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE collection_batch_runs (
+          id INTEGER PRIMARY KEY,
+          collection_batch_query_id INTEGER NOT NULL REFERENCES collection_batch_queries(id),
+          collection_run_id INTEGER NOT NULL UNIQUE REFERENCES collection_runs(id)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE dataset_snapshots (
+          id INTEGER PRIMARY KEY,
+          dataset_key TEXT NOT NULL,
+          version INTEGER NOT NULL CHECK(version >= 1),
+          status TEXT NOT NULL CHECK(status IN ('DRAFT', 'FINALIZED')),
+          selection_spec_json TEXT NOT NULL,
+          selection_spec_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          finalized_at TEXT,
+          UNIQUE(dataset_key, version)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE dataset_members (
+          id INTEGER PRIMARY KEY,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          selected_raw_post_id INTEGER NOT NULL REFERENCES raw_posts(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          inclusion_reason_json TEXT NOT NULL,
+          UNIQUE(dataset_snapshot_id, normalized_post_version_id),
+          UNIQUE(dataset_snapshot_id, ordinal)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE post_metric_observations (
+          id INTEGER PRIMARY KEY,
+          source TEXT NOT NULL,
+          source_post_id TEXT NOT NULL,
+          metric_name TEXT NOT NULL,
+          metric_value INTEGER NOT NULL CHECK(
+            typeof(metric_value) = 'integer' AND metric_value >= 0
+          ),
+          observed_at TEXT NOT NULL,
+          raw_post_id INTEGER REFERENCES raw_posts(id),
+          collection_run_id INTEGER REFERENCES collection_runs(id),
+          api_field TEXT NOT NULL,
+          unit TEXT NOT NULL,
+          collector_version TEXT NOT NULL,
+          CHECK(raw_post_id IS NOT NULL OR collection_run_id IS NOT NULL),
+          FOREIGN KEY(source, source_post_id)
+            REFERENCES normalized_posts(source, source_post_id)
+        )"""
+    )
+    connection.execute(
+        """CREATE TRIGGER dataset_member_insert_requires_draft
+        BEFORE INSERT ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = NEW.dataset_snapshot_id)
+             != 'DRAFT'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_member_update_forbidden
+        BEFORE UPDATE ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = OLD.dataset_snapshot_id)
+             = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_member_delete_forbidden
+        BEFORE DELETE ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = OLD.dataset_snapshot_id)
+             = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_snapshot_update_forbidden
+        BEFORE UPDATE ON dataset_snapshots
+        WHEN OLD.status = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_snapshot_delete_forbidden
+        BEFORE DELETE ON dataset_snapshots
+        WHEN OLD.status = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
+    (3, "collection-batches-datasets-metric-observations-v1", _migration_3_dataset_expansion),
 )
 
 
@@ -463,6 +575,225 @@ class Repository:
                 values[2:] + (version_id, normalized_post_id),
             )
 
+    def create_collection_batch(
+        self,
+        batch_key: str,
+        config: Dict[str, Any],
+        collector_version: str,
+        *,
+        started_at: Optional[str] = None,
+    ) -> int:
+        config_json = _canonical_json(config)
+        cursor = self.connection.execute(
+            """INSERT INTO collection_batches
+            (batch_key, status, config_json, config_sha256, started_at, collector_version)
+            VALUES (?, 'RUNNING', ?, ?, ?, ?)""",
+            (
+                batch_key,
+                config_json,
+                hashlib.sha256(config_json.encode("utf-8")).hexdigest(),
+                started_at or _utc_now(),
+                collector_version,
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a collection batch id")
+        return int(cursor.lastrowid)
+
+    def complete_collection_batch(
+        self, batch_id: int, *, completed_at: Optional[str] = None, failed: bool = False
+    ) -> None:
+        cursor = self.connection.execute(
+            """UPDATE collection_batches SET status = ?, completed_at = ?
+            WHERE id = ? AND status = 'RUNNING'""",
+            ("FAILED" if failed else "COMPLETE", completed_at or _utc_now(), batch_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("collection batch is not RUNNING")
+
+    def add_collection_batch_query(
+        self, batch_id: int, ordinal: int, query: Dict[str, Any]
+    ) -> int:
+        batch = self.connection.execute(
+            "SELECT status FROM collection_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if batch is None or batch["status"] != "RUNNING":
+            raise ValueError("collection batch is not RUNNING")
+        query_json = _canonical_json(query)
+        cursor = self.connection.execute(
+            """INSERT INTO collection_batch_queries
+            (collection_batch_id, ordinal, query_json, query_sha256)
+            VALUES (?, ?, ?, ?)""",
+            (
+                batch_id,
+                ordinal,
+                query_json,
+                hashlib.sha256(query_json.encode("utf-8")).hexdigest(),
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a collection batch query id")
+        return int(cursor.lastrowid)
+
+    def link_collection_run(self, batch_query_id: int, collection_run_id: int) -> int:
+        query = self.connection.execute(
+            """SELECT collection_batches.status
+            FROM collection_batch_queries
+            JOIN collection_batches
+              ON collection_batches.id = collection_batch_queries.collection_batch_id
+            WHERE collection_batch_queries.id = ?""",
+            (batch_query_id,),
+        ).fetchone()
+        if query is None or query["status"] != "RUNNING":
+            raise ValueError("collection batch is not RUNNING")
+        cursor = self.connection.execute(
+            """INSERT INTO collection_batch_runs
+            (collection_batch_query_id, collection_run_id) VALUES (?, ?)""",
+            (batch_query_id, collection_run_id),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a collection batch run id")
+        return int(cursor.lastrowid)
+
+    def create_dataset_snapshot(
+        self,
+        dataset_key: str,
+        version: int,
+        selection_spec: Dict[str, Any],
+        *,
+        created_at: Optional[str] = None,
+    ) -> int:
+        selection_json = _canonical_json(selection_spec)
+        cursor = self.connection.execute(
+            """INSERT INTO dataset_snapshots
+            (dataset_key, version, status, selection_spec_json, selection_spec_sha256,
+             created_at)
+            VALUES (?, ?, 'DRAFT', ?, ?, ?)""",
+            (
+                dataset_key,
+                version,
+                selection_json,
+                hashlib.sha256(selection_json.encode("utf-8")).hexdigest(),
+                created_at or _utc_now(),
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a dataset snapshot id")
+        return int(cursor.lastrowid)
+
+    def add_dataset_member(
+        self,
+        snapshot_id: int,
+        normalized_post_version_id: int,
+        selected_raw_post_id: int,
+        ordinal: int,
+        inclusion_reason: Dict[str, Any],
+    ) -> int:
+        valid = self.connection.execute(
+            """SELECT dataset_snapshots.status
+            FROM dataset_snapshots, normalized_post_versions
+            JOIN normalized_posts
+              ON normalized_posts.id = normalized_post_versions.normalized_post_id
+            JOIN raw_posts
+              ON raw_posts.id = ?
+             AND raw_posts.source = normalized_posts.source
+             AND raw_posts.source_post_id = normalized_posts.source_post_id
+            WHERE dataset_snapshots.id = ? AND normalized_post_versions.id = ?""",
+            (selected_raw_post_id, snapshot_id, normalized_post_version_id),
+        ).fetchone()
+        if valid is None:
+            raise ValueError("dataset member provenance is inconsistent")
+        if valid["status"] != "DRAFT":
+            raise ValueError("finalized dataset snapshot is immutable")
+        reason_json = _canonical_json(inclusion_reason)
+        cursor = self.connection.execute(
+            """INSERT INTO dataset_members
+            (dataset_snapshot_id, normalized_post_version_id, selected_raw_post_id,
+             ordinal, inclusion_reason_json)
+            VALUES (?, ?, ?, ?, ?)""",
+            (
+                snapshot_id,
+                normalized_post_version_id,
+                selected_raw_post_id,
+                ordinal,
+                reason_json,
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a dataset member id")
+        return int(cursor.lastrowid)
+
+    def finalize_dataset_snapshot(
+        self, snapshot_id: int, *, finalized_at: Optional[str] = None
+    ) -> None:
+        cursor = self.connection.execute(
+            """UPDATE dataset_snapshots SET status = 'FINALIZED', finalized_at = ?
+            WHERE id = ? AND status = 'DRAFT'""",
+            (finalized_at or _utc_now(), snapshot_id),
+        )
+        self.connection.commit()
+        if cursor.rowcount != 1:
+            raise ValueError("dataset snapshot is not mutable")
+
+    def add_metric_observation(
+        self,
+        *,
+        source: str,
+        source_post_id: str,
+        metric_name: str,
+        metric_value: int,
+        observed_at: str,
+        api_field: str,
+        unit: str,
+        collector_version: str,
+        raw_post_id: Optional[int] = None,
+        collection_run_id: Optional[int] = None,
+    ) -> int:
+        if isinstance(metric_value, bool) or not isinstance(metric_value, int):
+            raise TypeError("metric_value must be an integer")
+        if metric_value < 0:
+            raise ValueError("metric_value must be nonnegative")
+        if raw_post_id is None and collection_run_id is None:
+            raise ValueError("metric observation requires raw or collection-run provenance")
+        if raw_post_id is not None:
+            raw = self.connection.execute(
+                """SELECT collection_run_id FROM raw_posts
+                WHERE id = ? AND source = ? AND source_post_id = ?""",
+                (raw_post_id, source, source_post_id),
+            ).fetchone()
+            if raw is None:
+                raise ValueError("raw metric provenance does not match the source post")
+            if collection_run_id is not None and int(raw["collection_run_id"]) != collection_run_id:
+                raise ValueError("raw and collection-run metric provenance disagree")
+        cursor = self.connection.execute(
+            """INSERT INTO post_metric_observations
+            (source, source_post_id, metric_name, metric_value, observed_at, raw_post_id,
+             collection_run_id, api_field, unit, collector_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                source,
+                source_post_id,
+                metric_name,
+                metric_value,
+                observed_at,
+                raw_post_id,
+                collection_run_id,
+                api_field,
+                unit,
+                collector_version,
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a metric observation id")
+        return int(cursor.lastrowid)
+
     def count(self, table: str) -> int:
         allowed = {
             "collection_runs",
@@ -472,6 +803,13 @@ class Repository:
             "thread_relationships",
             "analysis_runs",
             "post_analysis",
+            "normalized_post_versions",
+            "collection_batches",
+            "collection_batch_queries",
+            "collection_batch_runs",
+            "dataset_snapshots",
+            "dataset_members",
+            "post_metric_observations",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

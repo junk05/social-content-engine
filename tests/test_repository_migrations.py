@@ -203,7 +203,10 @@ class RepositoryMigrationTest(unittest.TestCase):
                 connection.execute("CREATE TABLE should_roll_back (id INTEGER PRIMARY KEY)")
                 raise RuntimeError("injected migration failure")
 
-            migrations = repository_module.MIGRATIONS + ((3, "injected-failure", fail),)
+            failed_version = len(repository_module.MIGRATIONS) + 1
+            migrations = repository_module.MIGRATIONS + (
+                (failed_version, "injected-failure", fail),
+            )
             with patch.object(repository_module, "MIGRATIONS", migrations):
                 with self.assertRaisesRegex(RuntimeError, "injected migration failure"):
                     Repository(path)
@@ -217,7 +220,8 @@ class RepositoryMigrationTest(unittest.TestCase):
                 self.assertEqual(
                     0,
                     connection.execute(
-                        "SELECT COUNT(*) FROM schema_migrations WHERE version = 3"
+                        "SELECT COUNT(*) FROM schema_migrations WHERE version = ?",
+                        (failed_version,),
                     ).fetchone()[0],
                 )
             finally:

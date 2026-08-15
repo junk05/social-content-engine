@@ -56,6 +56,7 @@ class CollectionPlan:
 
 Fetch = Callable[..., HttpCapture]
 Sleep = Callable[[float], None]
+CaptureHook = Callable[[SearchJob, HttpCapture, int], None]
 
 
 def collect(
@@ -65,6 +66,7 @@ def collect(
     checkpoint_path: Optional[Path] = None,
     resume: bool = False,
     sleep: Sleep = time.sleep,
+    capture_hook: Optional[CaptureHook] = None,
 ) -> Dict[str, Any]:
     """Run a deterministic bounded plan; ``fetch`` may be a live client or fixture."""
     plan.validate()
@@ -98,6 +100,8 @@ def collect(
             limit=plan.page_limit,
             after=state["after"],
         )
+        if capture_hook is not None:
+            capture_hook(job, capture, int(state["request_count"]))
         state["request_count"] += 1
         state["http_statuses"].append(capture.status)
         if capture.status < 200 or capture.status >= 300:
