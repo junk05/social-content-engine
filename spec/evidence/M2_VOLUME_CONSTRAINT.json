@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "milestone": "M2",
+  "task": "M2-015",
+  "status": "MEASURED_API_CONSTRAINT",
+  "target_unique_posts": 100,
+  "observed_unique_public_posts": 1,
+  "general_search_observed_unique_posts": 0,
+  "general_search_genres": [
+    "恋愛",
+    "人間関係",
+    "心理",
+    "美容",
+    "仕事"
+  ],
+  "general_search_types": [
+    "TOP",
+    "RECENT"
+  ],
+  "general_search_requests": 12,
+  "general_search_http_status": 200,
+  "known_app_role_marker_requests": 1,
+  "known_app_role_marker_observed_posts": 1,
+  "classification": "DEVELOPMENT_MODE_PUBLIC_SEARCH_COVERAGE_CONSTRAINT",
+  "decision": "STOP_ADDITIONAL_BULK_REQUESTS",
+  "rationale": "The same credential retrieved one known App-role marker post while five general genres across TOP and RECENT returned empty HTTP 200 responses. Repeating bulk requests is not a reasonable path to 100 posts until Meta App access changes.",
+  "remaining_unknowns": [
+    "Whether App review or Live mode will expose broader keyword-search coverage",
+    "Whether tester-role eligibility or another undocumented constraint caused the empty results"
+  ],
+  "constraint_evidence": "spec/evidence/M2_COLLECTION_CANARY.json",
+  "data_policy": "No credential, post identifier, username, permalink, source text, or live raw response is committed."
+}
