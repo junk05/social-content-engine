@@ -17,17 +17,34 @@ Definition of Done:
 9. Automated tests pass.
 10. CI passes.
 
-The pipeline for items 4–7 is verified with a synthetic fixture. Satisfying those
-items with real data, beginning with item 3, requires a live credential and is
-tracked by HG-01 until configured.
+Items 1–10 are verified. The real API response was preserved locally, its sanitized fixture was committed, and GitHub Actions passed on Python 3.9 and 3.12. Evidence: `evidence/M0_LIVE_VERIFICATION.json`.
 
-Items 1–10 are verified. The real API response was preserved locally, its
-sanitized fixture was committed, and GitHub Actions passed on Python 3.9 and
-3.12. Evidence: `evidence/M0_LIVE_VERIFICATION.json`.
+## M1 — Analyzer
 
-## Deferred until M0 completion
+Status: `IN_PROGRESS`
 
-- analyzers and pattern mining
+Approved specification: `spec/M1_ANALYZER.md` (`M1-ANALYZER-V1`).
+
+Goal: convert normalized public-post evidence into versioned, reviewable structured analysis while preserving the boundary between observation and inference.
+
+Definition of Done:
+
+1. Canonical Analyzer Input preprocessing and SHA-256 implemented.
+2. M1 Analyzer Output schema/taxonomy implemented.
+3. `analysis_runs` and `post_analysis` persistence implemented without overwriting historical analyses.
+4. Analyzer adapter boundary and deterministic mock adapter implemented.
+5. Evidence-span validation rejects unsupported/inconsistent output.
+6. Analyzer orchestration, idempotency/replay, and minimal CLI implemented.
+7. Golden Cases cover Japanese text, ambiguity, malformed output, and replay.
+8. Existing M0 tests remain green.
+9. CI passes on supported Python versions.
+10. No credentials, live raw responses, or unsupported private inferences are committed.
+
+M1 does not include content generation, automatic publishing, virality prediction, creator profiling, dashboards, or Fortune Engine integration.
+
+## Deferred until later milestones
+
+- cross-post pattern mining and pattern ranking
 - content generation and automatic publishing
 - Fortune Engine integration
 - dashboards, production deployment, and large-scale infrastructure
