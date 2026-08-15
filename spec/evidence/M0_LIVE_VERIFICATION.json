@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "status": "LIVE_VERIFIED_LOCAL",
+  "verified_at": "2026-08-16T00:07:09+09:00",
+  "source": "threads",
+  "endpoint": "/keyword_search",
+  "query_class": "unique_m0_test_marker",
+  "search_type": "RECENT",
+  "credential_storage": ".env (gitignored, value not recorded)",
+  "raw_response_sha256": "ac8ad2939a64433aa98a56c2bc46721d0fd2efafb54aca01f0ca19d9b2cb0ac3",
+  "raw_response_location": "data/raw/ (gitignored)",
+  "observations": {
+    "http_success": true,
+    "real_posts_obtained": 1,
+    "raw_response_preserved": true,
+    "normalized_posts_after_two_collections": 1,
+    "raw_observations_after_two_collections": 2,
+    "deduplication_verified": true,
+    "paging_envelope_observed": true,
+    "paging_traversal_verified": false
+  },
+  "fixture": "tests/fixtures/threads_keyword_search_live_sanitized.json",
+  "notes": "The live post was manually published by the authenticated Tester account because development-mode searches returned no App-role-external results. IDs, username, permalink, timestamp, cursor values, and text were sanitized before committing the fixture."
+}

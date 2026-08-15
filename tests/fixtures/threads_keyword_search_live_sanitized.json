@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "id": "sanitized-live-thread-001",
+      "media_type": "TEXT_POST",
+      "owner": {"id": "sanitized-live-account-001"},
+      "permalink": "https://www.threads.net/@sanitized/post/live-fixture",
+      "text": "SANITIZED_LIVE_FIXTURE",
+      "timestamp": "2026-08-15T15:00:00+0000",
+      "username": "sanitized_live_user"
+    }
+  ],
+  "paging": {
+    "cursors": {
+      "after": "sanitized-after-cursor",
+      "before": "sanitized-before-cursor"
+    }
+  }
+}
