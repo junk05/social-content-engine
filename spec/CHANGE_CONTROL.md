@@ -1,7 +1,7 @@
 # Change control
 
-Routine implementation, tests, CI, fixtures, and internal refactors within M0 do
-not require a change request or human approval.
+Routine implementation, tests, CI, fixtures, and internal refactors within the
+active approved milestone do not require a change request or human approval.
 
 A change request is required for a material SSOT meaning change, breaking stored
 data contract, agent boundary change, or expansion beyond the active milestone.

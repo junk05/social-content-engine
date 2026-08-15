@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "milestone": "M1",
+  "milestone": "M2",
   "tasks": [
     {"id":"M0-001","owner":"COLLECTOR","title":"Document official Threads API capabilities","status":"COMPLETE","depends_on":[]},
     {"id":"M0-002","owner":"DATA","title":"Create raw and normalized contracts and SQLite repository","status":"COMPLETE","depends_on":[]},
@@ -18,6 +18,24 @@
     {"id":"M1-005","owner":"INTELLIGENCE","title":"Implement evidence-span and analyzer-output validation","status":"COMPLETE","depends_on":["M1-002","M1-004"]},
     {"id":"M1-006","owner":"INTELLIGENCE","title":"Implement analyzer orchestration, replay/idempotency, and CLI","status":"COMPLETE","depends_on":["M1-003","M1-004","M1-005"]},
     {"id":"M1-007","owner":"QA_REVIEWER","title":"Add M1 Golden Cases, regression, security review, and CI verification","status":"COMPLETE","depends_on":["M1-006"]},
-    {"id":"M1-008","owner":"ORCHESTRATOR","title":"Mark M1 Analyzer complete only after Definition of Done passes","status":"COMPLETE","depends_on":["M1-007"]}
+    {"id":"M1-008","owner":"ORCHESTRATOR","title":"Mark M1 Analyzer complete only after Definition of Done passes","status":"COMPLETE","depends_on":["M1-007"]},
+
+    {"id":"M2-001","owner":"ORCHESTRATOR","title":"Approve M2 scope, API unknowns, collection bounds, and pattern boundaries","status":"COMPLETE","depends_on":["M1-008"]},
+    {"id":"M2-002","owner":"COLLECTOR","title":"Implement bounded multi-query TOP/RECENT pagination, checkpoint, and run summary","status":"READY","depends_on":["M2-001"]},
+    {"id":"M2-003","owner":"DATA","title":"Implement numbered migrations and normalized post version history","status":"READY","depends_on":["M2-001"]},
+    {"id":"M2-004","owner":"DATA","title":"Persist collection batch, query, page, dedupe, dataset, and metric observation provenance","status":"READY","depends_on":["M2-002","M2-003"]},
+    {"id":"M2-005","owner":"COLLECTOR","title":"Run bounded live canary and start multi-genre dataset expansion","status":"READY","depends_on":["M2-004"]},
+    {"id":"M2-006","owner":"DATA","title":"Finalize immutable dataset snapshots from versioned normalized evidence","status":"READY","depends_on":["M2-004","M2-005"]},
+    {"id":"M2-007","owner":"INTELLIGENCE","title":"Implement version-aware resumable batch Analyzer orchestration","status":"READY","depends_on":["M2-003","M2-006"]},
+    {"id":"M2-008","owner":"INTELLIGENCE","title":"Extract and persist deterministic First-Line intelligence","status":"READY","depends_on":["M2-007"]},
+    {"id":"M2-009","owner":"INTELLIGENCE","title":"Extract and persist Parent-Ending intelligence with missingness states","status":"READY","depends_on":["M2-007"]},
+    {"id":"M2-010","owner":"DATA","title":"Define and migrate Pattern Instance and abstract Pattern contracts","status":"READY","depends_on":["M2-008","M2-009"]},
+    {"id":"M2-011","owner":"INTELLIGENCE","title":"Implement reproducible clustering and Pattern materialization","status":"READY","depends_on":["M2-010"]},
+    {"id":"M2-012","owner":"INTELLIGENCE","title":"Implement support ranking and human-review Pattern Report","status":"READY","depends_on":["M2-011"]},
+    {"id":"M2-013","owner":"COLLECTOR","title":"Verify public metric availability and store only observed metrics","status":"READY","depends_on":["M2-004","M2-005"]},
+    {"id":"M2-014","owner":"QA_REVIEWER","title":"Validate migrations, dedupe, batches, features, patterns, security, and regression","status":"READY","depends_on":["M2-007","M2-012","M2-013"]},
+    {"id":"M2-015","owner":"COLLECTOR","title":"Reach 100 unique public posts or record measured API constraint evidence","status":"READY","depends_on":["M2-005","M2-014"]},
+    {"id":"M2-016","owner":"QA_REVIEWER","title":"Generate and verify dataset and Pattern Report evidence with CI","status":"READY","depends_on":["M2-012","M2-014","M2-015"]},
+    {"id":"M2-017","owner":"ORCHESTRATOR","title":"Mark M2 complete only after Definition of Done passes","status":"BLOCKED","depends_on":["M2-016"]}
   ]
 }

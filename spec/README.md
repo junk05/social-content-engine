@@ -3,6 +3,7 @@
 This directory is the project SSOT.
 
 - `MILESTONES.md`: scope and Definition of Done
+- `M2_PATTERN_MINING.md`: approved dataset expansion and pattern-mining contract
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

@@ -1,0 +1,21 @@
+{
+  "id": "CR-0001",
+  "status": "IMPLEMENTED",
+  "motivation": "Approve M2 cross-post dataset expansion and deterministic pattern mining while keeping content generation, publishing, virality prediction, and Fortune Engine integration out of scope.",
+  "affected_paths": [
+    "AGENTS.md",
+    "spec/M2_PATTERN_MINING.md",
+    "spec/MILESTONES.md",
+    "spec/TASKS.json",
+    "spec/AGENT_REGISTRY.json",
+    "spec/HUMAN_GATES.md",
+    "spec/CHANGE_CONTROL.md"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "M2 specification records API UNKNOWN values and bounded collection policy",
+    "M0 raw and normalized semantics remain authoritative",
+    "TASKS dependencies keep collection independent of Pattern Miner completion",
+    "Repository validation and regression tests pass"
+  ]
+}

@@ -1,7 +1,7 @@
 # Human Gates
 
 Human approval is not required for routine implementation, tests, fixtures,
-internal refactoring, or CI changes within the approved M0 scope.
+internal refactoring, or CI changes within the active approved milestone scope.
 
 ## HG-01 External credentials
 

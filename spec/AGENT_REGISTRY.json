@@ -13,7 +13,7 @@
     },
     {
       "id": "COLLECTOR",
-      "responsibilities": ["official API spike", "pagination", "retry", "raw capture"],
+      "responsibilities": ["official API spike", "bounded batch collection", "pagination", "retry", "raw capture"],
       "allowed_paths": ["src/social_content_engine/collector/**", "tests/**", "spec/THREADS_API_CAPABILITIES.json"],
       "forbidden_paths": ["content generation", "automatic publishing"],
       "input_artifacts": ["official Meta documentation", "credentials via environment"],
@@ -23,7 +23,7 @@
     },
     {
       "id": "DATA",
-      "responsibilities": ["storage", "normalization", "deduplication", "provenance"],
+      "responsibilities": ["storage", "normalization versioning", "dataset snapshots", "deduplication", "provenance"],
       "allowed_paths": ["src/social_content_engine/data/**", "spec/contracts/**", "spec/DATA_MODEL.md", "tests/**"],
       "forbidden_paths": ["external API policy decisions"],
       "input_artifacts": ["raw responses", "data contracts"],
@@ -33,9 +33,9 @@
     },
     {
       "id": "INTELLIGENCE",
-      "responsibilities": ["post-M0 analysis and pattern mining"],
-      "allowed_paths": ["src/social_content_engine/intelligence/**", "tests/**"],
-      "forbidden_paths": ["blocking Collector or Data during M0"],
+      "responsibilities": ["batch analysis", "feature extraction", "pattern mining", "pattern reports"],
+      "allowed_paths": ["src/social_content_engine/analyzer/**", "src/social_content_engine/intelligence/**", "tests/**"],
+      "forbidden_paths": ["content generation", "automatic publishing", "creator profiling"],
       "input_artifacts": ["normalized posts"],
       "output_artifacts": ["versioned analysis"],
       "reviewers": ["QA_REVIEWER"],

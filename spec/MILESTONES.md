@@ -46,9 +46,23 @@ Items 1–10 are verified. Local validation passed with 41 tests, and GitHub
 Actions passed on Python 3.9 and 3.12. Evidence:
 `evidence/M1_VERIFICATION.json`.
 
+## M2 — Cross-post Pattern Mining & Dataset Expansion
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M2_PATTERN_MINING.md`
+(`M2-PATTERN-MINING-V1`).
+
+Goal: expand the permitted public Threads dataset, batch M1 analysis, and derive
+reproducible multi-post structural Pattern candidates with evidence and
+provenance. The initial target is 100 unique public posts across five or more
+genres with both TOP and RECENT, bounded by a 200-post hard ceiling and measured
+API constraints.
+
+Definition of Done is authoritative in `spec/M2_PATTERN_MINING.md` section 14.
+
 ## Deferred until later milestones
 
-- cross-post pattern mining and pattern ranking
 - content generation and automatic publishing
 - Fortune Engine integration
 - dashboards, production deployment, and large-scale infrastructure

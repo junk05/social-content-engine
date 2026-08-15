@@ -5,10 +5,12 @@ active milestone, and the applicable contract.
 
 ## Current scope
 
-- Active milestone: M0 (`spec/MILESTONES.md`)
-- Priority: obtain and preserve one real public Threads API response.
-- Forbidden before M0: content generation, auto-posting, Fortune Engine
-  integration, dashboards, and production deployment.
+- Active milestone: M2 (`spec/MILESTONES.md`)
+- Priority: expand versioned public evidence while collection and deterministic
+  Pattern Mining proceed independently.
+- Forbidden in M2: content generation, auto-posting, virality prediction,
+  creator profiling, Fortune Engine integration, dashboards, and production
+  deployment.
 
 ## Working rules
 
