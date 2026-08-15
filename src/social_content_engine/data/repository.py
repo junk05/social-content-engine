@@ -421,12 +421,32 @@ def _migration_5_first_line_features(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migration_6_parent_ending_features(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE parent_ending_features (
+          id INTEGER PRIMARY KEY,
+          child_analysis_run_row_id INTEGER NOT NULL REFERENCES analysis_runs(id),
+          child_normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          parent_normalized_post_version_id INTEGER REFERENCES normalized_post_versions(id),
+          parent_analysis_run_row_id INTEGER REFERENCES analysis_runs(id),
+          extractor_version TEXT NOT NULL,
+          feature_contract_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          feature_json TEXT NOT NULL,
+          feature_sha256 TEXT NOT NULL,
+          extracted_at TEXT NOT NULL,
+          UNIQUE(child_analysis_run_row_id, extractor_version)
+        )"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
     (3, "collection-batches-datasets-metric-observations-v1", _migration_3_dataset_expansion),
     (4, "analysis-batches-pinned-dataset-versions-v1", _migration_4_analysis_batches),
     (5, "first-line-features-no-source-text-v1", _migration_5_first_line_features),
+    (6, "parent-ending-features-thread-relationships-v1", _migration_6_parent_ending_features),
 )
 
 
@@ -866,6 +886,7 @@ class Repository:
             "analysis_batches",
             "analysis_batch_items",
             "first_line_features",
+            "parent_ending_features",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
@@ -1341,6 +1362,213 @@ class Repository:
         self.connection.commit()
         if cursor.lastrowid is None:
             raise RuntimeError("SQLite did not return a first-line feature id")
+        return {
+            "id": int(cursor.lastrowid),
+            "feature": feature,
+            "feature_sha256": feature_sha256,
+            "reused": False,
+        }
+
+    def get_parent_ending_source(self, child_analysis_run_row_id: int) -> Dict[str, Any]:
+        """Resolve parent evidence only through the thread_relationships SSOT."""
+        child = self.get_analysis_feature_source(child_analysis_run_row_id)
+        relationships = self.connection.execute(
+            """SELECT DISTINCT parent_post_id FROM thread_relationships
+            WHERE source = ? AND child_post_id = ? ORDER BY parent_post_id""",
+            (child["source"], child["source_post_id"]),
+        ).fetchall()
+        result: Dict[str, Any] = {"child": child}
+        if not relationships or (
+            len(relationships) == 1 and relationships[0]["parent_post_id"] is None
+        ):
+            result["availability"] = "NO_PARENT"
+            return result
+        if len(relationships) != 1:
+            result["availability"] = "RELATIONSHIP_AMBIGUOUS"
+            return result
+        parent_post_id = str(relationships[0]["parent_post_id"])
+        parent = self.connection.execute(
+            """SELECT normalized_post_versions.id AS normalized_post_version_id,
+                      normalized_post_versions.canonical_payload_json
+            FROM normalized_posts
+            JOIN normalized_post_versions
+              ON normalized_post_versions.id = normalized_posts.current_version_id
+            WHERE normalized_posts.source = ? AND normalized_posts.source_post_id = ?""",
+            (child["source"], parent_post_id),
+        ).fetchone()
+        result["parent_source_post_id"] = parent_post_id
+        if parent is None:
+            result["availability"] = "PARENT_TEXT_UNAVAILABLE"
+            return result
+        parent_version_id = int(parent["normalized_post_version_id"])
+        parent_analysis = self.connection.execute(
+            """SELECT analysis_runs.id, post_analysis.payload_json
+            FROM analysis_runs
+            JOIN post_analysis ON post_analysis.analysis_run_row_id = analysis_runs.id
+            WHERE analysis_runs.source = ? AND analysis_runs.source_post_id = ?
+              AND analysis_runs.normalized_post_version_id = ?
+              AND analysis_runs.analyzer_version = ?
+              AND analysis_runs.taxonomy_version = ?
+              AND analysis_runs.status = 'SUCCEEDED'
+            ORDER BY analysis_runs.id DESC LIMIT 1""",
+            (
+                child["source"],
+                parent_post_id,
+                parent_version_id,
+                child["analyzer_version"],
+                child["taxonomy_version"],
+            ),
+        ).fetchone()
+        result.update(
+            {
+                "availability": "OBSERVED",
+                "parent_normalized_post_version_id": parent_version_id,
+                "parent_normalized_payload": json.loads(
+                    str(parent["canonical_payload_json"])
+                ),
+                "parent_analysis_run_row_id": (
+                    int(parent_analysis["id"]) if parent_analysis is not None else None
+                ),
+                "parent_analysis_payload": (
+                    json.loads(str(parent_analysis["payload_json"]))
+                    if parent_analysis is not None
+                    else None
+                ),
+            }
+        )
+        return result
+
+    def persist_parent_ending_feature(
+        self,
+        *,
+        child_analysis_run_row_id: int,
+        child_normalized_post_version_id: int,
+        parent_normalized_post_version_id: Optional[int],
+        parent_analysis_run_row_id: Optional[int],
+        extractor_version: str,
+        feature_contract_version: str,
+        input_sha256: str,
+        feature: Dict[str, Any],
+        extracted_at: str,
+    ) -> Dict[str, Any]:
+        """Persist a replay-safe parent ending without source text or identity metadata."""
+        forbidden = {
+            "text",
+            "quote",
+            "source_text",
+            "line_text",
+            "permalink",
+            "username",
+        }
+
+        def reject_forbidden(value: Any) -> None:
+            if isinstance(value, dict):
+                if forbidden.intersection(value):
+                    raise ValueError("parent-ending feature must not persist source text")
+                for child in value.values():
+                    reject_forbidden(child)
+            elif isinstance(value, list):
+                for child in value:
+                    reject_forbidden(child)
+
+        reject_forbidden(feature)
+        required_keys = {
+            "availability",
+            "windows",
+            "terminal_mark",
+            "open_loop_score",
+            "closure_score",
+            "continuation_desire",
+            "cliffhanger_technique",
+            "m1_action_labels",
+            "m1_structure_labels",
+        }
+        if set(feature) != required_keys:
+            raise ValueError("parent-ending feature fields do not match the closed contract")
+        if feature["availability"] not in {
+            "OBSERVED",
+            "NO_PARENT",
+            "PARENT_TEXT_UNAVAILABLE",
+            "RELATIONSHIP_AMBIGUOUS",
+        }:
+            raise ValueError("invalid parent-ending availability")
+        if feature["terminal_mark"] not in {
+            "QUESTION",
+            "EXCLAMATION",
+            "COLON",
+            "OTHER",
+            "NONE",
+        }:
+            raise ValueError("invalid parent-ending terminal mark")
+        if feature["cliffhanger_technique"] not in {
+            "UNKNOWN",
+            "EXPLICIT_CONTINUATION",
+            "ELLIPSIS",
+            "UNANSWERED_QUESTION",
+            "COLON_LEAD_IN",
+            "NONE",
+        }:
+            raise ValueError("invalid parent-ending cliffhanger technique")
+        score_keys = {"open_loop_score", "closure_score", "continuation_desire"}
+        if any(feature[key] not in {0, 1, 2, 3, "UNKNOWN"} for key in score_keys):
+            raise ValueError("invalid parent-ending marker score")
+        windows = feature["windows"]
+        if not isinstance(windows, list) or len(windows) > 3:
+            raise ValueError("invalid parent-ending windows")
+        window_keys = {"non_empty_line_count", "start", "end", "text_sha256", "char_count"}
+        if any(not isinstance(window, dict) or set(window) != window_keys for window in windows):
+            raise ValueError("invalid parent-ending window fields")
+        child_link = self.connection.execute(
+            """SELECT 1 FROM analysis_runs WHERE id = ?
+            AND normalized_post_version_id = ? AND status = 'SUCCEEDED'""",
+            (child_analysis_run_row_id, child_normalized_post_version_id),
+        ).fetchone()
+        if child_link is None:
+            raise ValueError("parent-ending child provenance is inconsistent")
+        if parent_analysis_run_row_id is not None:
+            parent_link = self.connection.execute(
+                """SELECT 1 FROM analysis_runs WHERE id = ?
+                AND normalized_post_version_id = ? AND status = 'SUCCEEDED'""",
+                (parent_analysis_run_row_id, parent_normalized_post_version_id),
+            ).fetchone()
+            if parent_link is None:
+                raise ValueError("parent-ending parent provenance is inconsistent")
+        feature_json = _canonical_json(feature)
+        feature_sha256 = hashlib.sha256(feature_json.encode("utf-8")).hexdigest()
+        existing = self.connection.execute(
+            """SELECT * FROM parent_ending_features
+            WHERE child_analysis_run_row_id = ? AND extractor_version = ?""",
+            (child_analysis_run_row_id, extractor_version),
+        ).fetchone()
+        if existing is not None:
+            if str(existing["feature_sha256"]) != feature_sha256:
+                raise ValueError("parent-ending feature replay produced different output")
+            replay = dict(existing)
+            replay["feature"] = json.loads(str(replay.pop("feature_json")))
+            replay["reused"] = True
+            return replay
+        cursor = self.connection.execute(
+            """INSERT INTO parent_ending_features
+            (child_analysis_run_row_id, child_normalized_post_version_id,
+             parent_normalized_post_version_id, parent_analysis_run_row_id,
+             extractor_version, feature_contract_version, input_sha256, feature_json,
+             feature_sha256, extracted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                child_analysis_run_row_id,
+                child_normalized_post_version_id,
+                parent_normalized_post_version_id,
+                parent_analysis_run_row_id,
+                extractor_version,
+                feature_contract_version,
+                input_sha256,
+                feature_json,
+                feature_sha256,
+                extracted_at,
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a parent-ending feature id")
         return {
             "id": int(cursor.lastrowid),
             "feature": feature,
