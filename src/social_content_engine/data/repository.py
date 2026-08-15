@@ -404,11 +404,29 @@ def _migration_4_analysis_batches(connection: sqlite3.Connection) -> None:
     )
 
 
+def _migration_5_first_line_features(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE first_line_features (
+          id INTEGER PRIMARY KEY,
+          analysis_run_row_id INTEGER NOT NULL REFERENCES analysis_runs(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          extractor_version TEXT NOT NULL,
+          feature_contract_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          feature_json TEXT NOT NULL,
+          feature_sha256 TEXT NOT NULL,
+          extracted_at TEXT NOT NULL,
+          UNIQUE(analysis_run_row_id, extractor_version)
+        )"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
     (3, "collection-batches-datasets-metric-observations-v1", _migration_3_dataset_expansion),
     (4, "analysis-batches-pinned-dataset-versions-v1", _migration_4_analysis_batches),
+    (5, "first-line-features-no-source-text-v1", _migration_5_first_line_features),
 )
 
 
@@ -847,6 +865,7 @@ class Repository:
             "post_metric_observations",
             "analysis_batches",
             "analysis_batch_items",
+            "first_line_features",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
@@ -1178,3 +1197,153 @@ class Repository:
         )
         self.connection.commit()
         return status
+
+    def get_analysis_feature_source(self, analysis_run_row_id: int) -> Dict[str, Any]:
+        """Load a successful M1 result and its exact immutable normalized version."""
+        row = self.connection.execute(
+            """SELECT analysis_runs.*, post_analysis.payload_json,
+                      normalized_post_versions.canonical_payload_json
+            FROM analysis_runs
+            JOIN post_analysis ON post_analysis.analysis_run_row_id = analysis_runs.id
+            JOIN normalized_post_versions
+              ON normalized_post_versions.id = analysis_runs.normalized_post_version_id
+            WHERE analysis_runs.id = ? AND analysis_runs.status = 'SUCCEEDED'""",
+            (analysis_run_row_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError("feature extraction requires a successful analysis run")
+        result = dict(row)
+        result["analysis_payload"] = json.loads(str(result.pop("payload_json")))
+        result["normalized_payload"] = json.loads(
+            str(result.pop("canonical_payload_json"))
+        )
+        return result
+
+    def persist_first_line_feature(
+        self,
+        *,
+        analysis_run_row_id: int,
+        normalized_post_version_id: int,
+        extractor_version: str,
+        feature_contract_version: str,
+        input_sha256: str,
+        feature: Dict[str, Any],
+        extracted_at: str,
+    ) -> Dict[str, Any]:
+        """Persist a source-text-free feature, replaying an identical extractor run."""
+        forbidden = {"text", "quote", "source_text", "line_text"}
+
+        def reject_source_text(value: Any) -> None:
+            if isinstance(value, dict):
+                if forbidden.intersection(value):
+                    raise ValueError("first-line feature must not persist source text")
+                for child in value.values():
+                    reject_source_text(child)
+            elif isinstance(value, list):
+                for child in value:
+                    reject_source_text(child)
+
+        reject_source_text(feature)
+        required_keys = {
+            "availability",
+            "start",
+            "end",
+            "text_sha256",
+            "char_count",
+            "terminal_mark",
+            "hook_family",
+            "hook_subtype",
+            "curiosity_gap",
+            "self_relevance",
+            "target_specificity",
+            "emotional_intensity",
+            "contrarian_level",
+            "read_more_pressure",
+            "expected_action",
+            "m1_action_labels",
+            "m1_structure_labels",
+        }
+        if set(feature) != required_keys:
+            raise ValueError("first-line feature fields do not match the closed contract")
+        if feature["availability"] not in {"EMPTY", "OBSERVED"}:
+            raise ValueError("invalid first-line availability")
+        if feature["terminal_mark"] not in {
+            "QUESTION",
+            "EXCLAMATION",
+            "COLON",
+            "OTHER",
+            "NONE",
+        }:
+            raise ValueError("invalid first-line terminal mark")
+        if feature["hook_family"] not in {
+            "EMPTY",
+            "QUESTION",
+            "CONTRARIAN",
+            "TARGETED",
+            "EMOTIONAL",
+            "OPEN_LOOP",
+            "STATEMENT",
+        }:
+            raise ValueError("invalid first-line hook family")
+        if feature["hook_subtype"] not in {
+            "EMPTY",
+            "WHY_QUESTION",
+            "DIRECT_QUESTION",
+            "CONTRARIAN_ASSERTION",
+            "AUDIENCE_CALL_OUT",
+            "EMOTION_LED",
+            "CONTINUATION_CUE",
+            "PLAIN_STATEMENT",
+        }:
+            raise ValueError("invalid first-line hook subtype")
+        if feature["expected_action"] not in {"NONE", "ANSWER", "READ_MORE", "REFLECT"}:
+            raise ValueError("invalid first-line expected action")
+        score_keys = {
+            "curiosity_gap",
+            "self_relevance",
+            "target_specificity",
+            "emotional_intensity",
+            "contrarian_level",
+            "read_more_pressure",
+        }
+        if any(feature[key] not in {0, 1, 2, 3, "UNKNOWN"} for key in score_keys):
+            raise ValueError("invalid first-line marker score")
+        feature_json = _canonical_json(feature)
+        feature_sha256 = hashlib.sha256(feature_json.encode("utf-8")).hexdigest()
+        existing = self.connection.execute(
+            """SELECT * FROM first_line_features
+            WHERE analysis_run_row_id = ? AND extractor_version = ?""",
+            (analysis_run_row_id, extractor_version),
+        ).fetchone()
+        if existing is not None:
+            if str(existing["feature_sha256"]) != feature_sha256:
+                raise ValueError("first-line feature replay produced different output")
+            replay = dict(existing)
+            replay["feature"] = json.loads(str(replay.pop("feature_json")))
+            replay["reused"] = True
+            return replay
+        cursor = self.connection.execute(
+            """INSERT INTO first_line_features
+            (analysis_run_row_id, normalized_post_version_id, extractor_version,
+             feature_contract_version, input_sha256, feature_json, feature_sha256,
+             extracted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                analysis_run_row_id,
+                normalized_post_version_id,
+                extractor_version,
+                feature_contract_version,
+                input_sha256,
+                feature_json,
+                feature_sha256,
+                extracted_at,
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a first-line feature id")
+        return {
+            "id": int(cursor.lastrowid),
+            "feature": feature,
+            "feature_sha256": feature_sha256,
+            "reused": False,
+        }
