@@ -31,10 +31,22 @@ class FakeButton extends FakeElement {
 
 class FakeSvg extends FakeElement {}
 
-class FakeActionRow extends FakeElement {
-  constructor(card, count) {
+class FakeActionOuter extends FakeElement {
+  constructor(card) {
     super();
     this.parentElement = card;
+    this.style.display = "block";
+  }
+  querySelectorAll(selector) {
+    const row = this.children[0];
+    return row ? row.querySelectorAll(selector) : [];
+  }
+}
+
+class FakeActionRow extends FakeElement {
+  constructor(outer, count) {
+    super();
+    this.parentElement = outer;
     this.style.display = "flex";
     for (let index = 0; index < count; index += 1) this.appendChild(new FakeSvg());
   }
@@ -59,7 +71,9 @@ class FakeCard extends FakeElement {
     this.links = Array.from({ length: options.postCount ?? 1 }, () => ({ parentElement: this }));
     this.link = this.links[0];
     this.times = Array.from({ length: options.timeCount ?? 1 }, () => ({}));
-    this.actionRow = new FakeActionRow(this, options.svgCount ?? 0);
+    this.actionOuter = new FakeActionOuter(this);
+    this.actionRow = new FakeActionRow(this.actionOuter, options.svgCount ?? 0);
+    this.actionOuter.appendChild(this.actionRow);
   }
   getAttribute(name) { return name === "role" ? this.role : super.getAttribute(name); }
   querySelectorAll(selector) {
@@ -133,7 +147,9 @@ function cardsFromFixture() {
   assert.equal(html.includes("cookie"), false);
   assert.equal(html.includes("<article"), false, "fixture must reproduce DIV-only cards");
   return [
-    new FakeCard("initial-one", html.includes('data-fixture="initial-one"'), { svgCount: 4 }),
+    new FakeCard("initial-one", html.includes('data-fixture="initial-one"'), {
+      svgCount: 4, postCount: 2, timeCount: 1,
+    }),
     new FakeCard("initial-two", html.includes('data-fixture="initial-two"'), { svgCount: 2 }),
     new FakeCard("non-card", false),
   ];
@@ -167,6 +183,8 @@ async function main() {
   assert.deepEqual(actionCounts(cards), [1, 1, 0]);
   assert.equal(cards[0].children.length, 0);
   assert.equal(controller.findActionRow(cards[0]), cards[0].actionRow);
+  assert.equal(cards[0].actionOuter.style.display, "block");
+  assert.equal(cards[0].actionRow.style.display, "flex");
   assert.equal(controller.findActionRow(cards[1]), null);
   assert.equal(actionButton(cards[0]).parentElement, cards[0].actionRow);
   assert.equal(cards[0].children.some((child) => child.attributes["data-sce-pattern-action-fallback"]), false);
@@ -183,6 +201,7 @@ async function main() {
   assert.equal(styled.style.marginInlineStart, "auto");
   assert.equal(styled.style.flexShrink, "0");
   assert.equal(styled.style.alignSelf, "center");
+  assert.equal(controller.resolveCardContainer(cards[0].link), cards[0]);
   const fallback = actionButton(cards[1]);
   assert.equal(fallback.parentElement, cards[1]);
   assert.equal(fallback.style.position, "absolute");
@@ -217,6 +236,18 @@ async function main() {
     signalCount: 0, tagName: "SPAN", parentElement: broad,
   });
   assert.equal(controller.resolveCardContainer(narrowWithoutSignals.link), null);
+
+  const tooBroad = new FakeCard("too-broad", true, {
+    postCount: 3, timeCount: 1, signalCount: 5,
+  });
+  let deep = tooBroad;
+  for (let depth = 0; depth < 10; depth += 1) {
+    deep = new FakeCard(`depth-${depth}`, true, { parentElement: deep, signalCount: depth + 1 });
+  }
+  assert.notEqual(
+    controller.resolveCardContainer(deep.link), null,
+    "resolver must retain bounded cards across live-depth ancestry",
+  );
 
   const dynamic = new FakeCard("dynamic", true);
   documentObject.cards.push(dynamic);

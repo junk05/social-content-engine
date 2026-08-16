@@ -3,7 +3,7 @@
 (function exposePatternActionController(scope) {
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
-  const MAX_CONTAINER_ASCENT = 6;
+  const MAX_CONTAINER_ASCENT = 12;
   const MAX_ACTION_ROW_ASCENT = 3;
 
   function defaultObservationBoundary(observation) {
@@ -59,8 +59,8 @@
       for (let depth = 0; candidate && depth < MAX_CONTAINER_ASCENT; depth += 1) {
         const postLinks = candidate.querySelectorAll('a[href*="/post/"]');
         const times = candidate.querySelectorAll("time[datetime]");
-        const boundedShape = postLinks.length === 1 && times.length === 1;
-        if (postLinks.length > 1 || times.length > 1) break;
+        const boundedShape = postLinks.length >= 1 && postLinks.length <= 2 && times.length === 1;
+        if (postLinks.length > 2 || times.length > 1) break;
         if (boundedShape && extractor.recognizeSearchCard(candidate, windowObject.location.href)) {
           const signals = signalCount(candidate);
           const tag = (candidate.tagName || "").toLowerCase();
