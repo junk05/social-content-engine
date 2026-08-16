@@ -86,8 +86,11 @@
     ,{"id":"M4-012","owner":"INTELLIGENCE","title":"Decompose actionable Pattern families and exclude UNKNOWN/NONE-only clusters","status":"COMPLETE","depends_on":["M4-011"]}
     ,{"id":"M4-013","owner":"QA_REVIEWER","title":"Audit metric coverage and validate M4 V2 deterministic replay and leakage boundaries","status":"COMPLETE","depends_on":["M4-011","M4-012"]}
     ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"COMPLETE","depends_on":["M4-013"]}
-    ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-013","M4-014"]}
+    ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"IN_PROGRESS","depends_on":["M4-013","M4-014","M4-020"]}
     ,{"id":"M4-016","owner":"DATA","title":"Persist observed multi-reply Thread Sequence graph without inferred edges","status":"COMPLETE","depends_on":["M4-014"]}
-    ,{"id":"M4-017","owner":"INTELLIGENCE","title":"Classify short-form and observed self-reply transition Patterns","status":"IN_PROGRESS","depends_on":["M4-016"]}
+    ,{"id":"M4-017","owner":"INTELLIGENCE","title":"Classify short-form and observed self-reply transition Patterns","status":"COMPLETE","depends_on":["M4-016"]}
+    ,{"id":"M4-018","owner":"INTELLIGENCE","title":"Expose First-Line coverage funnel and closed psychology hypotheses","status":"COMPLETE","depends_on":["M4-017"]}
+    ,{"id":"M4-019","owner":"DATA","title":"Audit browser metrics and preserve historical observation provenance in M4 selection","status":"COMPLETE","depends_on":["M4-017"]}
+    ,{"id":"M4-020","owner":"QA_REVIEWER","title":"Verify M4 revision coverage, provenance, leakage, and regression","status":"IN_PROGRESS","depends_on":["M4-018","M4-019"]}
   ]
 }

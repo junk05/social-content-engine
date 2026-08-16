@@ -4,6 +4,7 @@ import unittest
 
 from social_content_engine.intelligence.m4_intelligence import (
     build_intelligence_feature,
+    materialize_metric_snapshots,
     materialize_sequence_patterns,
     sequence_signature,
 )
@@ -32,6 +33,39 @@ class _SequenceRepository:
             CREATE TABLE m4_sequence_pattern_members (
               m4_sequence_pattern_id INTEGER NOT NULL,
               m4_intelligence_instance_id INTEGER NOT NULL, ordinal INTEGER NOT NULL
+            );"""
+        )
+
+
+class _MetricRepository:
+    def __init__(self) -> None:
+        self.connection = sqlite3.connect(":memory:")
+        self.connection.row_factory = sqlite3.Row
+        self.connection.executescript(
+            """CREATE TABLE dataset_members (
+              dataset_snapshot_id INTEGER NOT NULL, normalized_post_version_id INTEGER NOT NULL,
+              ordinal INTEGER NOT NULL
+            );
+            CREATE TABLE dataset_snapshots (id INTEGER PRIMARY KEY, finalized_at TEXT NOT NULL);
+            CREATE TABLE browser_normalized_bridges (
+              normalized_post_version_id INTEGER NOT NULL, browser_post_identity_id INTEGER NOT NULL
+            );
+            CREATE TABLE browser_observations (
+              id INTEGER PRIMARY KEY, browser_post_identity_id INTEGER NOT NULL,
+              collected_at TEXT NOT NULL
+            );
+            CREATE TABLE browser_observed_fields (
+              id INTEGER PRIMARY KEY, browser_observation_id INTEGER NOT NULL,
+              field_name TEXT NOT NULL, observed_value_json TEXT NOT NULL,
+              observed_at TEXT NOT NULL, extractor_version TEXT NOT NULL, surface TEXT NOT NULL
+            );
+            CREATE TABLE m4_metric_snapshots (
+              dataset_snapshot_id INTEGER NOT NULL, normalized_post_version_id INTEGER NOT NULL,
+              browser_observation_id INTEGER NOT NULL, field_name TEXT NOT NULL,
+              metric_value INTEGER NOT NULL, observed_at TEXT NOT NULL, surface TEXT NOT NULL,
+              extractor_version TEXT NOT NULL, input_sha256 TEXT NOT NULL,
+              metric_version TEXT NOT NULL,
+              UNIQUE(dataset_snapshot_id, browser_observation_id, field_name)
             );"""
         )
 
@@ -92,6 +126,35 @@ class M4IntelligenceTest(unittest.TestCase):
             "SELECT COUNT(*) FROM m4_sequence_pattern_members"
         ).fetchone()[0]
         self.assertEqual(2, count)
+
+    def test_metric_selection_includes_historical_identity_observations_before_snapshot(
+        self,
+    ) -> None:
+        repository = _MetricRepository()
+        repository.connection.executescript(
+            """INSERT INTO dataset_snapshots VALUES (1, '2026-08-16T01:00:00+00:00');
+            INSERT INTO dataset_members VALUES (1, 10, 0);
+            INSERT INTO browser_normalized_bridges VALUES (10, 20);
+            INSERT INTO browser_observations VALUES (100, 20, '2026-08-16T00:00:00+00:00');
+            INSERT INTO browser_observations VALUES (101, 20, '2026-08-16T00:30:00+00:00');
+            INSERT INTO browser_observations VALUES (102, 20, '2026-08-16T02:00:00+00:00');
+            INSERT INTO browser_observed_fields VALUES
+              (1, 100, 'public_counters.like_count', '0',
+               '2026-08-16T00:00:00+00:00', 'search-v1', 'threads_search_card'),
+              (2, 101, 'public_counters.view_count', '12',
+               '2026-08-16T00:30:00+00:00', 'detail-v1', 'threads_post_detail'),
+              (3, 102, 'public_counters.reply_count', '3',
+               '2026-08-16T02:00:00+00:00', 'detail-v1', 'threads_post_detail');"""
+        )
+        self.assertEqual(2, materialize_metric_snapshots(repository, 1))
+        rows = repository.connection.execute(
+            "SELECT browser_observation_id, field_name, metric_value "
+            "FROM m4_metric_snapshots ORDER BY browser_observation_id"
+        ).fetchall()
+        self.assertEqual(
+            [(100, "public_counters.like_count", 0), (101, "public_counters.view_count", 12)],
+            [tuple(row) for row in rows],
+        )
 
 
 if __name__ == "__main__":

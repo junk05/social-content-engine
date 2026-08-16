@@ -10,7 +10,7 @@ from social_content_engine.intelligence.m4_v2 import (
 
 class M4V2Test(unittest.TestCase):
     def test_derivation_version_tracks_taxonomy_revision(self) -> None:
-        self.assertEqual("m4-intelligence-v2.1", DERIVATION_VERSION)
+        self.assertEqual("m4-intelligence-v2.2", DERIVATION_VERSION)
 
     def test_multi_label_first_line_and_text_free_evidence(self) -> None:
         feature = build_v2_feature(
@@ -72,6 +72,13 @@ class M4V2Test(unittest.TestCase):
             {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"},
         )
         self.assertIn("NUMBER_LIST", listed["first_line"]["rhetorical_mechanisms"])
+
+    def test_empty_text_is_explicitly_unavailable_not_generic_assertion(self) -> None:
+        feature = build_v2_feature(
+            "", {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"}
+        )
+        self.assertEqual("EMPTY", feature["first_line"]["availability"])
+        self.assertEqual([], feature["first_line"]["rhetorical_mechanisms"])
 
 
 if __name__ == "__main__":

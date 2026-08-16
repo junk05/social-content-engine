@@ -1,0 +1,23 @@
+{
+  "id": "CR-0004",
+  "status": "IMPLEMENTED",
+  "motivation": "HG-04 rejected the V2 report because First-Line promotion loss and feature coverage were opaque, psychological effects were often unspecified, and metric collection versus snapshot-selection coverage was not distinguishable.",
+  "affected_paths": [
+    "spec/M4_HG04_REVISION_CONTRACT.md",
+    "spec/README.md",
+    "spec/TASKS.json",
+    "src/social_content_engine/intelligence/m4_v2.py",
+    "src/social_content_engine/intelligence/m4_v2_report.py",
+    "src/social_content_engine/intelligence/m4_intelligence.py",
+    "tests/test_m4_v2.py",
+    "tests/test_m4_v2_report.py"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "First-Line funnel and feature-frequency aggregates contain no source text or identifiers",
+    "Psychology mappings are closed and explicitly labelled PSYCHOLOGY_HYPOTHESIS",
+    "Browser metric audit distinguishes not-observed fields from zero values",
+    "Metric selection preserves temporal and browser-observation provenance",
+    "Same frozen snapshot is replayed before HG-04 resubmission"
+  ]
+}

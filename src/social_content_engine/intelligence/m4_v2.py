@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 
 from social_content_engine.data.repository import Repository
 
-DERIVATION_VERSION = "m4-intelligence-v2.1"
+DERIVATION_VERSION = "m4-intelligence-v2.2"
 FEATURE_CONTRACT_VERSION = "M4_INTELLIGENCE_FEATURE_V2"
 SHORT_FORM_MAX_CHARS = 100
 _NUMBER_LIST = re.compile(
@@ -90,6 +90,7 @@ def build_v2_feature(
 ) -> Dict[str, Any]:
     """Classify normalized text without retaining it in the output feature."""
     line_start, line = _first_line(text)
+    line_available = bool(line)
     rhetorical_rules = (
         ("CONTRARIAN_CLAIM", ("逆", "むしろ", "しかし", "でも", "実は違う")),
         ("EXPECTATION_REVERSAL", ("と思った", "のに", "実は")),
@@ -124,7 +125,7 @@ def build_v2_feature(
         rhetorical_evidence["QUESTION"] = [
             _ref(text, line_start + len(line) - 1, line_start + len(line))
         ]
-    if not rhetorical:
+    if line_available and not rhetorical:
         rhetorical.append("ASSERTION")
         rhetorical_evidence["ASSERTION"] = [_ref(text, line_start, line_start + len(line))]
     audience, audience_evidence = _labels_with_evidence(line, audience_rules, line_start)
@@ -183,6 +184,7 @@ def build_v2_feature(
         "schema_version": 2,
         "feature_contract_version": FEATURE_CONTRACT_VERSION,
         "first_line": {
+            "availability": "OBSERVED" if line_available else "EMPTY",
             "rhetorical_mechanisms": sorted(set(rhetorical)),
             "audience_tension_mechanisms": audience,
             "continuation_mechanisms": sorted(set(continuation)) or ["NONE"],

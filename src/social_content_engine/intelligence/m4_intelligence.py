@@ -102,16 +102,18 @@ def materialize_metric_snapshots(repository: Repository, dataset_snapshot_id: in
     rows = repository.connection.execute(
         """SELECT dataset_members.normalized_post_version_id, browser_observed_fields.*
            FROM dataset_members
+           JOIN dataset_snapshots
+             ON dataset_snapshots.id = dataset_members.dataset_snapshot_id
            JOIN browser_normalized_bridges
              ON browser_normalized_bridges.normalized_post_version_id =
                 dataset_members.normalized_post_version_id
-           JOIN browser_normalized_versions
-             ON browser_normalized_versions.id =
-                browser_normalized_bridges.browser_normalized_version_id
+           JOIN browser_observations
+             ON browser_observations.browser_post_identity_id =
+                browser_normalized_bridges.browser_post_identity_id
            JOIN browser_observed_fields
-             ON browser_observed_fields.browser_observation_id =
-                browser_normalized_versions.source_observation_id
+             ON browser_observed_fields.browser_observation_id = browser_observations.id
            WHERE dataset_members.dataset_snapshot_id = ?
+             AND browser_observations.collected_at <= dataset_snapshots.finalized_at
              AND browser_observed_fields.field_name LIKE 'public_counters.%'
            ORDER BY dataset_members.ordinal, browser_observed_fields.id""",
         (dataset_snapshot_id,),
