@@ -4,7 +4,6 @@
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
   const MAX_CONTAINER_ASCENT = 6;
-  const MAX_TOOLBAR_ASCENT = 2;
 
   function defaultObservationBoundary(observation) {
     return new Promise((resolve) => {
@@ -55,39 +54,22 @@
 
     function resolveCardContainer(link) {
       let candidate = link.parentElement;
-      let semanticFallback = null;
+      let resolved = null;
       for (let depth = 0; candidate && depth < MAX_CONTAINER_ASCENT; depth += 1) {
         const postLinks = candidate.querySelectorAll('a[href*="/post/"]');
         const times = candidate.querySelectorAll("time[datetime]");
         const boundedShape = postLinks.length === 1 && times.length === 1;
+        if (postLinks.length > 1 || times.length > 1) break;
         if (boundedShape && extractor.recognizeSearchCard(candidate, windowObject.location.href)) {
           const signals = signalCount(candidate);
-          if (signals >= 2) return candidate;
-          if (signals >= 1 && (candidate.tagName || "").toLowerCase() === "div") return candidate;
-          if (!semanticFallback && isSemanticFallback(candidate)) semanticFallback = candidate;
+          const tag = (candidate.tagName || "").toLowerCase();
+          if (signals >= 2 || (signals >= 1 && tag === "div") || isSemanticFallback(candidate)) {
+            resolved = candidate;
+          }
         }
         candidate = candidate.parentElement;
       }
-      return semanticFallback;
-    }
-
-    function isVisibleControl(element) {
-      return !element.hidden && element.getAttribute("aria-hidden") !== "true";
-    }
-
-    function findActionToolbar(card) {
-      const controls = Array.from(card.querySelectorAll('button, [role="button"]'))
-        .filter(isVisibleControl);
-      for (const control of controls) {
-        let candidate = control.parentElement;
-        for (let depth = 0; candidate && candidate !== card && depth < MAX_TOOLBAR_ASCENT; depth += 1) {
-          const grouped = Array.from(candidate.querySelectorAll('button, [role="button"]'))
-            .filter(isVisibleControl);
-          if (grouped.length >= 3) return candidate;
-          candidate = candidate.parentElement;
-        }
-      }
-      return null;
+      return resolved;
     }
 
     function stylePatternButton(button) {
@@ -102,25 +84,22 @@
       button.style.margin = "0";
       button.style.cursor = "pointer";
       button.style.maxWidth = "100%";
+      button.style.position = "absolute";
+      button.style.insetBlockEnd = "8px";
+      button.style.insetInlineEnd = "8px";
+      button.style.zIndex = "1";
     }
 
     function appendPatternAction(card, button) {
-      const toolbar = findActionToolbar(card);
-      if (toolbar) {
-        toolbar.appendChild(button);
-        return;
+      const computed = typeof windowObject.getComputedStyle === "function"
+        ? windowObject.getComputedStyle(card) : null;
+      const computedPosition = computed ? computed.position : card.style.position;
+      if (!computedPosition || computedPosition === "static") card.style.position = "relative";
+      if (!card.style.paddingBlockEnd) {
+        const existingPadding = computed ? Number.parseFloat(computed.paddingBlockEnd) || 0 : 0;
+        card.style.paddingBlockEnd = `${existingPadding + 40}px`;
       }
-      const fallback = documentObject.createElement("div");
-      fallback.setAttribute("data-sce-pattern-action-fallback", ACTION_VERSION);
-      fallback.style.display = "flex";
-      fallback.style.alignItems = "center";
-      fallback.style.justifyContent = "flex-start";
-      fallback.style.boxSizing = "border-box";
-      fallback.style.width = "100%";
-      fallback.style.padding = "6px 0";
-      fallback.style.margin = "4px 0 0";
-      fallback.appendChild(button);
-      card.appendChild(fallback);
+      card.appendChild(button);
     }
 
     function cardCandidates() {
@@ -223,9 +202,7 @@
       if (windowObject.navigation) windowObject.navigation.removeEventListener("navigate", scheduleScan);
     }
 
-    return Object.freeze({
-      start, stop, scan, scheduleScan, resolveCardContainer, findActionToolbar,
-    });
+    return Object.freeze({ start, stop, scan, scheduleScan, resolveCardContainer });
   }
 
   scope.SCE_PATTERN_ACTION_INJECTION = Object.freeze({

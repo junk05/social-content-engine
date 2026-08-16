@@ -108,6 +108,7 @@ function fakeTimers() {
 
 function actionButton(card) {
   const candidates = [
+    ...card.children,
     ...card.toolbar.children,
     ...card.children.flatMap((child) => child.children || [child]),
   ];
@@ -153,10 +154,11 @@ async function main() {
 
   controller.start();
   assert.deepEqual(actionCounts(cards), [1, 1, 0]);
-  assert.equal(cards[0].toolbar.children.includes(actionButton(cards[0])), true);
-  assert.equal(cards[0].children.length, 0, "reliable toolbar must be preferred");
-  assert.equal(cards[1].children[0].attributes["data-sce-pattern-action-fallback"], "v1");
-  assert.equal(actionButton(cards[1]).parentElement, cards[1].children[0]);
+  assert.equal(cards[0].children.length, 1);
+  assert.equal(actionButton(cards[0]).parentElement, cards[0]);
+  assert.equal(cards[0].children.some((child) => child.attributes["data-sce-pattern-action-fallback"]), false);
+  assert.equal(cards[0].style.position, "relative");
+  assert.equal(cards[0].style.paddingBlockEnd, "40px");
   const styled = actionButton(cards[0]);
   assert.equal(styled.style.font, "inherit");
   assert.equal(styled.style.fontSize, "12.5px");
@@ -164,6 +166,9 @@ async function main() {
   assert.equal(styled.style.border, "1px solid currentColor");
   assert.equal(styled.style.backgroundColor, "Canvas");
   assert.equal(styled.style.color, "CanvasText");
+  assert.equal(styled.style.position, "absolute");
+  assert.equal(styled.style.insetInlineEnd, "8px");
+  assert.equal(styled.style.insetBlockEnd, "8px");
   assert.equal(extractionCount, 0, "initial scan must not collect automatically");
   controller.scan();
   assert.deepEqual(actionCounts(cards), [1, 1, 0]);
@@ -171,11 +176,25 @@ async function main() {
   const broad = new FakeCard("broad", true, {
     postCount: 2, timeCount: 2, signalCount: 3, toolbarCount: 5,
   });
+  const fullCard = new FakeCard("full-card", true, {
+    signalCount: 4, tagName: "DIV", parentElement: broad,
+  });
+  const headerRow = new FakeCard("header-row", true, {
+    signalCount: 1, tagName: "DIV", parentElement: fullCard,
+  });
+  assert.equal(
+    controller.resolveCardContainer(headerRow.link), fullCard,
+    "resolver must choose the outermost bounded card before the multi-post parent",
+  );
+  documentObject.cards.push(headerRow);
+  controller.scan();
+  assert.equal(actionButton(fullCard).parentElement, fullCard);
+  assert.equal(headerRow.children.length, 0, "absolute action must not enter or shift the header row");
+  assert.equal(actionButton(fullCard).style.position, "absolute");
   const narrowWithoutSignals = new FakeCard("narrow", true, {
     signalCount: 0, tagName: "SPAN", parentElement: broad,
   });
   assert.equal(controller.resolveCardContainer(narrowWithoutSignals.link), null);
-  assert.equal(controller.findActionToolbar(broad), broad.toolbar);
 
   const dynamic = new FakeCard("dynamic", true);
   documentObject.cards.push(dynamic);
@@ -189,7 +208,7 @@ async function main() {
   windowObject.location.href = "https://www.threads.com/search?q=two";
   windowObject.dispatch("popstate");
   timers.flush();
-  assert.deepEqual(actionCounts(documentObject.cards), [1, 1, 0, 1]);
+  assert.deepEqual(actionCounts(documentObject.cards), [1, 1, 0, 0, 1]);
 
   const dynamicAction = actionButton(dynamic);
   await Promise.all([dynamicAction.click(), dynamicAction.click()]);
