@@ -21,6 +21,12 @@ from .browser_observation import (
     canonical_threads_post_url,
     validate_browser_observation,
 )
+from .browser_text_quality import (
+    ASSESSOR_VERSION,
+    INVALID_TEXT_DATE_METADATA,
+    TEXT_UNAVAILABLE,
+    VALID_TEXT,
+)
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -1063,6 +1069,31 @@ def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) 
         )
 
 
+def _migration_15_browser_text_quality(connection: sqlite3.Connection) -> None:
+    """Append deterministic quality assessments without mutating source evidence."""
+    connection.execute(
+        """CREATE TABLE browser_text_quality_assessments (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL UNIQUE
+            REFERENCES browser_observations(id),
+          quality_status TEXT NOT NULL CHECK(quality_status IN (
+            'VALID_TEXT', 'INVALID_TEXT_DATE_METADATA', 'TEXT_UNAVAILABLE'
+          )),
+          assessor_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          assessed_at TEXT NOT NULL
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_text_quality_assessments_{0}
+            BEFORE {0} ON browser_text_quality_assessments
+            BEGIN SELECT RAISE(ABORT, 'browser text quality evidence is immutable'); END""".format(
+                operation
+            )
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1078,6 +1109,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (12, "m4-sequence-pattern-members-v1", _migration_12_m4_sequence_patterns),
     (13, "browser-thread-sequence-observations-v1", _migration_13_browser_thread_sequences),
     (14, "structural-pattern-extraction-v1", _migration_14_structural_pattern_extraction),
+    (15, "browser-text-quality-assessments-v1", _migration_15_browser_text_quality),
 )
 
 
@@ -1444,6 +1476,41 @@ class Repository:
         self.connection.commit()
         if cursor.rowcount != 1:
             raise ValueError("dataset snapshot is not mutable")
+
+    def assess_browser_text_quality(
+        self,
+        *,
+        browser_observation_id: int,
+        quality_status: str,
+        input_sha256: str,
+        assessor_version: str = ASSESSOR_VERSION,
+        assessed_at: Optional[str] = None,
+    ) -> int:
+        """Append the quality state of one source observation; never alter the source."""
+        if quality_status not in {
+            VALID_TEXT, INVALID_TEXT_DATE_METADATA, TEXT_UNAVAILABLE,
+        }:
+            raise ValueError("unsupported browser text quality status")
+        if not _is_contract_identifier(assessor_version):
+            raise ValueError("browser text assessor version is invalid")
+        if not isinstance(input_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", input_sha256):
+            raise ValueError("browser text quality input hash is invalid")
+        observation = self.connection.execute(
+            "SELECT id FROM browser_observations WHERE id = ?", (browser_observation_id,)
+        ).fetchone()
+        if observation is None:
+            raise KeyError("browser observation not found")
+        cursor = self.connection.execute(
+            """INSERT INTO browser_text_quality_assessments
+            (browser_observation_id, quality_status, assessor_version, input_sha256, assessed_at)
+            VALUES (?, ?, ?, ?, ?)""",
+            (browser_observation_id, quality_status, assessor_version, input_sha256,
+             assessed_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a browser text quality assessment id")
+        return int(cursor.lastrowid)
 
     def add_metric_observation(
         self,
@@ -2061,6 +2128,7 @@ class Repository:
             "structural_feature_instances",
             "structural_patterns",
             "structural_pattern_members",
+            "browser_text_quality_assessments",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

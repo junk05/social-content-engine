@@ -22,6 +22,7 @@ class M4RepositoryTest(unittest.TestCase):
                         "m4_sequence_patterns", "m4_sequence_pattern_members",
                         "structural_feature_runs", "structural_feature_instances",
                         "structural_patterns", "structural_pattern_members",
+                        "browser_text_quality_assessments",
                     }
                     .issubset(tables)
                 )
