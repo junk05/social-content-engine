@@ -85,7 +85,7 @@
     ,{"id":"M4-011","owner":"INTELLIGENCE","title":"Implement deterministic multi-label First-Line, Body, Ending, and Action taxonomy V2","status":"COMPLETE","depends_on":["M4-010"]}
     ,{"id":"M4-012","owner":"INTELLIGENCE","title":"Decompose actionable Pattern families and exclude UNKNOWN/NONE-only clusters","status":"COMPLETE","depends_on":["M4-011"]}
     ,{"id":"M4-013","owner":"QA_REVIEWER","title":"Audit metric coverage and validate M4 V2 deterministic replay and leakage boundaries","status":"COMPLETE","depends_on":["M4-011","M4-012"]}
-    ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"IN_PROGRESS","depends_on":["M4-013"]}
+    ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-013"]}
     ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"PENDING","depends_on":["M4-013","M4-014"]}
   ]
 }

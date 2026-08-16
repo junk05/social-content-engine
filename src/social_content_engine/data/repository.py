@@ -1682,6 +1682,25 @@ class Repository:
             "normalized_post_version": int(normalized["version"]),
         }
 
+    def bridge_unbridged_browser_posts(self, *, limit: int = 100) -> int:
+        """Explicit local-only bridge for accepted browser identities awaiting projection."""
+        if not isinstance(limit, int) or limit < 1 or limit > 100:
+            raise ValueError("bridge limit must be between 1 and 100")
+        rows = self.connection.execute(
+            """SELECT browser_post_identities.post_url
+            FROM browser_post_identities
+            LEFT JOIN browser_normalized_bridges
+              ON browser_normalized_bridges.browser_normalized_version_id =
+                 browser_post_identities.current_normalized_version_id
+            WHERE browser_post_identities.current_normalized_version_id IS NOT NULL
+              AND browser_normalized_bridges.id IS NULL
+            ORDER BY browser_post_identities.id LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        for row in rows:
+            self.bridge_browser_post(str(row["post_url"]))
+        return len(rows)
+
     def add_browser_dataset_member(
         self,
         snapshot_id: int,
