@@ -87,5 +87,7 @@
     ,{"id":"M4-013","owner":"QA_REVIEWER","title":"Audit metric coverage and validate M4 V2 deterministic replay and leakage boundaries","status":"COMPLETE","depends_on":["M4-011","M4-012"]}
     ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-013"]}
     ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"PENDING","depends_on":["M4-013","M4-014"]}
+    ,{"id":"M4-016","owner":"DATA","title":"Persist observed multi-reply Thread Sequence graph without inferred edges","status":"PENDING","depends_on":["M4-014"]}
+    ,{"id":"M4-017","owner":"INTELLIGENCE","title":"Classify short-form and observed self-reply transition Patterns","status":"PENDING","depends_on":["M4-016"]}
   ]
 }

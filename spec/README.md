@@ -7,6 +7,7 @@ This directory is the project SSOT.
 - `M3_BROWSER_COLLECTOR.md`: approved human-selected browser collection contract
 - `M4_VIRAL_PATTERN_INTELLIGENCE.md`: approved Pattern Intelligence contract
 - `M4_VIRAL_PATTERN_INTELLIGENCE_V2.md`: HG-04 revision contract
+- `M4_THREAD_SEQUENCE_CONTRACT.md`: observed multi-reply Thread Sequence contract
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

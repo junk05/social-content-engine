@@ -1,0 +1,24 @@
+# M4 Thread Sequence Contract
+
+STATUS: APPROVED
+
+Short posts are not a missing-data class. Each observed root or reply is
+classified independently as `STANDALONE_SHORT`, `OPEN_LOOP_SHORT`,
+`PARENT_TO_SELF_REPLY`, or `LONG_FORM`. The classification is a closed,
+evidence-backed hypothesis; no relationship is inferred from wording alone.
+
+Thread structure is an observed directed graph, not a parent-to-one-reply
+model. Every observed node stores `root_post_id`, `sequence_position`,
+`reply_to_post_id`, and `same_author_as_root` only when those values are visible
+in the already-open detail surface. Missing values remain `UNKNOWN`.
+
+M4 may aggregate only observed chains such as `Root -> Self Reply 1 -> Self
+Reply 2`. It derives the abstract sequence `Hook -> Open Loop -> Self Reply
+Transition -> Explanation/Escalation -> Payoff -> CTA` only when each relevant
+edge and node evidence exists. Original wording, URLs, and usernames remain
+forbidden in Pattern storage.
+
+M3 detail extraction owns the one shared visible-DOM observation path. Future
+automated detail enrichment must reuse this contract and extractor; it must not
+create a parallel DOM parser. Human-selected collection remains required until
+an explicitly approved future milestone changes that boundary.
