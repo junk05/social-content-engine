@@ -77,6 +77,11 @@ function fixturePage(name) {
 
 async function main() {
   const extractor = globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+  const source = fs.readFileSync(path.join(__dirname, "..", "detail_extractor.js"), "utf8");
+  assert.match(source, /visibleCounters\(postRoot\)/);
+  assert.match(source, /visiblePostText\(postRoot,/);
+  assert.match(source, /visibleActivityDialogViewCount\(root\)/,
+    "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
   assert.equal(extractor.version, "threads_post_detail_extractor_v1");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
@@ -85,13 +90,11 @@ async function main() {
   const page = fixturePage("post_detail_complete.html");
   assert.equal(extractor.recognizePostDetail(page, context.pageUrl), true);
   const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
-  assert.deepEqual(nodes, [{
-    post_url: "https://www.threads.net/@sample.user/post/AbC_123",
-    sequence_position: 0,
-    root_post_url: "https://www.threads.net/@sample.user/post/AbC_123",
-    reply_to_post_url: null,
-    same_author_as_root: null,
-  }]);
+  assert.deepEqual(nodes.map((node) => node.post_url), [
+    "https://www.threads.net/@sample.user/post/AbC_123",
+    "https://www.threads.net/@related/post/Other1",
+  ], "visible non-root permalinks are no longer dropped by a root-only filter");
+  assert.deepEqual(nodes.map((node) => node.same_author_as_root), [true, false]);
   const complete = await extractor.extractPostDetail(page, context);
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [

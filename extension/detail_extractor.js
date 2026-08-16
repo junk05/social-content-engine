@@ -62,18 +62,42 @@
   function extractVisibleThreadNodes(root, pageUrl) {
     const rootUrl = canonicalPostUrl(pageUrl, pageUrl);
     if (!rootUrl) return [];
+    const rootUsername = rootUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
     const seen = new Set();
     const nodes = [];
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
-      if (postUrl !== rootUrl) continue;
       if (!postUrl || seen.has(postUrl)) continue;
       seen.add(postUrl);
-      nodes.push({ post_url: postUrl, sequence_position: nodes.length,
-        root_post_url: rootUrl, reply_to_post_url: null, same_author_as_root: null });
+      const nodeUsername = postUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
+      nodes.push({ post_url: postUrl,
+        root_post_url: rootUrl, reply_to_post_url: null,
+        same_author_as_root: nodeUsername === rootUsername });
     }
-    return nodes;
+    nodes.sort((left, right) => Number(right.post_url === rootUrl) - Number(left.post_url === rootUrl));
+    return nodes.map((node, sequencePosition) => ({
+      ...node, sequence_position: sequencePosition,
+    }));
+  }
+  function rootPostContainer(root, pageUrl) {
+    const canonical = canonicalPostUrl(pageUrl, pageUrl);
+    const permalink = findPermalink(root, pageUrl, canonical);
+    if (!permalink) return null;
+    // DOM-less sanitized fixture adapters do not expose ancestry. Real browser
+    // elements always expose parentElement and take the bounded path below.
+    if (!("parentElement" in permalink.link)) return root;
+    let candidate = permalink.link.parentElement;
+    let resolved = null;
+    for (let depth = 0; candidate && depth < 12; depth += 1) {
+      const links = Array.from(candidate.querySelectorAll('a[href*="/post/"]'))
+        .map((link) => canonicalPostUrl(link.getAttribute("href"), pageUrl)).filter(Boolean);
+      const times = candidate.querySelectorAll("time[datetime]");
+      if (times.length > 1 || new Set(links).size > 1) break;
+      if (times.length === 1 && links.includes(canonical)) resolved = candidate;
+      candidate = candidate.parentElement;
+    }
+    return resolved;
   }
   function profileValues(root, canonicalUrl) {
     const username = canonicalUrl.match(/\/@([^/]+)\/post\//)[1];
@@ -134,6 +158,14 @@
     }
     return null;
   }
+  function visibleActivityDialogViewCount(root) {
+    for (const dialog of root.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+      if (!isVisible(dialog)) continue;
+      const value = activityViewCount(dialog);
+      if (value !== null) return value;
+    }
+    return null;
+  }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
     for (const selector of ['[data-testid="post-text"]', '[dir="auto"]']) {
@@ -176,16 +208,18 @@
     const post = findPermalink(
       root, pageUrl, canonicalPostUrl(pageUrl, pageUrl)
     );
-    const time = root.querySelector("time[datetime]");
+    const postRoot = rootPostContainer(root, pageUrl);
+    if (!postRoot) return null;
+    const time = postRoot.querySelector("time[datetime]");
     const timestamp = cleanText(time.getAttribute("datetime"));
     if (!post || !timestamp) return null;
-    const profile = profileValues(root, post.canonical);
-    const counters = visibleCounters(root);
-    if (counters.view_count === null) counters.view_count = pageViewCount(root);
-    if (counters.view_count === null) counters.view_count = activityViewCount(root);
-    const counterLabels = Array.from(root.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
-    const text = visiblePostText(root, [profile.authorName, profile.username, timestamp, ...counterLabels]);
-    const media = mediaValues(root);
+    const profile = profileValues(postRoot, post.canonical);
+    const counters = visibleCounters(postRoot);
+    if (counters.view_count === null) counters.view_count = pageViewCount(postRoot);
+    if (counters.view_count === null) counters.view_count = visibleActivityDialogViewCount(root);
+    const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
+    const text = visiblePostText(postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels]);
+    const media = mediaValues(postRoot);
     const observed = [];
     for (const [field, value] of [
       ["author_name", profile.authorName], ["username", profile.username], ["text", text],
@@ -203,7 +237,21 @@
     observation.payload_sha256 = await sha256(observation);
     return observation;
   }
+  async function extractVisibleThreadDetails(root, pageUrl, collectedAt) {
+    const rootUrl = canonicalPostUrl(pageUrl, pageUrl);
+    const details = [];
+    for (const node of extractVisibleThreadNodes(root, pageUrl)) {
+      if (node.post_url === rootUrl || node.same_author_as_root !== true) continue;
+      const observation = await extractPostDetail(root, {
+        pageUrl: node.post_url, collectedAt,
+      });
+      if (observation) details.push(observation);
+    }
+    return details;
+  }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount, recognizePostDetail, extractVisibleThreadNodes, extractPostDetail,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
+    recognizePostDetail, rootPostContainer, extractVisibleThreadNodes, extractPostDetail,
+    extractVisibleThreadDetails,
   });
 })(globalThis);
