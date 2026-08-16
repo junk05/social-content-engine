@@ -18,6 +18,7 @@ sce-analyze = "social_content_engine.analyzer.cli:main"
 sce-threads-batch = "social_content_engine.collector.batch:main"
 sce-build-dataset = "social_content_engine.data.dataset:main"
 sce-browser-ingest = "social_content_engine.browser_ingest.server:main"
+sce-browser-bridge = "social_content_engine.data.browser_bridge:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

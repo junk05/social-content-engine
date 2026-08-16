@@ -32,6 +32,20 @@ databaseはgit ignoredの`data/`配下へ保存してください。このreceiv
 cookie、passwordなどのsecretは不要です。localhost専用なので、外部tunnelは不要であり、
 使用しないでください。
 
+受信済みpostをM1/M2の既存normalized処理へ明示的に接続する場合は、同じdatabaseと
+canonical Threads URLを指定します。この操作はanalysisやcollectionを自動実行しません。
+
+```bash
+.venv/bin/sce-browser-bridge \
+  --database data/browser-ingest.sqlite3 \
+  --post-url 'https://www.threads.net/@username/post/post-code'
+
+.venv/bin/sce-analyze \
+  --database data/browser-ingest.sqlite3 \
+  --source threads_browser \
+  --post-id 'https://www.threads.net/@username/post/post-code'
+```
+
 ## HG-01: live Threads API spike
 
 Required credential: a Threads user access token granted through a Meta App's

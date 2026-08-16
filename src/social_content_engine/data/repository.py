@@ -808,6 +808,71 @@ def _migration_9_browser_detail_attempts(connection: sqlite3.Connection) -> None
         )
 
 
+def _migration_10_browser_normalized_bridge(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE browser_normalized_bridges (
+          id INTEGER PRIMARY KEY,
+          browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          browser_normalized_version_id INTEGER NOT NULL UNIQUE
+            REFERENCES browser_normalized_versions(id),
+          normalized_post_id INTEGER NOT NULL REFERENCES normalized_posts(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          bridged_at TEXT NOT NULL,
+          bridge_version TEXT NOT NULL,
+          UNIQUE(browser_normalized_version_id, normalized_post_version_id)
+        )"""
+    )
+    connection.execute("DROP TRIGGER dataset_member_insert_requires_draft")
+    connection.execute("DROP TRIGGER finalized_dataset_member_update_forbidden")
+    connection.execute("DROP TRIGGER finalized_dataset_member_delete_forbidden")
+    connection.execute("PRAGMA defer_foreign_keys = ON")
+    connection.execute(
+        """CREATE TABLE dataset_members_m3 (
+          id INTEGER PRIMARY KEY,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          selected_raw_post_id INTEGER REFERENCES raw_posts(id),
+          selected_browser_observation_id INTEGER REFERENCES browser_observations(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          inclusion_reason_json TEXT NOT NULL,
+          CHECK((selected_raw_post_id IS NOT NULL) !=
+                (selected_browser_observation_id IS NOT NULL)),
+          UNIQUE(dataset_snapshot_id, normalized_post_version_id),
+          UNIQUE(dataset_snapshot_id, ordinal)
+        )"""
+    )
+    connection.execute(
+        """INSERT INTO dataset_members_m3
+        (id, dataset_snapshot_id, normalized_post_version_id, selected_raw_post_id,
+         selected_browser_observation_id, ordinal, inclusion_reason_json)
+        SELECT id, dataset_snapshot_id, normalized_post_version_id, selected_raw_post_id,
+               NULL, ordinal, inclusion_reason_json FROM dataset_members"""
+    )
+    connection.execute("DROP TABLE dataset_members")
+    connection.execute("ALTER TABLE dataset_members_m3 RENAME TO dataset_members")
+    connection.execute(
+        """CREATE TRIGGER dataset_member_insert_requires_draft
+        BEFORE INSERT ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = NEW.dataset_snapshot_id)
+             != 'DRAFT'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_member_update_forbidden
+        BEFORE UPDATE ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = OLD.dataset_snapshot_id)
+             = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER finalized_dataset_member_delete_forbidden
+        BEFORE DELETE ON dataset_members
+        WHEN (SELECT status FROM dataset_snapshots WHERE id = OLD.dataset_snapshot_id)
+             = 'FINALIZED'
+        BEGIN SELECT RAISE(ABORT, 'finalized dataset snapshot is immutable'); END"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -818,6 +883,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (7, "closed-pattern-evidence-contract-v1", _migration_7_pattern_evidence_contract),
     (8, "browser-observations-url-identity-v1", _migration_8_browser_observations),
     (9, "browser-detail-attempt-failure-history-v1", _migration_9_browser_detail_attempts),
+    (10, "browser-normalized-processing-bridge-v1", _migration_10_browser_normalized_bridge),
 )
 
 
@@ -1398,6 +1464,133 @@ class Repository:
             "post_url": canonical_url,
         }
 
+    def bridge_browser_post(self, post_url: str) -> Dict[str, Any]:
+        """Explicitly project the accepted current browser version into M1/M2 identity."""
+        canonical_url = canonical_threads_post_url(post_url)
+        row = self.connection.execute(
+            """SELECT browser_post_identities.id AS identity_id,
+                      browser_post_identities.current_normalized_version_id,
+                      browser_normalized_versions.canonical_payload_json,
+                      browser_normalized_versions.source_observation_id,
+                      browser_normalized_versions.normalized_at
+            FROM browser_post_identities
+            JOIN browser_normalized_versions
+              ON browser_normalized_versions.id =
+                 browser_post_identities.current_normalized_version_id
+            WHERE browser_post_identities.post_url = ?""",
+            (canonical_url,),
+        ).fetchone()
+        if row is None:
+            raise KeyError("accepted browser post not found: " + canonical_url)
+        browser_payload = json.loads(str(row["canonical_payload_json"]))
+        if not isinstance(browser_payload, dict):
+            raise RuntimeError("browser normalized payload is not an object")
+        post = {
+            "schema_version": 1,
+            "source": "threads_browser",
+            "source_post_id": canonical_url,
+            "author_id": None,
+            "username": browser_payload.get("username"),
+            "text": browser_payload.get("text"),
+            "permalink": canonical_url,
+            "published_at": browser_payload.get("timestamp"),
+            "media_type": browser_payload.get("media_type"),
+            "raw_sha256": hashlib.sha256(
+                str(row["canonical_payload_json"]).encode("utf-8")
+            ).hexdigest(),
+            "normalized_at": str(row["normalized_at"]),
+        }
+        self.upsert_normalized_post(post, normalizer_version="m3-browser-bridge-v1")
+        normalized = self.connection.execute(
+            """SELECT normalized_posts.id AS post_id,
+                      normalized_posts.current_version_id AS version_id,
+                      normalized_post_versions.version
+            FROM normalized_posts
+            JOIN normalized_post_versions
+              ON normalized_post_versions.id = normalized_posts.current_version_id
+            WHERE normalized_posts.source = 'threads_browser'
+              AND normalized_posts.source_post_id = ?""",
+            (canonical_url,),
+        ).fetchone()
+        if normalized is None:
+            raise RuntimeError("browser bridge normalized identity was not created")
+        with self.connection:
+            self.connection.execute(
+                """INSERT INTO browser_normalized_bridges
+                (browser_post_identity_id, browser_normalized_version_id,
+                 normalized_post_id, normalized_post_version_id, bridged_at, bridge_version)
+                VALUES (?, ?, ?, ?, ?, 'm3-browser-bridge-v1')
+                ON CONFLICT(browser_normalized_version_id) DO NOTHING""",
+                (
+                    int(row["identity_id"]),
+                    int(row["current_normalized_version_id"]),
+                    int(normalized["post_id"]),
+                    int(normalized["version_id"]),
+                    _utc_now(),
+                ),
+            )
+            bridge = self.connection.execute(
+                """SELECT * FROM browser_normalized_bridges
+                WHERE browser_normalized_version_id = ?""",
+                (int(row["current_normalized_version_id"]),),
+            ).fetchone()
+            if bridge is None or int(bridge["normalized_post_version_id"]) != int(
+                normalized["version_id"]
+            ):
+                raise ValueError("browser bridge replay does not match normalized evidence")
+        return {
+            "source": "threads_browser",
+            "source_post_id": canonical_url,
+            "browser_post_identity_id": int(row["identity_id"]),
+            "browser_normalized_version_id": int(row["current_normalized_version_id"]),
+            "source_browser_observation_id": int(row["source_observation_id"]),
+            "normalized_post_id": int(normalized["post_id"]),
+            "normalized_post_version_id": int(normalized["version_id"]),
+            "normalized_post_version": int(normalized["version"]),
+        }
+
+    def add_browser_dataset_member(
+        self,
+        snapshot_id: int,
+        normalized_post_version_id: int,
+        selected_browser_observation_id: int,
+        ordinal: int,
+        inclusion_reason: Dict[str, Any],
+    ) -> int:
+        valid = self.connection.execute(
+            """SELECT dataset_snapshots.status
+            FROM dataset_snapshots
+            JOIN browser_normalized_bridges
+              ON browser_normalized_bridges.normalized_post_version_id = ?
+            JOIN browser_normalized_versions
+              ON browser_normalized_versions.id =
+                 browser_normalized_bridges.browser_normalized_version_id
+             AND browser_normalized_versions.source_observation_id = ?
+            WHERE dataset_snapshots.id = ?""",
+            (normalized_post_version_id, selected_browser_observation_id, snapshot_id),
+        ).fetchone()
+        if valid is None:
+            raise ValueError("browser dataset member provenance is inconsistent")
+        if valid["status"] != "DRAFT":
+            raise ValueError("finalized dataset snapshot is immutable")
+        cursor = self.connection.execute(
+            """INSERT INTO dataset_members
+            (dataset_snapshot_id, normalized_post_version_id, selected_raw_post_id,
+             selected_browser_observation_id, ordinal, inclusion_reason_json)
+            VALUES (?, ?, NULL, ?, ?, ?)""",
+            (
+                snapshot_id,
+                normalized_post_version_id,
+                selected_browser_observation_id,
+                ordinal,
+                _canonical_json(inclusion_reason),
+            ),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a browser dataset member id")
+        return int(cursor.lastrowid)
+
     def record_browser_detail_success(
         self,
         *,
@@ -1540,6 +1733,7 @@ class Repository:
             "browser_normalized_versions",
             "browser_detail_attempts",
             "browser_detail_failures",
+            "browser_normalized_bridges",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

@@ -48,7 +48,7 @@
     {"id":"M3-008","owner":"DATA","title":"Define detail observation and isolated failure contracts","status":"COMPLETE","depends_on":["M3-002"]},
     {"id":"M3-009","owner":"COLLECTOR","title":"Implement versioned Threads detail-page extractor prioritizing view count","status":"COMPLETE","depends_on":["M3-004","M3-008"]},
     {"id":"M3-010","owner":"COLLECTOR","title":"Implement explicit pending detail enrichment batch with per-post isolation","status":"COMPLETE","depends_on":["M3-003","M3-009"]},
-    {"id":"M3-011","owner":"INTELLIGENCE","title":"Connect browser-ingested posts to existing M1 and M2 processing","status":"READY","depends_on":["M3-007","M3-010"]},
+    {"id":"M3-011","owner":"INTELLIGENCE","title":"Connect browser-ingested posts to existing M1 and M2 processing","status":"COMPLETE","depends_on":["M3-007","M3-010"]},
     {"id":"M3-012","owner":"QA_REVIEWER","title":"Add extension, receiver, migration, security, and M0-M2 regression gates","status":"READY","depends_on":["M3-007","M3-010","M3-011"]},
     {"id":"M3-013","owner":"COLLECTOR","title":"Load unpacked extension and ingest at least ten human-selected live posts","status":"BLOCKED","depends_on":["M3-012"]},
     {"id":"M3-014","owner":"COLLECTOR","title":"Enrich multiple live detail pages including at least one observed view count","status":"BLOCKED","depends_on":["M3-013"]},

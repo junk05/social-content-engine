@@ -36,12 +36,13 @@ def analyze_post(
     post_id: str,
     adapter: AnalyzerAdapter,
     *,
+    source: str = "threads",
     force: bool = False,
     now: Callable[[], str] = _utc_now,
     new_run_id: Callable[[], str] = lambda: str(uuid.uuid4()),
 ) -> AnalysisResult:
     """Analyze one normalized post, reusing an identical success unless forced."""
-    post = repository.get_normalized_post(post_id)
+    post = repository.get_normalized_post(post_id, source=source)
     version_id = repository.connection.execute(
         """SELECT current_version_id FROM normalized_posts
         WHERE source = ? AND source_post_id = ?""",
