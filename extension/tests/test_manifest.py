@@ -13,7 +13,7 @@ class ManifestTest(unittest.TestCase):
     def test_manifest_v3_has_only_required_surfaces(self) -> None:
         self.assertEqual(3, self.manifest["manifest_version"])
         self.assertEqual([], self.manifest["permissions"])
-        self.assertEqual(["http://127.0.0.1/*"], self.manifest["host_permissions"])
+        self.assertEqual(["http://127.0.0.1:8765/*"], self.manifest["host_permissions"])
         self.assertEqual("background.js", self.manifest["background"]["service_worker"])
         self.assertEqual("options.html", self.manifest["options_ui"]["page"])
 
@@ -43,10 +43,10 @@ class ManifestTest(unittest.TestCase):
             with self.subTest(permission=permission):
                 self.assertNotIn(permission, serialized)
 
-    def test_scaffold_has_no_transport_or_dom_collection(self) -> None:
+    def test_content_has_no_direct_transport_or_dom_collection(self) -> None:
         background = (ROOT / "background.js").read_text(encoding="utf-8")
         content = (ROOT / "content.js").read_text(encoding="utf-8")
-        self.assertNotIn("fetch(", background)
+        self.assertIn("fetchImpl(RECEIVER_URL", background)
         self.assertNotIn("document.querySelector", content)
         self.assertNotIn("MutationObserver", content)
 

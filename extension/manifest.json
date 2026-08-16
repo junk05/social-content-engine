@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "Social Content Engine - Threads Collector",
   "version": "0.1.0",
-  "description": "Human-selected public Threads observation collector (scaffold).",
+  "description": "Human-selected public Threads observation collector for a loopback receiver.",
   "permissions": [],
   "host_permissions": [
-    "http://127.0.0.1/*"
+    "http://127.0.0.1:8765/*"
   ],
   "background": {
     "service_worker": "background.js"

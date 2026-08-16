@@ -5,9 +5,14 @@
   const ACTION_VERSION = "v1";
 
   function defaultObservationBoundary(observation) {
-    chrome.runtime.sendMessage({ type: "SCE_OBSERVATION_READY", observation }, () => {
-      // M3-006 has no receiver transport. Ignore an unloaded/background boundary.
-      void chrome.runtime.lastError;
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: "SCE_OBSERVATION_READY", observation }, (response) => {
+        if (chrome.runtime.lastError || !response) {
+          resolve({ accepted: false, retryable: true, reason: "message_boundary_unavailable" });
+          return;
+        }
+        resolve(response);
+      });
     });
   }
 
@@ -61,15 +66,28 @@
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (collectingCards.has(card)) return;
+        if (collectingCards.has(card) || button.getAttribute("data-sce-state") === "accepted") return;
         collectingCards.add(card);
         button.disabled = true;
+        button.textContent = "送信中…";
+        button.setAttribute("data-sce-state", "sending");
         try {
           const observation = await extractor.extractSearchCard(card, contextFor(card, position));
-          if (observation) onObservation(observation);
+          const response = observation
+            ? await onObservation(observation)
+            : { accepted: false, retryable: true, reason: "extraction_failed" };
+          if (response && response.accepted === true) {
+            button.textContent = "✓ 収集済み";
+            button.setAttribute("aria-label", "このThreads投稿は収集済みです");
+            button.setAttribute("data-sce-state", "accepted");
+          } else {
+            button.textContent = "再試行";
+            button.setAttribute("aria-label", "Threads投稿の収集を再試行");
+            button.setAttribute("data-sce-state", "failed");
+          }
         } finally {
           collectingCards.delete(card);
-          button.disabled = false;
+          button.disabled = button.getAttribute("data-sce-state") === "accepted";
         }
       });
       card.appendChild(button);

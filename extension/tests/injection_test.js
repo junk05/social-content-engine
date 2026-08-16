@@ -13,6 +13,7 @@ class FakeButton {
     this.disabled = false;
   }
   setAttribute(name, value) { this.attributes[name] = value; }
+  getAttribute(name) { return this.attributes[name] ?? null; }
   addEventListener(name, listener) { this.listeners[name] = listener; }
   async click() {
     return this.listeners.click({ preventDefault() {}, stopPropagation() {} });
@@ -102,7 +103,10 @@ async function main() {
   };
   const controller = globalThis.SCE_PATTERN_ACTION_INJECTION.createController({
     document: documentObject, window: windowObject, extractor,
-    MutationObserver: FakeObserver, onObservation: (value) => observations.push(value),
+    MutationObserver: FakeObserver, onObservation: (value) => {
+      observations.push(value);
+      return { accepted: true, observationStatus: "DETAIL_PENDING" };
+    },
     setTimeout: timers.set, clearTimeout: timers.clear,
   });
 
@@ -131,7 +135,32 @@ async function main() {
   assert.equal(extractionCount, 1, "concurrent duplicate clicks must collapse");
   assert.equal(observations.length, 1);
   assert.equal(observations[0].page_url, "https://www.threads.com/search?q=two");
-  assert.equal(dynamic.children[0].disabled, false);
+  assert.equal(dynamic.children[0].disabled, true);
+  assert.equal(dynamic.children[0].textContent, "✓ 収集済み");
+  await dynamic.children[0].click();
+  assert.equal(extractionCount, 1, "accepted card must not send twice");
+
+  const retryCard = new FakeCard("retry", true);
+  const retryDocument = new FakeDocument([retryCard]);
+  let retryCalls = 0;
+  const retryController = globalThis.SCE_PATTERN_ACTION_INJECTION.createController({
+    document: retryDocument, window: windowObject, extractor,
+    MutationObserver: FakeObserver,
+    onObservation: () => {
+      retryCalls += 1;
+      return retryCalls === 1 ? { accepted: false, retryable: true, reason: "network_error" }
+        : { accepted: true, observationStatus: "DETAIL_PENDING" };
+    },
+    setTimeout: timers.set, clearTimeout: timers.clear,
+  });
+  retryController.start();
+  await retryCard.children[0].click();
+  assert.equal(retryCard.children[0].textContent, "再試行");
+  assert.equal(retryCard.children[0].disabled, false);
+  await retryCard.children[0].click();
+  assert.equal(retryCalls, 2);
+  assert.equal(retryCard.children[0].textContent, "✓ 収集済み");
+  retryController.stop();
   controller.stop();
   assert.equal(FakeObserver.instance.disconnected, true);
 }

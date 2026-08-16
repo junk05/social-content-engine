@@ -2,8 +2,8 @@
 
 Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索カードへの
 `Pattern収集`ボタン、bounded/debounced MutationObserver、SPA URL変更時の再scanを
-追加しました。観測生成は人がbuttonを押したときだけです。localhostへの送信は
-まだ行いません。
+追加しました。M3-007では、人がbuttonを押して生成した観測だけを
+`http://127.0.0.1:8765/browser-ingest/threads`へ送信します。
 
 ## ローカルで読み込む手順
 
@@ -31,4 +31,5 @@ Chrome Web Store公開、ビルドツール、パッケージ化、自動更新�
 python3 -m unittest discover -s extension/tests -v
 node extension/tests/extractor_test.js
 node extension/tests/injection_test.js
+node extension/tests/transport_test.js
 ```

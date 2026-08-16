@@ -6,5 +6,5 @@ chrome.runtime.sendMessage({ type: "SCE_SCAFFOLD_STATUS" }, (response) => {
     status.textContent = "スケルトン状態を確認できませんでした。";
     return;
   }
-  status.textContent = `${response.stage}: receiver未接続（予定どおり）`;
+  status.textContent = `${response.stage}: ${response.ready ? "送信準備済み" : "未接続"}`;
 });
