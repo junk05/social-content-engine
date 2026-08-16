@@ -51,6 +51,11 @@
     return null;
   }
 
+  function recognizeSearchCard(card, pageUrl) {
+    if (!card || typeof card.querySelectorAll !== "function" || typeof card.querySelector !== "function") return false;
+    return Boolean(findPostLink(card, pageUrl || "https://www.threads.net/") && card.querySelector("time[datetime]"));
+  }
+
   function profileValues(card, canonicalUrl) {
     const username = canonicalUrl.match(/\/@([^/]+)\/post\//)[1];
     let authorName = null;
@@ -164,6 +169,7 @@
   }
 
   scope.SCE_THREADS_SEARCH_CARD_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, extractSearchCard,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, recognizeSearchCard,
+    extractSearchCard,
   });
 })(globalThis);
