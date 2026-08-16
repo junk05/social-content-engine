@@ -17,8 +17,12 @@ class M4RepositoryTest(unittest.TestCase):
                     ).fetchall()
                 }
                 self.assertTrue(
-                    {"m4_intelligence_runs", "m4_intelligence_instances", "m4_metric_snapshots",
-                     "m4_sequence_patterns", "m4_sequence_pattern_members"}
+                    {
+                        "m4_intelligence_runs", "m4_intelligence_instances", "m4_metric_snapshots",
+                        "m4_sequence_patterns", "m4_sequence_pattern_members",
+                        "structural_feature_runs", "structural_feature_instances",
+                        "structural_patterns", "structural_pattern_members",
+                    }
                     .issubset(tables)
                 )
                 migration = repository.connection.execute(

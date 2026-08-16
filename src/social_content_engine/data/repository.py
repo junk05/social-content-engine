@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -997,6 +998,71 @@ def _migration_13_browser_thread_sequences(connection: sqlite3.Connection) -> No
     )
 
 
+def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
+    """Add append-only, source-text-free deterministic structural derivatives."""
+    connection.execute(
+        """CREATE TABLE structural_feature_runs (
+          id INTEGER PRIMARY KEY,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          taxonomy_version TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          config_json TEXT NOT NULL,
+          config_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(dataset_snapshot_id, taxonomy_version, extractor_version, config_sha256)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE structural_feature_instances (
+          id INTEGER PRIMARY KEY,
+          structural_feature_run_id INTEGER NOT NULL REFERENCES structural_feature_runs(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          feature_json TEXT NOT NULL,
+          feature_sha256 TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(structural_feature_run_id, normalized_post_version_id)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE structural_patterns (
+          id INTEGER PRIMARY KEY,
+          structural_feature_run_id INTEGER NOT NULL REFERENCES structural_feature_runs(id),
+          pattern_kind TEXT NOT NULL CHECK(pattern_kind IN ('FIRST_LINE', 'POST', 'THREAD')),
+          signature_json TEXT NOT NULL,
+          signature_sha256 TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          member_count INTEGER NOT NULL CHECK(member_count >= 2),
+          distinct_source_count INTEGER NOT NULL CHECK(distinct_source_count >= 2),
+          confidence TEXT NOT NULL CHECK(confidence IN ('LOW', 'MEDIUM', 'HIGH')),
+          created_at TEXT NOT NULL,
+          UNIQUE(structural_feature_run_id, pattern_kind, signature_sha256)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE structural_pattern_members (
+          structural_pattern_id INTEGER NOT NULL REFERENCES structural_patterns(id),
+          structural_feature_instance_id INTEGER NOT NULL
+            REFERENCES structural_feature_instances(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          PRIMARY KEY(structural_pattern_id, structural_feature_instance_id),
+          UNIQUE(structural_pattern_id, ordinal)
+        )"""
+    )
+    for table in (
+        "structural_feature_runs", "structural_feature_instances", "structural_patterns",
+        "structural_pattern_members",
+    ):
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_update BEFORE UPDATE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'structural evidence is immutable'); END""".format(table)
+        )
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_delete BEFORE DELETE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'structural evidence is immutable'); END""".format(table)
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1011,6 +1077,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (11, "m4-pattern-intelligence-provenance-v1", _migration_11_m4_pattern_intelligence),
     (12, "m4-sequence-pattern-members-v1", _migration_12_m4_sequence_patterns),
     (13, "browser-thread-sequence-observations-v1", _migration_13_browser_thread_sequences),
+    (14, "structural-pattern-extraction-v1", _migration_14_structural_pattern_extraction),
 )
 
 
@@ -1990,6 +2057,10 @@ class Repository:
             "m4_sequence_patterns",
             "m4_sequence_pattern_members",
             "browser_thread_sequence_observations",
+            "structural_feature_runs",
+            "structural_feature_instances",
+            "structural_patterns",
+            "structural_pattern_members",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
@@ -2024,6 +2095,56 @@ class Repository:
         self.connection.commit()
         if cursor.lastrowid is None:
             raise RuntimeError("SQLite did not return an M4 intelligence run id")
+        return int(cursor.lastrowid)
+
+    def create_structural_feature_run(
+        self, dataset_snapshot_id: int, taxonomy_version: str, extractor_version: str,
+        config: Dict[str, Any], *, created_at: Optional[str] = None,
+    ) -> int:
+        """Pin a finalized snapshot for deterministic structural extraction."""
+        snapshot = self.connection.execute(
+            "SELECT status FROM dataset_snapshots WHERE id = ?", (dataset_snapshot_id,)
+        ).fetchone()
+        if snapshot is None or snapshot["status"] != "FINALIZED":
+            raise ValueError("structural extraction requires a finalized dataset")
+        if not (
+            _is_contract_identifier(taxonomy_version)
+            and _is_contract_identifier(extractor_version)
+        ):
+            raise ValueError("structural versions are invalid")
+        config_json = _canonical_json(config)
+        cursor = self.connection.execute(
+            """INSERT INTO structural_feature_runs
+            (dataset_snapshot_id, taxonomy_version, extractor_version, config_json,
+             config_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
+            (dataset_snapshot_id, taxonomy_version, extractor_version, config_json,
+             hashlib.sha256(config_json.encode("utf-8")).hexdigest(), created_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a structural feature run id")
+        return int(cursor.lastrowid)
+
+    def persist_structural_feature_instance(
+        self, *, structural_feature_run_id: int, normalized_post_version_id: int,
+        feature: Dict[str, Any], input_sha256: str, created_at: Optional[str] = None,
+    ) -> int:
+        """Persist one text-free structural feature instance for a pinned source version."""
+        _reject_pattern_leakage(feature)
+        if not isinstance(input_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", input_sha256):
+            raise ValueError("structural feature input hash is invalid")
+        feature_json = _canonical_json(feature)
+        cursor = self.connection.execute(
+            """INSERT INTO structural_feature_instances
+            (structural_feature_run_id, normalized_post_version_id, feature_json,
+             feature_sha256, input_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
+            (structural_feature_run_id, normalized_post_version_id, feature_json,
+             hashlib.sha256(feature_json.encode("utf-8")).hexdigest(), input_sha256,
+             created_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a structural feature instance id")
         return int(cursor.lastrowid)
 
     def persist_m4_intelligence_instance(
