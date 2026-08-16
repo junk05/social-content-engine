@@ -84,12 +84,15 @@ class BrowserDetailRepositoryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "sequence.sqlite3") as repository:
                 root = repository.add_browser_observation(observation())
+                detail = repository.add_browser_observation(
+                    observation(observation_type="POST_DETAIL")
+                )
                 sequence_id = repository.record_browser_thread_sequence_observation(
                     root_identity_id=root["browser_post_identity_id"],
                     node_identity_id=root["browser_post_identity_id"],
                     reply_to_identity_id=None, sequence_position=0,
                     same_author_as_root=None,
-                    detail_observation_id=root["browser_observation_id"],
+                    detail_observation_id=detail["browser_observation_id"],
                     extractor_version="fixture-sequence-v1",
                 )
                 row = repository.connection.execute(

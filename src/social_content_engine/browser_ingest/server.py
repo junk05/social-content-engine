@@ -213,7 +213,7 @@ class BrowserIngestService:
             ).fetchone()
             if root is None:
                 raise ValueError("unknown root")
-            count = 0
+            entries = []
             for node in decoded["nodes"]:
                 identity = self.repository.connection.execute(
                     "SELECT id FROM browser_post_identities WHERE post_url = ?", (node["post_url"],)
@@ -226,16 +226,19 @@ class BrowserIngestService:
                     ).fetchone()
                 if identity is None or (node["reply_to_post_url"] is not None and parent is None):
                     raise ValueError("unknown node")
-                self.repository.record_browser_thread_sequence_observation(
-                    root_identity_id=int(root["id"]), node_identity_id=int(identity["id"]),
-                    reply_to_identity_id=None if parent is None else int(parent["id"]),
-                    sequence_position=int(node["sequence_position"]),
-                    same_author_as_root=node["same_author_as_root"],
-                    detail_observation_id=int(decoded["detail_observation_id"]),
-                    extractor_version=str(decoded["extractor_version"]),
-                    observed_at=str(decoded["observed_at"]),
-                )
-                count += 1
+                entries.append({
+                    "node_identity_id": int(identity["id"]),
+                    "reply_to_identity_id": None if parent is None else int(parent["id"]),
+                    "sequence_position": int(node["sequence_position"]),
+                    "same_author_as_root": node["same_author_as_root"],
+                    "observed_at": str(decoded["observed_at"]),
+                })
+            self.repository.record_browser_thread_sequence_observations(
+                root_identity_id=int(root["id"]),
+                detail_observation_id=int(decoded["detail_observation_id"]),
+                extractor_version=str(decoded["extractor_version"]), entries=entries,
+            )
+            count = len(entries)
         except (TypeError, ValueError, sqlite3.DatabaseError):
             return IngestResponse(422, {"error": "invalid_thread_sequence"}, origin)
         return IngestResponse(201, {"status": "accepted", "node_count": count}, origin)

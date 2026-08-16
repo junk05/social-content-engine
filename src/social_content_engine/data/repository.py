@@ -5,7 +5,7 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .browser_detail import (
     DETAIL_ATTEMPT_CONTRACT_VERSION,
@@ -1737,22 +1737,67 @@ class Repository:
         extractor_version: str, observed_at: Optional[str] = None,
     ) -> int:
         """Append one visible thread node without inferring an edge or author match."""
-        if sequence_position < 0 or not _is_contract_identifier(extractor_version):
+        return self.record_browser_thread_sequence_observations(
+            root_identity_id=root_identity_id,
+            detail_observation_id=detail_observation_id,
+            extractor_version=extractor_version,
+            entries=[{
+                "node_identity_id": node_identity_id,
+                "reply_to_identity_id": reply_to_identity_id,
+                "sequence_position": sequence_position,
+                "same_author_as_root": same_author_as_root,
+                "observed_at": observed_at,
+            }],
+        )[0]
+
+    def record_browser_thread_sequence_observations(
+        self, *, root_identity_id: int, detail_observation_id: int,
+        extractor_version: str, entries: Sequence[Mapping[str, Any]],
+    ) -> Tuple[int, ...]:
+        """Atomically append visible nodes tied to one root detail observation."""
+        if not entries or not _is_contract_identifier(extractor_version):
             raise ValueError("invalid browser thread sequence observation")
-        cursor = self.connection.execute(
-            """INSERT INTO browser_thread_sequence_observations
-            (root_browser_post_identity_id, node_browser_post_identity_id,
-             reply_to_browser_post_identity_id, sequence_position, same_author_as_root,
-             detail_observation_id, observed_at, extractor_version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (root_identity_id, node_identity_id, reply_to_identity_id, sequence_position,
-             None if same_author_as_root is None else int(same_author_as_root),
-             detail_observation_id, observed_at or _utc_now(), extractor_version),
-        )
-        self.connection.commit()
-        if cursor.lastrowid is None:
-            raise RuntimeError("SQLite did not return a thread sequence observation id")
-        return int(cursor.lastrowid)
+        detail = self.connection.execute(
+            """SELECT id FROM browser_observations
+            WHERE id = ? AND browser_post_identity_id = ? AND observation_type = 'POST_DETAIL'""",
+            (detail_observation_id, root_identity_id),
+        ).fetchone()
+        if detail is None:
+            raise ValueError("thread sequence requires matching detail observation")
+        inserted: List[int] = []
+        with self.connection:
+            for entry in entries:
+                node_identity_id = entry.get("node_identity_id")
+                reply_to_identity_id = entry.get("reply_to_identity_id")
+                sequence_position = entry.get("sequence_position")
+                same_author_as_root = entry.get("same_author_as_root")
+                observed_at = entry.get("observed_at") or _utc_now()
+                if (
+                    not isinstance(node_identity_id, int)
+                    or (
+                        reply_to_identity_id is not None
+                        and not isinstance(reply_to_identity_id, int)
+                    )
+                    or not isinstance(sequence_position, int)
+                    or sequence_position < 0
+                    or same_author_as_root not in {None, True, False}
+                    or not isinstance(observed_at, str)
+                ):
+                    raise ValueError("invalid browser thread sequence observation")
+                cursor = self.connection.execute(
+                    """INSERT INTO browser_thread_sequence_observations
+                    (root_browser_post_identity_id, node_browser_post_identity_id,
+                     reply_to_browser_post_identity_id, sequence_position, same_author_as_root,
+                     detail_observation_id, observed_at, extractor_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (root_identity_id, node_identity_id, reply_to_identity_id, sequence_position,
+                     None if same_author_as_root is None else int(same_author_as_root),
+                     detail_observation_id, observed_at, extractor_version),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a thread sequence observation id")
+                inserted.append(int(cursor.lastrowid))
+        return tuple(inserted)
 
     def add_browser_dataset_member(
         self,
@@ -1944,6 +1989,7 @@ class Repository:
             "m4_metric_snapshots",
             "m4_sequence_patterns",
             "m4_sequence_pattern_members",
+            "browser_thread_sequence_observations",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

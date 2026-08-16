@@ -12,6 +12,7 @@ from social_content_engine.browser_ingest.server import (
     INGEST_PATH,
     MAX_BODY_BYTES,
     PENDING_DETAILS_PATH,
+    THREAD_SEQUENCE_PATH,
     BrowserIngestService,
     configured_handler,
     load_schema,
@@ -229,6 +230,60 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual({"error": "persistence_failed"}, response.payload)
         self.assertEqual(0, self.repository.count("browser_observations"))
         self.assertEqual(0, self.repository.count("browser_detail_attempts"))
+
+    def test_thread_sequence_requires_matching_detail_and_is_atomic(self) -> None:
+        root = self.observed_url("SequenceRoot")
+        child = self.observed_url("SequenceChild")
+        self.post(root)
+        self.post(child)
+        detail = self.post(
+            self.observed_url("SequenceRoot", observation_type="POST_DETAIL")
+        )
+        payload = {
+            "root_post_url": root["post_url"],
+            "detail_observation_id": detail.payload["observation_id"],
+            "observed_at": "2026-08-16T04:00:00Z",
+            "extractor_version": "fixture-sequence-v1",
+            "nodes": [{
+                "post_url": root["post_url"],
+                "sequence_position": 0,
+                "reply_to_post_url": None,
+                "same_author_as_root": True,
+            }, {
+                "post_url": child["post_url"],
+                "sequence_position": 1,
+                "reply_to_post_url": root["post_url"],
+                "same_author_as_root": None,
+            }],
+        }
+        accepted = self.service.handle_post(
+            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(payload).encode("utf-8"),
+        )
+        self.assertEqual(201, accepted.status)
+        self.assertEqual({"status": "accepted", "node_count": 2}, accepted.payload)
+        self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
+        bad_detail = dict(payload)
+        bad_detail["detail_observation_id"] = 1
+        rejected = self.service.handle_post(
+            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(bad_detail).encode("utf-8"),
+        )
+        self.assertEqual(422, rejected.status)
+        self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
+        bad_node = dict(payload)
+        bad_node["detail_observation_id"] = detail.payload["observation_id"]
+        bad_node["nodes"] = [payload["nodes"][0], {
+            "post_url": "https://www.threads.net/@fixture/post/UnknownChild",
+            "sequence_position": 1,
+            "reply_to_post_url": root["post_url"],
+            "same_author_as_root": None,
+        }]
+        self.assertEqual(422, self.service.handle_post(
+            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(bad_node).encode("utf-8"),
+        ).status)
+        self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
 
     def test_detail_failure_is_closed_and_does_not_affect_other_pending_url(self) -> None:
         first = self.observed_url("FailureA")
