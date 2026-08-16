@@ -9,6 +9,13 @@ class Button {
   addEventListener(type, listener) { this.listeners[type] = listener; }
 }
 
+class FakeObserver {
+  constructor(callback) { this.callback = callback; FakeObserver.instance = this; }
+  observe(_root, options) { this.options = options; }
+  disconnect() { this.disconnected = true; }
+  trigger() { this.callback(); }
+}
+
 function rootFixture() {
   const card = {
     children: [], parentElement: null,
@@ -29,6 +36,7 @@ function rootFixture() {
   };
   return {
     card,
+    documentElement: {},
     querySelector() { return null; },
     querySelectorAll() { return [permalink]; },
     createElement() { return new Button(); },
@@ -55,6 +63,15 @@ globalThis.chrome = {
   },
 };
 require(path.join(__dirname, "..", "detail_action.js"));
+
+function fakeWindow() {
+  const listeners = {};
+  return {
+    location: { href: location.href },
+    addEventListener(name, callback) { listeners[name] = callback; },
+    removeEventListener(name) { delete listeners[name]; },
+  };
+}
 
 async function main() {
   const successRoot = rootFixture();
@@ -84,6 +101,19 @@ async function main() {
   await networkButton.listeners.click();
   assert.equal(messages[4].failure.failure_type, "NAVIGATION_FAILED");
   assert.equal(messages[4].failure.failure_reason, "NETWORK_ERROR");
+
+  const observedRoot = rootFixture();
+  let ready = false;
+  const originalRecognize = globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail;
+  globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = () => ready;
+  const stop = globalThis.SCE_DETAIL_ACTION.observe(observedRoot, fakeWindow(), FakeObserver);
+  assert.equal(observedRoot.card.children.length, 0, "no action before SPA detail DOM is ready");
+  ready = true;
+  FakeObserver.instance.trigger();
+  assert.equal(observedRoot.card.children.length, 1, "detail DOM insertion injects one explicit action");
+  stop();
+  assert.equal(FakeObserver.instance.disconnected, true);
+  globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = originalRecognize;
 }
 
 main().catch((error) => {

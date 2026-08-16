@@ -98,5 +98,28 @@
     return button;
   }
 
-  scope.SCE_DETAIL_ACTION = Object.freeze({ install, resolveDetailContainer });
+  function observe(root = document, windowObject = window, Observer = MutationObserver) {
+    let lastUrl = windowObject.location.href;
+    const attempt = () => install(root, windowObject.location.href);
+    const navigationAttempt = () => {
+      if (windowObject.location.href !== lastUrl) {
+        lastUrl = windowObject.location.href;
+        attempt();
+      }
+    };
+    const observer = new Observer(attempt);
+    observer.observe(root.documentElement, { childList: true, subtree: true });
+    windowObject.addEventListener("popstate", navigationAttempt);
+    windowObject.addEventListener("hashchange", navigationAttempt);
+    if (windowObject.navigation) windowObject.navigation.addEventListener("navigate", attempt);
+    attempt();
+    return () => {
+      observer.disconnect();
+      windowObject.removeEventListener("popstate", navigationAttempt);
+      windowObject.removeEventListener("hashchange", navigationAttempt);
+      if (windowObject.navigation) windowObject.navigation.removeEventListener("navigate", attempt);
+    };
+  }
+
+  scope.SCE_DETAIL_ACTION = Object.freeze({ install, observe, resolveDetailContainer });
 })(globalThis);

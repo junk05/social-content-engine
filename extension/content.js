@@ -12,4 +12,4 @@ globalThis.SCE_THREADS_COLLECTOR = Object.freeze({
 
 const patternActionController = globalThis.SCE_PATTERN_ACTION_INJECTION.createController();
 patternActionController.start();
-globalThis.SCE_DETAIL_ACTION.install();
+globalThis.SCE_DETAIL_ACTION.observe();
