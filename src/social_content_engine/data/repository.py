@@ -1304,9 +1304,24 @@ class Repository:
             raise RuntimeError("SQLite did not return a metric observation id")
         return int(cursor.lastrowid)
 
-    def add_browser_observation(self, observation: Dict[str, Any]) -> Dict[str, Any]:
+    def add_browser_observation(
+        self,
+        observation: Dict[str, Any],
+        *,
+        detail_attempt: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
         """Append one closed browser observation and version its normalized projection."""
         canonical_url = validate_browser_observation(observation)
+        if detail_attempt is not None:
+            if observation["observation_type"] != "POST_DETAIL":
+                raise ValueError("detail attempt requires a POST_DETAIL observation")
+            if set(detail_attempt) != {
+                "attempted_at",
+                "extractor_version",
+                "contract_version",
+            }:
+                raise ValueError("detail attempt does not match the closed contract")
+            validate_detail_attempt_provenance(**detail_attempt)
         status = browser_observation_status(observation)
         source_post_id = observation.get("source_post_id")
         canonical_observation_json = _canonical_json(observation)
@@ -1454,6 +1469,25 @@ class Repository:
                     identity_id,
                 ),
             )
+            detail_attempt_id: Optional[int] = None
+            if detail_attempt is not None:
+                attempt_cursor = self.connection.execute(
+                    """INSERT INTO browser_detail_attempts
+                    (browser_post_identity_id, post_url, attempted_at, extractor_version,
+                     contract_version, outcome, detail_observation_id)
+                    VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', ?)""",
+                    (
+                        identity_id,
+                        canonical_url,
+                        detail_attempt["attempted_at"],
+                        detail_attempt["extractor_version"],
+                        detail_attempt["contract_version"],
+                        observation_id,
+                    ),
+                )
+                if attempt_cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a browser detail attempt id")
+                detail_attempt_id = int(attempt_cursor.lastrowid)
         return {
             "browser_post_identity_id": identity_id,
             "browser_observation_id": observation_id,
@@ -1462,6 +1496,7 @@ class Repository:
             "normalized_version_reused": reused,
             "status": status,
             "post_url": canonical_url,
+            "browser_detail_attempt_id": detail_attempt_id,
         }
 
     def bridge_browser_post(self, post_url: str) -> Dict[str, Any]:

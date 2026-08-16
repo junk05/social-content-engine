@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ from social_content_engine.analyzer.orchestrator import (
     MODEL_PROVIDER,
     PROMPT_VERSION,
 )
+from social_content_engine.data import repository as repository_module
 from social_content_engine.data.repository import Repository
 from social_content_engine.intelligence.first_line import (
     EXTRACTOR_VERSION as FIRST_EXTRACTOR_VERSION,
@@ -35,6 +37,80 @@ CONFIG = {
 
 
 class BrowserProcessingBridgeTest(unittest.TestCase):
+    def legacy_dataset_connection(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(":memory:")
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.executescript(
+            """
+            CREATE TABLE normalized_posts (id INTEGER PRIMARY KEY);
+            CREATE TABLE normalized_post_versions (
+              id INTEGER PRIMARY KEY,
+              normalized_post_id INTEGER NOT NULL REFERENCES normalized_posts(id)
+            );
+            CREATE TABLE raw_posts (id INTEGER PRIMARY KEY);
+            CREATE TABLE dataset_snapshots (
+              id INTEGER PRIMARY KEY,
+              status TEXT NOT NULL
+            );
+            CREATE TABLE browser_post_identities (id INTEGER PRIMARY KEY);
+            CREATE TABLE browser_observations (
+              id INTEGER PRIMARY KEY,
+              browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id)
+            );
+            CREATE TABLE browser_normalized_versions (
+              id INTEGER PRIMARY KEY,
+              browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id)
+            );
+            CREATE TABLE dataset_members (
+              id INTEGER PRIMARY KEY,
+              dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+              normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+              selected_raw_post_id INTEGER NOT NULL REFERENCES raw_posts(id),
+              ordinal INTEGER NOT NULL,
+              inclusion_reason_json TEXT NOT NULL,
+              UNIQUE(dataset_snapshot_id, normalized_post_version_id),
+              UNIQUE(dataset_snapshot_id, ordinal)
+            );
+            CREATE TRIGGER dataset_member_insert_requires_draft
+              BEFORE INSERT ON dataset_members BEGIN SELECT 1; END;
+            CREATE TRIGGER finalized_dataset_member_update_forbidden
+              BEFORE UPDATE ON dataset_members BEGIN SELECT 1; END;
+            CREATE TRIGGER finalized_dataset_member_delete_forbidden
+              BEFORE DELETE ON dataset_members BEGIN SELECT 1; END;
+            INSERT INTO normalized_posts VALUES (1);
+            INSERT INTO normalized_post_versions VALUES (1, 1);
+            INSERT INTO raw_posts VALUES (1);
+            INSERT INTO dataset_snapshots VALUES (1, 'FINALIZED');
+            INSERT INTO dataset_members VALUES (1, 1, 1, 1, 0, '{"legacy":true}');
+            """
+        )
+        return connection
+
+    def test_migration_10_preserves_legacy_dataset_and_rolls_back_atomically(self) -> None:
+        connection = self.legacy_dataset_connection()
+        with connection:
+            repository_module._migration_10_browser_normalized_bridge(connection)
+        row = connection.execute("SELECT * FROM dataset_members").fetchone()
+        self.assertEqual(1, row["selected_raw_post_id"])
+        self.assertIsNone(row["selected_browser_observation_id"])
+        self.assertEqual([], connection.execute("PRAGMA foreign_key_check").fetchall())
+        self.assertEqual("ok", connection.execute("PRAGMA integrity_check").fetchone()[0])
+        connection.close()
+
+        conflict = self.legacy_dataset_connection()
+        conflict.execute("CREATE TABLE browser_normalized_bridges (id INTEGER PRIMARY KEY)")
+        conflict.commit()
+        with self.assertRaises(sqlite3.OperationalError):
+            with conflict:
+                repository_module._migration_10_browser_normalized_bridge(conflict)
+        columns = {
+            row[1] for row in conflict.execute("PRAGMA table_info(dataset_members)").fetchall()
+        }
+        self.assertNotIn("selected_browser_observation_id", columns)
+        self.assertEqual(1, conflict.execute("SELECT COUNT(*) FROM dataset_members").fetchone()[0])
+        conflict.close()
+
     def test_bridge_is_versioned_idempotent_and_runs_existing_m1_m2_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "test.sqlite3") as repository:

@@ -13,7 +13,11 @@ Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索�
 2. 「デベロッパーモード」を有効にします。
 3. 「パッケージ化されていない拡張機能を読み込む」を選びます。
 4. この `extension/` フォルダを指定します。
-5. 拡張機能の詳細からオプション画面を開き、`M3-006: receiver未接続`を確認します。
+5. root READMEの手順でloopback receiverを起動します。
+6. 拡張機能の詳細からオプション画面を開き、送信準備済み表示を確認します。
+7. Threads検索カードの`Pattern収集`は、人が押したカードだけを保存します。
+8. オプション画面の「詳細待ちを読み込む」でURLを確認し、人がリンクを開いて、
+   detail pageの「詳細収集」を押します。拡張機能は自動でページを開きません。
 
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 
@@ -32,4 +36,7 @@ python3 -m unittest discover -s extension/tests -v
 node extension/tests/extractor_test.js
 node extension/tests/injection_test.js
 node extension/tests/transport_test.js
+node extension/tests/detail_extractor_test.js
+node extension/tests/detail_action_test.js
+node extension/tests/options_test.js
 ```

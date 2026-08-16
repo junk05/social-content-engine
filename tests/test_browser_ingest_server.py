@@ -67,7 +67,9 @@ class BrowserIngestServerTest(unittest.TestCase):
 
     def test_actual_http_options_and_post_include_allowlisted_cors_headers(self) -> None:
         class StubRepository:
-            def add_browser_observation(self, payload: dict) -> dict:
+            def add_browser_observation(
+                self, payload: dict, *, detail_attempt: dict = None
+            ) -> dict:
                 return {
                     "browser_observation_id": 1,
                     "browser_post_identity_id": 1,
@@ -187,6 +189,20 @@ class BrowserIngestServerTest(unittest.TestCase):
                 ("https://www.threads.net/@fixture/post/DetailMissingView",),
             ).fetchone()[0],
         )
+
+    def test_post_detail_observation_and_success_attempt_are_atomic(self) -> None:
+        self.repository.connection.execute(
+            """CREATE TRIGGER injected_detail_attempt_failure
+            BEFORE INSERT ON browser_detail_attempts
+            BEGIN SELECT RAISE(ABORT, 'injected'); END"""
+        )
+        response = self.post(
+            self.observed_url("AtomicDetail", observation_type="POST_DETAIL", view_count=9)
+        )
+        self.assertEqual(500, response.status)
+        self.assertEqual({"error": "persistence_failed"}, response.payload)
+        self.assertEqual(0, self.repository.count("browser_observations"))
+        self.assertEqual(0, self.repository.count("browser_detail_attempts"))
 
     def test_detail_failure_is_closed_and_does_not_affect_other_pending_url(self) -> None:
         first = self.observed_url("FailureA")

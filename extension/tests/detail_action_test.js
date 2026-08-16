@@ -64,6 +64,13 @@ async function main() {
   assert.equal(messages[2].failure.failure_type, "VALIDATION_FAILED");
   assert.equal(messages[2].failure.failure_reason, "INVALID_OBSERVATION");
   assert.equal(failedButton.disabled, false, "one failed URL remains independently retryable");
+
+  responses.push({ accepted: false, reason: "network_error" }, { accepted: true });
+  const networkRoot = rootFixture();
+  const networkButton = globalThis.SCE_DETAIL_ACTION.install(networkRoot, location.href);
+  await networkButton.listeners.click();
+  assert.equal(messages[4].failure.failure_type, "NAVIGATION_FAILED");
+  assert.equal(messages[4].failure.failure_reason, "NETWORK_ERROR");
 }
 
 main().catch((error) => {

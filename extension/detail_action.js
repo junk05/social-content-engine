@@ -58,12 +58,13 @@
           return;
         }
         const timeout = result.reason === "timeout";
+        const network = result.reason === "network_error" || result.reason === "runtime_error";
         await sendMessage({
           type: "SCE_DETAIL_FAILURE",
           failure: failure(
             postUrl, attemptedAt,
-            timeout ? "TIMEOUT" : "VALIDATION_FAILED",
-            timeout ? "TIME_LIMIT_EXCEEDED" : "INVALID_OBSERVATION",
+            timeout ? "TIMEOUT" : (network ? "NAVIGATION_FAILED" : "VALIDATION_FAILED"),
+            timeout ? "TIME_LIMIT_EXCEEDED" : (network ? "NETWORK_ERROR" : "INVALID_OBSERVATION"),
           ),
         });
         button.textContent = "詳細収集失敗";

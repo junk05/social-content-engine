@@ -4,6 +4,7 @@ import argparse
 import ipaddress
 import json
 import os
+import sqlite3
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -12,6 +13,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import jsonschema  # type: ignore[import-untyped]
 
+from social_content_engine.data.browser_detail import DETAIL_ATTEMPT_CONTRACT_VERSION
 from social_content_engine.data.browser_observation import validate_browser_observation
 from social_content_engine.data.repository import Repository
 
@@ -139,15 +141,20 @@ class BrowserIngestService:
             return IngestResponse(422, {"error": "invalid_observation"}, origin)
         try:
             validate_browser_observation(decoded)
-            result = self.repository.add_browser_observation(decoded)
+            detail_attempt = None
             if decoded["observation_type"] == "POST_DETAIL":
-                self.repository.record_browser_detail_success(
-                    browser_observation_id=int(result["browser_observation_id"]),
-                    attempted_at=str(decoded["collected_at"]),
-                    extractor_version=str(decoded["extractor_version"]),
-                )
+                detail_attempt = {
+                    "attempted_at": str(decoded["collected_at"]),
+                    "extractor_version": str(decoded["extractor_version"]),
+                    "contract_version": DETAIL_ATTEMPT_CONTRACT_VERSION,
+                }
+            result = self.repository.add_browser_observation(
+                decoded, detail_attempt=detail_attempt
+            )
         except (ValueError, TypeError):
             return IngestResponse(422, {"error": "invalid_observation"}, origin)
+        except sqlite3.DatabaseError:
+            return IngestResponse(500, {"error": "persistence_failed"}, origin)
         return IngestResponse(
             201,
             {
