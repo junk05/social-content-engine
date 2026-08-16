@@ -79,6 +79,34 @@ def build_dataset_snapshot(
     }
 
 
+def build_browser_dataset_snapshot(
+    repository: Repository, *, dataset_key: str, version: int, limit: int = 200
+) -> Dict[str, Any]:
+    """Freeze current browser bridges without pretending they have API raw evidence."""
+    snapshot_id = repository.create_dataset_snapshot(
+        dataset_key, version, {
+            "selector_version": "m3-browser-current-bridge-v1",
+            "source": "threads_browser", "limit": limit,
+        },
+    )
+    rows = repository.connection.execute(
+        """SELECT browser_normalized_bridges.normalized_post_version_id,
+                  browser_normalized_versions.source_observation_id
+           FROM browser_normalized_bridges
+           JOIN browser_normalized_versions ON browser_normalized_versions.id =
+                browser_normalized_bridges.browser_normalized_version_id
+           WHERE browser_normalized_bridges.id IN (
+             SELECT MAX(id) FROM browser_normalized_bridges GROUP BY browser_post_identity_id
+           ) ORDER BY browser_normalized_bridges.browser_post_identity_id LIMIT ?""", (limit,)
+    ).fetchall()
+    for ordinal, row in enumerate(rows):
+        repository.add_browser_dataset_member(snapshot_id, int(row["normalized_post_version_id"]),
+                                              int(row["source_observation_id"]), ordinal,
+                                              {"reason": "current_browser_bridge"})
+    repository.finalize_dataset_snapshot(snapshot_id)
+    return {"snapshot_id": snapshot_id, "selected_members": len(rows), "status": "FINALIZED"}
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--database", type=Path, default=Path("data/social_content.sqlite3"))
