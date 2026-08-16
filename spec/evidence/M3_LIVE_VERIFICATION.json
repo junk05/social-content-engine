@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "milestone": "M3",
+  "task": "M3-015",
+  "status": "PASS",
+  "verified_commit": "d4f8ecf8aece5dec1e1ea5007492ee5363c3e28d",
+  "verification_scope": "Aggregate-only evidence from ignored local browser-ingest.sqlite3; no post text, URL, DOM, cookie, token, or raw browser evidence is committed.",
+  "live_collection": {
+    "human_selected_browser_observations": 117,
+    "canonical_browser_post_identities": 92,
+    "identities_with_repeated_observations": 14,
+    "additional_repeated_observations": 25,
+    "duplicate_safety": "PASS: immutable observations are retained while canonical browser identity remains one per post URL."
+  },
+  "detail_enrichment": {
+    "successful_explicit_detail_attempts": 2,
+    "identities_detail_enriched": 1,
+    "exact_visible_view_count_observations": 1,
+    "rounded_or_abbreviated_view_display": "UNKNOWN and not converted to an integer"
+  },
+  "analysis_integration": {
+    "dataset_snapshot_id": 2,
+    "finalized_snapshot_members": 92,
+    "analysis_batch_id": 2,
+    "analysis_batch_status": "SUCCEEDED",
+    "analysis_batch_succeeded": 92,
+    "first_line_features": 92,
+    "parent_ending_features": 92,
+    "pattern_instances": 92,
+    "promoted_patterns": 1,
+    "pattern_report_candidates": 1,
+    "semantics": "Existing M1/M2 contracts only; no browser-specific analyzer or parallel text model."
+  },
+  "local_verification": {
+    "command": "PATH=$PWD/.venv/bin:$PATH sh scripts/check.sh",
+    "tests": 128,
+    "result": "PASS"
+  },
+  "ci": {
+    "run_id": 31927615662,
+    "url": "https://github.com/junk05/social-content-engine/actions/runs/31927615662",
+    "python_3_9": "PASS",
+    "python_3_12": "PASS"
+  }
+}
