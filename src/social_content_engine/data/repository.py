@@ -1094,6 +1094,60 @@ def _migration_15_browser_text_quality(connection: sqlite3.Connection) -> None:
         )
 
 
+def _migration_16_detail_enrichment_queue(connection: sqlite3.Connection) -> None:
+    """Add the durable, retryable M4 detail-enrichment work state."""
+    connection.execute(
+        """CREATE TABLE browser_detail_enrichment_batches (
+          id INTEGER PRIMARY KEY,
+          status TEXT NOT NULL CHECK(status IN ('RUNNING', 'COMPLETED', 'STOPPED')),
+          requested_items INTEGER NOT NULL CHECK(requested_items >= 1),
+          max_items INTEGER NOT NULL CHECK(max_items >= 1),
+          started_at TEXT NOT NULL,
+          completed_at TEXT
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE browser_detail_enrichment_queue (
+          id INTEGER PRIMARY KEY,
+          browser_post_identity_id INTEGER NOT NULL UNIQUE
+            REFERENCES browser_post_identities(id),
+          source_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          status TEXT NOT NULL CHECK(status IN (
+            'DETAIL_PENDING', 'DETAIL_PROCESSING', 'DETAIL_ENRICHED', 'DETAIL_FAILED'
+          )),
+          attempt_count INTEGER NOT NULL DEFAULT 0 CHECK(attempt_count >= 0),
+          retry_count INTEGER NOT NULL DEFAULT 0 CHECK(retry_count >= 0),
+          active_batch_id INTEGER REFERENCES browser_detail_enrichment_batches(id),
+          lease_version INTEGER NOT NULL DEFAULT 0 CHECK(lease_version >= 0),
+          last_attempt_id INTEGER REFERENCES browser_detail_attempts(id),
+          last_error_code TEXT CHECK(last_error_code IN (
+            'PAGE_TIMEOUT', 'POST_NOT_FOUND', 'ACTIVITY_BUTTON_NOT_FOUND',
+            'ACTIVITY_DIALOG_TIMEOUT', 'VIEW_COUNT_NOT_FOUND',
+            'THREAD_SEQUENCE_NOT_OBSERVED', 'INGESTION_FAILED', 'EXTRACTOR_MISMATCH'
+          )),
+          last_error_type TEXT CHECK(last_error_type IN (
+            'NAVIGATION_FAILED', 'PAGE_UNAVAILABLE', 'EXTRACTION_FAILED',
+            'VALIDATION_FAILED', 'TIMEOUT'
+          )),
+          last_error_reason TEXT CHECK(last_error_reason IN (
+            'NETWORK_ERROR', 'POST_NOT_FOUND', 'LOGIN_REQUIRED',
+            'EXPECTED_FIELD_MISSING', 'UNRECOGNIZED_PAGE',
+            'INVALID_OBSERVATION', 'TIME_LIMIT_EXCEEDED'
+          )),
+          enqueued_at TEXT NOT NULL,
+          claimed_at TEXT,
+          updated_at TEXT NOT NULL,
+          CHECK(
+            (status = 'DETAIL_FAILED' AND last_error_code IS NOT NULL
+             AND last_error_type IS NOT NULL AND last_error_reason IS NOT NULL)
+            OR (status != 'DETAIL_FAILED' AND last_error_code IS NULL
+                AND last_error_type IS NULL AND last_error_reason IS NULL)
+          ),
+          CHECK((status = 'DETAIL_PROCESSING') = (claimed_at IS NOT NULL))
+        )"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1110,6 +1164,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (13, "browser-thread-sequence-observations-v1", _migration_13_browser_thread_sequences),
     (14, "structural-pattern-extraction-v1", _migration_14_structural_pattern_extraction),
     (15, "browser-text-quality-assessments-v1", _migration_15_browser_text_quality),
+    (16, "durable-browser-detail-enrichment-queue-v1", _migration_16_detail_enrichment_queue),
 )
 
 
@@ -1749,6 +1804,25 @@ class Repository:
                 if attempt_cursor.lastrowid is None:
                     raise RuntimeError("SQLite did not return a browser detail attempt id")
                 detail_attempt_id = int(attempt_cursor.lastrowid)
+            if (
+                observation["observation_type"] == "SEARCH_CARD"
+                and status == "DETAIL_PENDING"
+            ):
+                # The first accepted pending capture is the durable queue provenance.
+                # Duplicate captures append observation history without replacing it.
+                self.connection.execute(
+                    """INSERT INTO browser_detail_enrichment_queue
+                    (browser_post_identity_id, source_observation_id, status,
+                     enqueued_at, updated_at)
+                    VALUES (?, ?, 'DETAIL_PENDING', ?, ?)
+                    ON CONFLICT(browser_post_identity_id) DO NOTHING""",
+                    (
+                        identity_id,
+                        observation_id,
+                        observation["collected_at"],
+                        observation["collected_at"],
+                    ),
+                )
         return {
             "browser_post_identity_id": identity_id,
             "browser_observation_id": observation_id,
@@ -2077,6 +2151,348 @@ class Repository:
                 )
         return attempt_id
 
+    def start_browser_detail_batch(
+        self,
+        *,
+        requested_items: int,
+        max_items: int,
+        started_at: Optional[str] = None,
+    ) -> int:
+        if isinstance(requested_items, bool) or not isinstance(requested_items, int):
+            raise TypeError("requested_items must be an integer")
+        if isinstance(max_items, bool) or not isinstance(max_items, int):
+            raise TypeError("max_items must be an integer")
+        if requested_items < 1 or max_items < 1 or requested_items > max_items:
+            raise ValueError("detail batch item bounds are invalid")
+        cursor = self.connection.execute(
+            """INSERT INTO browser_detail_enrichment_batches
+            (status, requested_items, max_items, started_at)
+            VALUES ('RUNNING', ?, ?, ?)""",
+            (requested_items, max_items, started_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a detail batch id")
+        return int(cursor.lastrowid)
+
+    def resume_browser_detail_batch(self, batch_id: int) -> Dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM browser_detail_enrichment_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if row is None:
+            raise KeyError("detail batch not found: " + str(batch_id))
+        if row["status"] != "RUNNING":
+            raise ValueError("detail batch is not RUNNING")
+        return self.browser_detail_batch_summary(batch_id)
+
+    def browser_detail_batch_summary(self, batch_id: int) -> Dict[str, Any]:
+        batch = self.connection.execute(
+            "SELECT * FROM browser_detail_enrichment_batches WHERE id = ?", (batch_id,)
+        ).fetchone()
+        if batch is None:
+            raise KeyError("detail batch not found: " + str(batch_id))
+        counts = {
+            str(row["status"]): int(row["count"])
+            for row in self.connection.execute(
+                """SELECT status, COUNT(*) AS count FROM browser_detail_enrichment_queue
+                WHERE active_batch_id = ? GROUP BY status""",
+                (batch_id,),
+            ).fetchall()
+        }
+        result = dict(batch)
+        result["counts"] = counts
+        result["assigned_items"] = sum(counts.values())
+        return result
+
+    def finish_browser_detail_batch(
+        self, batch_id: int, *, stopped: bool = False, completed_at: Optional[str] = None
+    ) -> Dict[str, Any]:
+        status = "STOPPED" if stopped else "COMPLETED"
+        with self.connection:
+            batch = self.connection.execute(
+                """SELECT id FROM browser_detail_enrichment_batches
+                WHERE id = ? AND status = 'RUNNING'""",
+                (batch_id,),
+            ).fetchone()
+            if batch is None:
+                raise ValueError("detail batch is not RUNNING")
+            unfinished = int(
+                self.connection.execute(
+                    """SELECT COUNT(*) FROM browser_detail_enrichment_queue
+                    WHERE active_batch_id = ? AND status IN (
+                      'DETAIL_PENDING', 'DETAIL_PROCESSING'
+                    )""",
+                    (batch_id,),
+                ).fetchone()[0]
+            )
+            if unfinished and not stopped:
+                raise ValueError("detail batch has unfinished queue items")
+            if stopped:
+                self.connection.execute(
+                    """UPDATE browser_detail_enrichment_queue SET
+                    status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+                    last_error_code = NULL, last_error_type = NULL,
+                    last_error_reason = NULL, updated_at = ?
+                    WHERE active_batch_id = ? AND status IN (
+                      'DETAIL_PENDING', 'DETAIL_PROCESSING'
+                    )""",
+                    (completed_at or _utc_now(), batch_id),
+                )
+            cursor = self.connection.execute(
+                """UPDATE browser_detail_enrichment_batches SET status = ?, completed_at = ?
+                WHERE id = ? AND status = 'RUNNING'""",
+                (status, completed_at or _utc_now(), batch_id),
+            )
+        if cursor.rowcount != 1:
+            raise ValueError("detail batch is not RUNNING")
+        return self.browser_detail_batch_summary(batch_id)
+
+    def enqueue_browser_detail(self, post_url: str, *, enqueued_at: Optional[str] = None) -> int:
+        """Durably enqueue one pending/failed identity; repeated enqueue is idempotent."""
+        canonical_url = canonical_threads_post_url(post_url)
+        if canonical_url != post_url:
+            raise ValueError("post_url must already be canonical")
+        identity = self.connection.execute(
+            """SELECT id, status, current_observation_id FROM browser_post_identities
+            WHERE post_url = ?""",
+            (canonical_url,),
+        ).fetchone()
+        if identity is None:
+            raise KeyError("browser post identity not found: " + canonical_url)
+        if identity["status"] not in {"DETAIL_PENDING", "DETAIL_FAILED"}:
+            raise ValueError("browser post is not awaiting detail enrichment")
+        if identity["current_observation_id"] is None:
+            raise ValueError("detail queue requires a source observation")
+        timestamp = enqueued_at or _utc_now()
+        with self.connection:
+            existing = self.connection.execute(
+                """SELECT id, status FROM browser_detail_enrichment_queue
+                WHERE browser_post_identity_id = ?""",
+                (identity["id"],),
+            ).fetchone()
+            if existing is None:
+                cursor = self.connection.execute(
+                    """INSERT INTO browser_detail_enrichment_queue
+                    (browser_post_identity_id, source_observation_id, status,
+                     enqueued_at, updated_at)
+                    VALUES (?, ?, 'DETAIL_PENDING', ?, ?)""",
+                    (identity["id"], identity["current_observation_id"], timestamp, timestamp),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a detail queue id")
+                return int(cursor.lastrowid)
+            if existing["status"] == "DETAIL_FAILED":
+                self.connection.execute(
+                    """UPDATE browser_detail_enrichment_queue SET
+                    status = 'DETAIL_PENDING', claimed_at = NULL,
+                    active_batch_id = NULL, last_error_code = NULL,
+                    last_error_type = NULL, last_error_reason = NULL, updated_at = ?
+                    WHERE id = ?""",
+                    (timestamp, existing["id"]),
+                )
+            return int(existing["id"])
+
+    def claim_browser_detail(
+        self, batch_id: int, *, claimed_at: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Atomically claim the oldest pending identity for one worker."""
+        timestamp = claimed_at or _utc_now()
+        with self.connection:
+            batch = self.connection.execute(
+                """SELECT * FROM browser_detail_enrichment_batches
+                WHERE id = ? AND status = 'RUNNING'""",
+                (batch_id,),
+            ).fetchone()
+            if batch is None:
+                raise ValueError("detail batch is not RUNNING")
+            assigned = int(
+                self.connection.execute(
+                    """SELECT COUNT(*) FROM browser_detail_enrichment_queue
+                    WHERE active_batch_id = ?""",
+                    (batch_id,),
+                ).fetchone()[0]
+            )
+            row = self.connection.execute(
+                """SELECT browser_detail_enrichment_queue.*, browser_post_identities.post_url
+                FROM browser_detail_enrichment_queue
+                JOIN browser_post_identities
+                  ON browser_post_identities.id =
+                     browser_detail_enrichment_queue.browser_post_identity_id
+                WHERE browser_detail_enrichment_queue.status = 'DETAIL_PENDING'
+                  AND (browser_detail_enrichment_queue.active_batch_id IS NULL
+                       OR browser_detail_enrichment_queue.active_batch_id = ?)
+                ORDER BY browser_detail_enrichment_queue.enqueued_at,
+                         browser_detail_enrichment_queue.id LIMIT 1""",
+                (batch_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            if (
+                row["active_batch_id"] is None
+                and assigned >= min(int(batch["requested_items"]), int(batch["max_items"]))
+            ):
+                return None
+            cursor = self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_PROCESSING', claimed_at = ?, updated_at = ?,
+                active_batch_id = ?, lease_version = lease_version + 1,
+                retry_count = retry_count + CASE WHEN attempt_count > 0 THEN 1 ELSE 0 END,
+                attempt_count = attempt_count + 1
+                WHERE id = ? AND status = 'DETAIL_PENDING'""",
+                (timestamp, timestamp, batch_id, row["id"]),
+            )
+            if cursor.rowcount != 1:
+                return None
+            result = dict(row)
+            result.update(
+                status="DETAIL_PROCESSING",
+                claimed_at=timestamp,
+                attempt_count=int(row["attempt_count"]) + 1,
+                retry_count=int(row["retry_count"])
+                + (1 if int(row["attempt_count"]) > 0 else 0),
+                active_batch_id=batch_id,
+                lease_version=int(row["lease_version"]) + 1,
+            )
+            result["queue_item_id"] = int(row["id"])
+            result["batch_id"] = batch_id
+            result["attempt"] = result["attempt_count"]
+            return result
+
+    def complete_browser_detail_queue(
+        self,
+        queue_id: int,
+        *,
+        batch_id: int,
+        attempt: int,
+        lease_version: int,
+        detail_observation_id: int,
+        completed_at: Optional[str] = None,
+    ) -> None:
+        """Complete claimed work only from matching persisted POST_DETAIL success evidence."""
+        timestamp = completed_at or _utc_now()
+        valid = self.connection.execute(
+            """SELECT browser_detail_attempts.id AS attempt_id
+            FROM browser_detail_enrichment_queue
+            JOIN browser_observations
+              ON browser_observations.id = ?
+             AND browser_observations.browser_post_identity_id =
+                 browser_detail_enrichment_queue.browser_post_identity_id
+             AND browser_observations.observation_type = 'POST_DETAIL'
+            JOIN browser_detail_attempts
+              ON browser_detail_attempts.detail_observation_id = browser_observations.id
+             AND browser_detail_attempts.outcome = 'SUCCEEDED'
+            WHERE browser_detail_enrichment_queue.id = ?
+              AND browser_detail_enrichment_queue.status = 'DETAIL_PROCESSING'
+              AND browser_detail_enrichment_queue.active_batch_id = ?
+              AND browser_detail_enrichment_queue.attempt_count = ?
+              AND browser_detail_enrichment_queue.lease_version = ?""",
+            (detail_observation_id, queue_id, batch_id, attempt, lease_version),
+        ).fetchone()
+        if valid is None:
+            raise ValueError("detail completion evidence does not match claimed work")
+        with self.connection:
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_ENRICHED', claimed_at = NULL,
+                last_attempt_id = ?, updated_at = ?
+                WHERE id = ? AND status = 'DETAIL_PROCESSING'""",
+                (valid["attempt_id"], timestamp, queue_id),
+            )
+
+    def fail_browser_detail_queue(
+        self,
+        queue_id: int,
+        *,
+        batch_id: int,
+        attempt: int,
+        lease_version: int,
+        attempted_at: str,
+        extractor_version: str,
+        failure_type: str,
+        failure_reason: str,
+        error_code: str,
+        contract_version: str = DETAIL_ATTEMPT_CONTRACT_VERSION,
+    ) -> int:
+        """Atomically append bounded failure evidence and mark claimed work failed."""
+        validate_detail_attempt_provenance(
+            attempted_at=attempted_at,
+            extractor_version=extractor_version,
+            contract_version=contract_version,
+        )
+        validate_detail_failure(failure_type, failure_reason)
+        error_codes = {
+            "PAGE_TIMEOUT", "POST_NOT_FOUND", "ACTIVITY_BUTTON_NOT_FOUND",
+            "ACTIVITY_DIALOG_TIMEOUT", "VIEW_COUNT_NOT_FOUND",
+            "THREAD_SEQUENCE_NOT_OBSERVED", "INGESTION_FAILED", "EXTRACTOR_MISMATCH",
+        }
+        if error_code not in error_codes:
+            raise ValueError("detail queue error code is invalid")
+        queue = self.connection.execute(
+            """SELECT browser_detail_enrichment_queue.*, browser_post_identities.post_url
+            FROM browser_detail_enrichment_queue
+            JOIN browser_post_identities
+              ON browser_post_identities.id =
+                 browser_detail_enrichment_queue.browser_post_identity_id
+            WHERE browser_detail_enrichment_queue.id = ?
+              AND browser_detail_enrichment_queue.status = 'DETAIL_PROCESSING'
+              AND browser_detail_enrichment_queue.active_batch_id = ?
+              AND browser_detail_enrichment_queue.attempt_count = ?
+              AND browser_detail_enrichment_queue.lease_version = ?""",
+            (queue_id, batch_id, attempt, lease_version),
+        ).fetchone()
+        if queue is None:
+            raise ValueError("detail queue item is not DETAIL_PROCESSING")
+        with self.connection:
+            cursor = self.connection.execute(
+                """INSERT INTO browser_detail_attempts
+                (browser_post_identity_id, post_url, attempted_at, extractor_version,
+                 contract_version, outcome, detail_observation_id)
+                VALUES (?, ?, ?, ?, ?, 'FAILED', NULL)""",
+                (
+                    queue["browser_post_identity_id"],
+                    queue["post_url"],
+                    attempted_at,
+                    extractor_version,
+                    contract_version,
+                ),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return a browser detail attempt id")
+            attempt_id = int(cursor.lastrowid)
+            self.connection.execute(
+                """INSERT INTO browser_detail_failures
+                (browser_detail_attempt_id, failure_type, failure_reason) VALUES (?, ?, ?)""",
+                (attempt_id, failure_type, failure_reason),
+            )
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_FAILED', claimed_at = NULL, last_attempt_id = ?,
+                last_error_code = ?, last_error_type = ?, last_error_reason = ?,
+                updated_at = ? WHERE id = ?""",
+                (attempt_id, error_code, failure_type, failure_reason, attempted_at, queue_id),
+            )
+            self.connection.execute(
+                """UPDATE browser_post_identities SET status = 'DETAIL_FAILED', updated_at = ?
+                WHERE id = ? AND status != 'DETAIL_ENRICHED'""",
+                (attempted_at, queue["browser_post_identity_id"]),
+            )
+        return attempt_id
+
+    def recover_browser_detail_queue(
+        self, *, claimed_before: str, recovered_at: Optional[str] = None
+    ) -> int:
+        """Return stale DETAIL_PROCESSING work to pending without inventing an attempt."""
+        timestamp = recovered_at or _utc_now()
+        with self.connection:
+            cursor = self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_PENDING', claimed_at = NULL, last_error_code = NULL,
+                last_error_type = NULL, last_error_reason = NULL, updated_at = ?
+                WHERE status = 'DETAIL_PROCESSING' AND claimed_at < ?""",
+                (timestamp, claimed_before),
+            )
+        return int(cursor.rowcount)
+
     def list_browser_pending_detail_urls(self, *, limit: int) -> Sequence[str]:
         """Return only canonical URL identities currently awaiting explicit detail work."""
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
@@ -2118,6 +2534,8 @@ class Repository:
             "browser_detail_attempts",
             "browser_detail_failures",
             "browser_normalized_bridges",
+            "browser_detail_enrichment_queue",
+            "browser_detail_enrichment_batches",
             "m4_intelligence_runs",
             "m4_intelligence_instances",
             "m4_metric_snapshots",
