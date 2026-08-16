@@ -54,13 +54,20 @@ def build_viral_pattern_report(repository: Repository, m4_run_id: int) -> Dict[s
         for item in patterns
         if item["signature"]["parent_ending_availability"] == "OBSERVED"
     ]
-    return {
-        "report_version": "M4_VIRAL_PATTERN_REPORT_V1", "m4_run_id": m4_run_id,
-        "dataset_snapshot_id": int(run["dataset_snapshot_id"]),
+    sections = {
         "top_first_line_patterns": patterns,
         "top_open_loop_patterns": open_loops,
         "top_action_patterns": patterns,
         "hook_ending_combinations": patterns,
+    }
+    return {
+        "report_version": "M4_VIRAL_PATTERN_REPORT_V1", "m4_run_id": m4_run_id,
+        "dataset_snapshot_id": int(run["dataset_snapshot_id"]),
+        **sections,
+        "section_status": {
+            name: "SUPPORTED" if items else "INSUFFICIENT_EVIDENCE"
+            for name, items in sections.items()
+        },
         "performance_association": {
             "status": "DESCRIPTIVE_ONLY" if metric_count >= 2 else "INSUFFICIENT_COVERAGE",
             "observed_metric_snapshot_count": metric_count,
@@ -83,11 +90,16 @@ def write_viral_pattern_report(
         "Observed metric snapshots: "
         + str(report["performance_association"]["observed_metric_snapshot_count"])
     )
-    for item in report["top_first_line_patterns"]:
-        lines.extend(["", "## " + item["status"], "- Support: " + str(item["support_count"])])
-        lines.append(
-            "- Signature: `"
-            + json.dumps(item["signature"], ensure_ascii=False, sort_keys=True)
-            + "`"
-        )
+    for section in (
+        "top_first_line_patterns", "top_open_loop_patterns", "top_action_patterns",
+        "hook_ending_combinations",
+    ):
+        lines.extend(["", "## " + section, "Status: " + report["section_status"][section]])
+        for item in report[section]:
+            lines.extend(["", "### " + item["status"], "- Support: " + str(item["support_count"])])
+            lines.append(
+                "- Signature: `"
+                + json.dumps(item["signature"], ensure_ascii=False, sort_keys=True)
+                + "`"
+            )
     markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
