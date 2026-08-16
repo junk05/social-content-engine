@@ -98,16 +98,19 @@
   function visiblePostText(card, excludedValues) {
     const selectors = ['[data-testid="post-text"]', '[dir="auto"]'];
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
+    const candidates = [];
     for (const selector of selectors) {
       for (const candidate of card.querySelectorAll(selector)) {
         if (candidate.hidden || candidate.getAttribute("aria-hidden") === "true") continue;
         if (candidate.closest('a[href^="/@"], a[href*="/post/"], time, button, [role="button"]')) continue;
         const value = cleanText(candidate.textContent);
         if (!value || excluded.has(value.toLowerCase())) continue;
-        return value;
+        if (/^\d+\s*\/\s*\d+$/.test(value)) continue;
+        candidates.push(value);
       }
     }
-    return null;
+    candidates.sort((left, right) => right.length - left.length || left.localeCompare(right));
+    return candidates[0] || null;
   }
 
   function observationField(field, value, observedAt) {
