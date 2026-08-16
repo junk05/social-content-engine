@@ -77,6 +77,21 @@ def build_structural_pattern_report(
              AND json_extract(feature_json, '$.first_line_availability') = 'UNAVAILABLE'""",
         (structural_feature_run_id,),
     ).fetchone()
+    snapshot = repository.connection.execute(
+        """SELECT selection_spec_json FROM dataset_snapshots WHERE id = ?""",
+        (int(run["dataset_snapshot_id"]),),
+    ).fetchone()
+    quality_rows = repository.connection.execute(
+        """SELECT browser_text_quality_assessments.quality_status, COUNT(*) AS count
+           FROM dataset_members
+           JOIN browser_text_quality_assessments
+             ON browser_text_quality_assessments.browser_observation_id =
+                dataset_members.selected_browser_observation_id
+           WHERE dataset_members.dataset_snapshot_id = ?
+           GROUP BY browser_text_quality_assessments.quality_status
+           ORDER BY browser_text_quality_assessments.quality_status""",
+        (int(run["dataset_snapshot_id"]),),
+    ).fetchall()
     return {
         "report_version": REPORT_VERSION,
         "structural_feature_run_id": structural_feature_run_id,
@@ -85,6 +100,11 @@ def build_structural_pattern_report(
         "coverage": {
             "instances": int(instance_count["count"]),
             "first_line_unavailable": int(unavailable_count["count"]),
+        },
+        "dataset_selection": json.loads(str(snapshot["selection_spec_json"]))
+        if snapshot is not None else {},
+        "selected_text_quality": {
+            str(row["quality_status"]): int(row["count"]) for row in quality_rows
         },
         "top_first_line_component_patterns": patterns["FIRST_LINE"],
         "top_post_structure_patterns": patterns["POST"],
@@ -101,6 +121,12 @@ def render_structural_pattern_report(report: Dict[str, Any]) -> str:
         "## Coverage", "",
     ]
     for key, value in report["coverage"].items():
+        lines.append("- {0}: {1}".format(key, value))
+    lines.extend(["", "## Dataset quality", ""])
+    selection = report.get("dataset_selection", {})
+    if selection:
+        lines.append("- Selection contract: " + str(selection.get("contract_version", "UNKNOWN")))
+    for key, value in report.get("selected_text_quality", {}).items():
         lines.append("- {0}: {1}".format(key, value))
     sections = (
         ("Top First-Line Component Patterns", "top_first_line_component_patterns"),
