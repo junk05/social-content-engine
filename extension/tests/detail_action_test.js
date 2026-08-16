@@ -4,8 +4,8 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 class Button {
-  constructor() { this.textContent = ""; this.disabled = false; this.listeners = {}; }
-  setAttribute() {}
+  constructor() { this.textContent = ""; this.disabled = false; this.listeners = {}; this.attributes = {}; this.style = {}; }
+  setAttribute(name, value) { this.attributes[name] = value; }
   addEventListener(type, listener) { this.listeners[type] = listener; }
 }
 
@@ -47,9 +47,16 @@ function rootFixture() {
   };
   return {
     card,
+    dialogs: [],
     documentElement: {},
-    querySelector() { return null; },
-    querySelectorAll() { return [headerLink, permalink]; },
+    querySelector(selector) {
+      if (selector === "[data-sce-detail-action]") return card.children.find((child) => child.attributes["data-sce-detail-action"]) || null;
+      return null;
+    },
+    querySelectorAll(selector) {
+      if (selector === '[role="dialog"], [aria-modal="true"]') return this.dialogs;
+      return [headerLink, permalink];
+    },
     createElement() { return new Button(); },
   };
 }
@@ -59,6 +66,7 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   version: "threads_post_detail_extractor_v1",
   recognizePostDetail() { return true; },
   canonicalPostUrl() { return "https://www.threads.net/@fixture/post/Detail1"; },
+  activityViewCount(root) { return root.activityViews ?? null; },
   async extractPostDetail() { return observation; },
 };
 globalThis.location = { href: "https://www.threads.net/@fixture/post/Detail1" };
@@ -125,6 +133,26 @@ async function main() {
   stop();
   assert.equal(FakeObserver.instance.disconnected, true);
   globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = originalRecognize;
+
+  const activityRoot = rootFixture();
+  const dialog = {
+    activityViews: 64123, children: [],
+    append(child) { this.children.push(child); },
+    querySelector(selector) {
+      return this.children.find((child) => child.attributes["data-sce-detail-activity-action"]) || null;
+    },
+  };
+  activityRoot.dialogs.push(dialog);
+  const activityButton = globalThis.SCE_DETAIL_ACTION.install(activityRoot, location.href);
+  assert.ok(activityButton, "an already opened Activity dialog gets an explicit action");
+  assert.equal(dialog.children[0], activityButton);
+  assert.equal(activityButton.textContent, "詳細収集");
+  assert.equal(messages.length, 5, "insertion into Activity never collects automatically");
+  globalThis.SCE_DETAIL_ACTION.install(activityRoot, location.href);
+  assert.equal(dialog.children.length, 1, "Activity action is idempotent across observer passes");
+  await activityButton.listeners.click();
+  assert.equal(messages.length, 6);
+  assert.equal(messages[5].type, "SCE_OBSERVATION_READY");
 }
 
 main().catch((error) => {

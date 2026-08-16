@@ -2,6 +2,7 @@
 
 (function exposeDetailAction(scope) {
   const BUTTON_ATTRIBUTE = "data-sce-detail-action";
+  const ACTIVITY_BUTTON_ATTRIBUTE = "data-sce-detail-activity-action";
   const CONTRACT_VERSION = "M3_BROWSER_DETAIL_ATTEMPT_V1";
   const MAX_CONTAINER_ASCENT = 12;
 
@@ -35,22 +36,12 @@
     return resolved;
   }
 
-  function install(root = document, pageUrl = location.href) {
+  function createActionButton(root, pageUrl, attribute, label) {
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
-    if (!extractor.recognizePostDetail(root, pageUrl)) return null;
-    if (root.querySelector("[" + BUTTON_ATTRIBUTE + "]")) return null;
-    const canonicalPage = extractor.canonicalPostUrl(pageUrl, pageUrl);
-    const anchor = Array.from(root.querySelectorAll('a[href*="/post/"]'))
-      .filter(
-        (link) => extractor.canonicalPostUrl(link.getAttribute("href"), pageUrl) === canonicalPage,
-      )
-      .map((link) => resolveDetailContainer(link))
-      .find((candidate) => candidate !== null);
-    if (!anchor) return null;
     const button = root.createElement("button");
     button.type = "button";
-    button.setAttribute(BUTTON_ATTRIBUTE, "true");
-    button.textContent = "詳細収集";
+    button.setAttribute(attribute, "true");
+    button.textContent = label;
     button.addEventListener("click", async () => {
       const attemptedAt = new Date().toISOString();
       const postUrl = extractor.canonicalPostUrl(location.href, location.href);
@@ -96,8 +87,40 @@
         if (button.textContent !== "✓ 詳細収集済み") button.disabled = false;
       }
     });
-    anchor.append(button);
     return button;
+  }
+
+  function installActivityAction(root, pageUrl) {
+    const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    for (const dialog of root.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+      if (dialog.querySelector("[" + ACTIVITY_BUTTON_ATTRIBUTE + "]")) continue;
+      if (extractor.activityViewCount(dialog) === null) continue;
+      const button = createActionButton(root, pageUrl, ACTIVITY_BUTTON_ATTRIBUTE, "詳細収集");
+      button.style.cssText = "margin:8px;font:inherit;padding:6px 10px;border:1px solid currentColor;border-radius:999px;background:Canvas;color:CanvasText;cursor:pointer";
+      dialog.append(button);
+      return button;
+    }
+    return null;
+  }
+
+  function install(root = document, pageUrl = location.href) {
+    const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    if (!extractor.recognizePostDetail(root, pageUrl)) return null;
+    let cardButton = null;
+    if (!root.querySelector("[" + BUTTON_ATTRIBUTE + "]")) {
+      const canonicalPage = extractor.canonicalPostUrl(pageUrl, pageUrl);
+      const anchor = Array.from(root.querySelectorAll('a[href*="/post/"]'))
+        .filter(
+          (link) => extractor.canonicalPostUrl(link.getAttribute("href"), pageUrl) === canonicalPage,
+        )
+        .map((link) => resolveDetailContainer(link))
+        .find((candidate) => candidate !== null);
+      if (anchor) {
+        cardButton = createActionButton(root, pageUrl, BUTTON_ATTRIBUTE, "詳細収集");
+        anchor.append(cardButton);
+      }
+    }
+    return installActivityAction(root, pageUrl) || cardButton;
   }
 
   function observe(root = document, windowObject = window, Observer = MutationObserver) {
@@ -123,5 +146,5 @@
     };
   }
 
-  scope.SCE_DETAIL_ACTION = Object.freeze({ install, observe, resolveDetailContainer });
+  scope.SCE_DETAIL_ACTION = Object.freeze({ install, observe, resolveDetailContainer, installActivityAction });
 })(globalThis);
