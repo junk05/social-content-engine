@@ -12,6 +12,7 @@ This directory is the project SSOT.
 - `M4_STRUCTURAL_PATTERN_EXTRACTION.md`: approved deterministic structural extraction and generation-isolation contract
 - `M4_THREAD_SEQUENCE_CONTRACT.md`: observed multi-reply Thread Sequence contract
 - `M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`: explicit-start selected-post detail queue follow-up
+- `M4_FU01_DEBUGGER_INPUT_SPIKE.md`: one-post debugger Input verification before batch integration
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

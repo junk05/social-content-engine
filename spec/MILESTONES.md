@@ -105,6 +105,15 @@ Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 user start and only for posts already selected through `Pattern収集`. It does
 not reopen M4 quality approval and does not authorize M5.
 
+### M4-FU01-S1 — Debugger Input Live Spike
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_DEBUGGER_INPUT_SPIKE.md` (`CR-0009`).
+This material-permission spike is restricted to one selected post and one
+dedicated tab. It must PASS before any debugger-based batch integration is
+considered; it does not authorize M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
