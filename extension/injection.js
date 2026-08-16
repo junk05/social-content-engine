@@ -4,6 +4,7 @@
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
   const MAX_CONTAINER_ASCENT = 6;
+  const MAX_ACTION_ROW_ASCENT = 3;
 
   function defaultObservationBoundary(observation) {
     return new Promise((resolve) => {
@@ -84,13 +85,50 @@
       button.style.margin = "0";
       button.style.cursor = "pointer";
       button.style.maxWidth = "100%";
-      button.style.position = "absolute";
-      button.style.insetBlockEnd = "8px";
-      button.style.insetInlineEnd = "8px";
       button.style.zIndex = "1";
     }
 
+    function isVisibleSvg(element) {
+      if (element.hidden) return false;
+      if (typeof windowObject.getComputedStyle !== "function") return true;
+      const computed = windowObject.getComputedStyle(element);
+      return computed.display !== "none" && computed.visibility !== "hidden";
+    }
+
+    function findActionRow(card) {
+      for (const svg of card.querySelectorAll("svg")) {
+        if (!isVisibleSvg(svg)) continue;
+        let candidate = svg.parentElement;
+        for (let depth = 0; candidate && candidate !== card && depth < MAX_ACTION_ROW_ASCENT; depth += 1) {
+          const computed = typeof windowObject.getComputedStyle === "function"
+            ? windowObject.getComputedStyle(candidate) : candidate.style;
+          const display = computed ? computed.display : "";
+          const controls = Array.from(candidate.querySelectorAll("svg")).filter(isVisibleSvg);
+          const containsPostIdentity = candidate.querySelectorAll('a[href*="/post/"]').length > 0
+            || candidate.querySelectorAll("time[datetime]").length > 0;
+          if ((display === "flex" || display === "inline-flex")
+              && controls.length >= 3 && controls.length <= 6 && !containsPostIdentity) {
+            return candidate;
+          }
+          candidate = candidate.parentElement;
+        }
+      }
+      return null;
+    }
+
     function appendPatternAction(card, button) {
+      const actionRow = findActionRow(card);
+      if (actionRow) {
+        button.style.position = "static";
+        button.style.marginInlineStart = "auto";
+        button.style.flexShrink = "0";
+        button.style.alignSelf = "center";
+        actionRow.appendChild(button);
+        return;
+      }
+      button.style.position = "absolute";
+      button.style.insetBlockEnd = "8px";
+      button.style.insetInlineEnd = "8px";
       const computed = typeof windowObject.getComputedStyle === "function"
         ? windowObject.getComputedStyle(card) : null;
       const computedPosition = computed ? computed.position : card.style.position;
@@ -202,7 +240,9 @@
       if (windowObject.navigation) windowObject.navigation.removeEventListener("navigate", scheduleScan);
     }
 
-    return Object.freeze({ start, stop, scan, scheduleScan, resolveCardContainer });
+    return Object.freeze({
+      start, stop, scan, scheduleScan, resolveCardContainer, findActionRow,
+    });
   }
 
   scope.SCE_PATTERN_ACTION_INJECTION = Object.freeze({

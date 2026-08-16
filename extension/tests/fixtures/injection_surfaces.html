@@ -3,10 +3,17 @@
     <a href="/@first">First Profile</a>
     <a href="/@first/post/PostOne"><time datetime="2026-08-16T01:00:00Z">now</time></a>
     <div dir="auto">First sanitized post</div>
+    <div style="display:flex" aria-label="Post actions">
+      <button aria-label="Like"><svg aria-hidden="true"></svg></button>
+      <button aria-label="Reply"><svg aria-hidden="true"></svg></button>
+      <button aria-label="Repost"><svg aria-hidden="true"></svg></button>
+      <button aria-label="Share"><svg aria-hidden="true"></svg></button>
+    </div>
   </div>
   <div data-fixture="initial-two">
     <a href="https://www.threads.net/@second/post/PostTwo"><time datetime="2026-08-16T02:00:00Z">now</time></a>
     <div dir="auto">Second sanitized post</div>
+    <div style="display:block"><svg></svg><svg></svg></div>
   </div>
   <div data-fixture="non-card"><a href="/@profile">Profile only</a></div>
   <template data-fixture="dynamic">

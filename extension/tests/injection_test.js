@@ -29,13 +29,20 @@ class FakeButton extends FakeElement {
   async click() { return this.listeners.click({ preventDefault() {}, stopPropagation() {} }); }
 }
 
-class FakeToolbar extends FakeElement {
+class FakeSvg extends FakeElement {}
+
+class FakeActionRow extends FakeElement {
   constructor(card, count) {
     super();
     this.parentElement = card;
-    for (let index = 0; index < count; index += 1) this.appendChild(new FakeButton());
+    this.style.display = "flex";
+    for (let index = 0; index < count; index += 1) this.appendChild(new FakeSvg());
   }
-  querySelectorAll(selector) { return selector.includes("button") ? this.children : []; }
+  querySelectorAll(selector) {
+    if (selector === "svg") return this.children.filter((child) => child instanceof FakeSvg);
+    if (selector === 'a[href*="/post/"]' || selector === "time[datetime]") return [];
+    return [];
+  }
 }
 
 class FakeSignal extends FakeElement {}
@@ -52,14 +59,14 @@ class FakeCard extends FakeElement {
     this.links = Array.from({ length: options.postCount ?? 1 }, () => ({ parentElement: this }));
     this.link = this.links[0];
     this.times = Array.from({ length: options.timeCount ?? 1 }, () => ({}));
-    this.toolbar = new FakeToolbar(this, options.toolbarCount ?? 0);
+    this.actionRow = new FakeActionRow(this, options.svgCount ?? 0);
   }
   getAttribute(name) { return name === "role" ? this.role : super.getAttribute(name); }
   querySelectorAll(selector) {
     if (selector === 'a[href*="/post/"]') return this.links;
     if (selector === "time[datetime]") return this.times;
     if (selector.includes('[dir="auto"]')) return this.signals;
-    if (selector.includes("button")) return this.toolbar.children;
+    if (selector === "svg") return this.actionRow.querySelectorAll("svg");
     return [];
   }
   querySelector(selector) {
@@ -89,6 +96,10 @@ function fakeWindow() {
   const listeners = {};
   return {
     location: { href: "https://www.threads.com/search?q=one" },
+    getComputedStyle(element) {
+      return { display: element.style.display || "block", visibility: "visible",
+        position: element.style.position || "static", paddingBlockEnd: "0px" };
+    },
     addEventListener(name, listener) { listeners[name] = listener; },
     removeEventListener(name) { delete listeners[name]; },
     dispatch(name) { listeners[name](); },
@@ -109,7 +120,7 @@ function fakeTimers() {
 function actionButton(card) {
   const candidates = [
     ...card.children,
-    ...card.toolbar.children,
+    ...card.actionRow.children,
     ...card.children.flatMap((child) => child.children || [child]),
   ];
   return candidates.find((item) => item.attributes["data-sce-pattern-action"] === "v1") || null;
@@ -122,8 +133,8 @@ function cardsFromFixture() {
   assert.equal(html.includes("cookie"), false);
   assert.equal(html.includes("<article"), false, "fixture must reproduce DIV-only cards");
   return [
-    new FakeCard("initial-one", html.includes('data-fixture="initial-one"'), { toolbarCount: 3 }),
-    new FakeCard("initial-two", html.includes('data-fixture="initial-two"'), { toolbarCount: 2 }),
+    new FakeCard("initial-one", html.includes('data-fixture="initial-one"'), { svgCount: 4 }),
+    new FakeCard("initial-two", html.includes('data-fixture="initial-two"'), { svgCount: 2 }),
     new FakeCard("non-card", false),
   ];
 }
@@ -154,11 +165,13 @@ async function main() {
 
   controller.start();
   assert.deepEqual(actionCounts(cards), [1, 1, 0]);
-  assert.equal(cards[0].children.length, 1);
-  assert.equal(actionButton(cards[0]).parentElement, cards[0]);
+  assert.equal(cards[0].children.length, 0);
+  assert.equal(controller.findActionRow(cards[0]), cards[0].actionRow);
+  assert.equal(controller.findActionRow(cards[1]), null);
+  assert.equal(actionButton(cards[0]).parentElement, cards[0].actionRow);
   assert.equal(cards[0].children.some((child) => child.attributes["data-sce-pattern-action-fallback"]), false);
-  assert.equal(cards[0].style.position, "relative");
-  assert.equal(cards[0].style.paddingBlockEnd, "40px");
+  assert.equal(cards[0].style.position, undefined);
+  assert.equal(cards[0].style.paddingBlockEnd, undefined);
   const styled = actionButton(cards[0]);
   assert.equal(styled.style.font, "inherit");
   assert.equal(styled.style.fontSize, "12.5px");
@@ -166,16 +179,25 @@ async function main() {
   assert.equal(styled.style.border, "1px solid currentColor");
   assert.equal(styled.style.backgroundColor, "Canvas");
   assert.equal(styled.style.color, "CanvasText");
-  assert.equal(styled.style.position, "absolute");
-  assert.equal(styled.style.insetInlineEnd, "8px");
-  assert.equal(styled.style.insetBlockEnd, "8px");
+  assert.equal(styled.style.position, "static");
+  assert.equal(styled.style.marginInlineStart, "auto");
+  assert.equal(styled.style.flexShrink, "0");
+  assert.equal(styled.style.alignSelf, "center");
+  const fallback = actionButton(cards[1]);
+  assert.equal(fallback.parentElement, cards[1]);
+  assert.equal(fallback.style.position, "absolute");
+  assert.equal(fallback.style.insetInlineEnd, "8px");
+  assert.equal(fallback.style.insetBlockEnd, "8px");
+  assert.equal(cards[1].style.position, "relative");
+  assert.equal(cards[1].style.paddingBlockEnd, "40px");
   assert.equal(extractionCount, 0, "initial scan must not collect automatically");
   controller.scan();
   assert.deepEqual(actionCounts(cards), [1, 1, 0]);
 
   const broad = new FakeCard("broad", true, {
-    postCount: 2, timeCount: 2, signalCount: 3, toolbarCount: 5,
+    postCount: 2, timeCount: 2, signalCount: 3, svgCount: 7,
   });
+  assert.equal(controller.findActionRow(broad), null, "broad groups with over six SVGs are rejected");
   const fullCard = new FakeCard("full-card", true, {
     signalCount: 4, tagName: "DIV", parentElement: broad,
   });
