@@ -7,6 +7,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
+from .browser_observation import (
+    BROWSER_NORMALIZER_VERSION,
+    browser_normalized_payload,
+    browser_observation_status,
+    canonical_browser_normalized_payload,
+    validate_browser_observation,
+)
+
 SCHEMA = """
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS collection_runs (
@@ -641,6 +649,88 @@ def _migration_7_pattern_evidence_contract(connection: sqlite3.Connection) -> No
     )
 
 
+def _migration_8_browser_observations(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE browser_post_identities (
+          id INTEGER PRIMARY KEY,
+          source TEXT NOT NULL CHECK(source = 'threads'),
+          post_url TEXT NOT NULL UNIQUE,
+          source_post_id TEXT,
+          status TEXT NOT NULL CHECK(status IN (
+            'COLLECTED', 'DETAIL_PENDING', 'DETAIL_ENRICHED', 'DETAIL_FAILED'
+          )),
+          normalized_post_id INTEGER REFERENCES normalized_posts(id),
+          current_observation_id INTEGER REFERENCES browser_observations(id),
+          current_normalized_version_id INTEGER REFERENCES browser_normalized_versions(id),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE browser_observations (
+          id INTEGER PRIMARY KEY,
+          browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          observation_type TEXT NOT NULL CHECK(observation_type IN ('SEARCH_CARD', 'POST_DETAIL')),
+          source TEXT NOT NULL CHECK(source = 'threads'),
+          post_url TEXT NOT NULL,
+          source_post_id TEXT,
+          status TEXT NOT NULL CHECK(status IN (
+            'COLLECTED', 'DETAIL_PENDING', 'DETAIL_ENRICHED', 'DETAIL_FAILED'
+          )),
+          canonical_payload_json TEXT NOT NULL,
+          payload_sha256 TEXT NOT NULL,
+          field_provenance_json TEXT NOT NULL,
+          field_provenance_sha256 TEXT NOT NULL,
+          collection_context_json TEXT NOT NULL,
+          collected_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE browser_observed_fields (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          field_name TEXT NOT NULL,
+          observed_value_json TEXT NOT NULL,
+          surface TEXT NOT NULL CHECK(surface IN (
+            'threads_search_card', 'threads_post_detail'
+          )),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          UNIQUE(browser_observation_id, field_name)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE browser_normalized_versions (
+          id INTEGER PRIMARY KEY,
+          browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          version INTEGER NOT NULL CHECK(version >= 1),
+          canonical_payload_json TEXT NOT NULL,
+          payload_sha256 TEXT NOT NULL,
+          source_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          normalized_at TEXT NOT NULL,
+          normalizer_version TEXT NOT NULL,
+          UNIQUE(browser_post_identity_id, version),
+          UNIQUE(browser_post_identity_id, payload_sha256)
+        )"""
+    )
+    for table in (
+        "browser_observations",
+        "browser_observed_fields",
+        "browser_normalized_versions",
+    ):
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_update
+            BEFORE UPDATE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'browser evidence is immutable'); END""".format(table)
+        )
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_delete
+            BEFORE DELETE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'browser evidence is immutable'); END""".format(table)
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -649,6 +739,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (5, "first-line-features-no-source-text-v1", _migration_5_first_line_features),
     (6, "parent-ending-features-thread-relationships-v1", _migration_6_parent_ending_features),
     (7, "closed-pattern-evidence-contract-v1", _migration_7_pattern_evidence_contract),
+    (8, "browser-observations-url-identity-v1", _migration_8_browser_observations),
 )
 
 
@@ -1069,6 +1160,160 @@ class Repository:
             raise RuntimeError("SQLite did not return a metric observation id")
         return int(cursor.lastrowid)
 
+    def add_browser_observation(self, observation: Dict[str, Any]) -> Dict[str, Any]:
+        """Append one closed browser observation and version its normalized projection."""
+        canonical_url = validate_browser_observation(observation)
+        status = browser_observation_status(observation)
+        source_post_id = observation.get("source_post_id")
+        canonical_observation_json = _canonical_json(observation)
+        fields = observation["observed_fields"]
+        field_provenance_json = json.dumps(
+            fields, ensure_ascii=False, allow_nan=False, separators=(",", ":"), sort_keys=True
+        )
+        field_provenance_sha256 = hashlib.sha256(
+            field_provenance_json.encode("utf-8")
+        ).hexdigest()
+        normalized = browser_normalized_payload(observation)
+        normalized_json = canonical_browser_normalized_payload(observation)
+        normalized_sha256 = hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
+        with self.connection:
+            identity = self.connection.execute(
+                "SELECT * FROM browser_post_identities WHERE post_url = ?", (canonical_url,)
+            ).fetchone()
+            if identity is None:
+                cursor = self.connection.execute(
+                    """INSERT INTO browser_post_identities
+                    (source, post_url, source_post_id, status, created_at, updated_at)
+                    VALUES ('threads', ?, ?, ?, ?, ?)""",
+                    (
+                        canonical_url,
+                        source_post_id,
+                        status,
+                        observation["collected_at"],
+                        observation["collected_at"],
+                    ),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a browser post identity id")
+                identity_id = int(cursor.lastrowid)
+            else:
+                identity_id = int(identity["id"])
+                existing_source_post_id = identity["source_post_id"]
+                if (
+                    source_post_id is not None
+                    and existing_source_post_id is not None
+                    and source_post_id != existing_source_post_id
+                ):
+                    raise ValueError("browser observation source post id conflicts with identity")
+            identity_status = status
+            if identity is not None and identity["status"] == "DETAIL_ENRICHED":
+                identity_status = "DETAIL_ENRICHED"
+            cursor = self.connection.execute(
+                """INSERT INTO browser_observations
+                (browser_post_identity_id, observation_type, source, post_url, source_post_id,
+                 status, canonical_payload_json, payload_sha256, field_provenance_json,
+                 field_provenance_sha256, collection_context_json, collected_at,
+                 extractor_version)
+                VALUES (?, ?, 'threads', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    identity_id,
+                    observation["observation_type"],
+                    canonical_url,
+                    source_post_id,
+                    status,
+                    canonical_observation_json,
+                    observation["payload_sha256"],
+                    field_provenance_json,
+                    field_provenance_sha256,
+                    _canonical_json(observation["collection_context"]),
+                    observation["collected_at"],
+                    observation["extractor_version"],
+                ),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return a browser observation id")
+            observation_id = int(cursor.lastrowid)
+            for field in fields:
+                self.connection.execute(
+                    """INSERT INTO browser_observed_fields
+                    (browser_observation_id, field_name, observed_value_json, surface,
+                     observed_at, extractor_version)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        observation_id,
+                        field["field"],
+                        json.dumps(
+                            field["value"],
+                            ensure_ascii=False,
+                            allow_nan=False,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ),
+                        field["surface"],
+                        field["observed_at"],
+                        field["extractor_version"],
+                    ),
+                )
+            version = self.connection.execute(
+                """SELECT id, version FROM browser_normalized_versions
+                WHERE browser_post_identity_id = ? AND payload_sha256 = ?""",
+                (identity_id, normalized_sha256),
+            ).fetchone()
+            reused = version is not None
+            if version is None:
+                next_version = int(
+                    self.connection.execute(
+                        """SELECT COALESCE(MAX(version), 0) + 1
+                        FROM browser_normalized_versions WHERE browser_post_identity_id = ?""",
+                        (identity_id,),
+                    ).fetchone()[0]
+                )
+                cursor = self.connection.execute(
+                    """INSERT INTO browser_normalized_versions
+                    (browser_post_identity_id, version, canonical_payload_json,
+                     payload_sha256, source_observation_id, normalized_at, normalizer_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        identity_id,
+                        next_version,
+                        normalized_json,
+                        normalized_sha256,
+                        observation_id,
+                        observation["collected_at"],
+                        BROWSER_NORMALIZER_VERSION,
+                    ),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a browser normalized version id")
+                version_id = int(cursor.lastrowid)
+                version_number = next_version
+            else:
+                version_id = int(version["id"])
+                version_number = int(version["version"])
+            self.connection.execute(
+                """UPDATE browser_post_identities SET
+                  source_post_id = COALESCE(source_post_id, ?), status = ?,
+                  current_observation_id = ?, current_normalized_version_id = ?, updated_at = ?
+                WHERE id = ?""",
+                (
+                    normalized["source_post_id"],
+                    identity_status,
+                    observation_id,
+                    version_id,
+                    observation["collected_at"],
+                    identity_id,
+                ),
+            )
+        return {
+            "browser_post_identity_id": identity_id,
+            "browser_observation_id": observation_id,
+            "browser_normalized_version_id": version_id,
+            "browser_normalized_version": version_number,
+            "normalized_version_reused": reused,
+            "status": status,
+            "post_url": canonical_url,
+        }
+
     def count(self, table: str) -> int:
         allowed = {
             "collection_runs",
@@ -1091,6 +1336,10 @@ class Repository:
             "parent_ending_features",
             "patterns",
             "pattern_instances",
+            "browser_post_identities",
+            "browser_observations",
+            "browser_observed_fields",
+            "browser_normalized_versions",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

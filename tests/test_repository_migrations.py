@@ -108,7 +108,10 @@ class RepositoryMigrationTest(unittest.TestCase):
                 rows = repository.connection.execute(
                     "SELECT version, migration_sha256 FROM schema_migrations ORDER BY version"
                 ).fetchall()
-                self.assertEqual(list(range(1, 8)), [row["version"] for row in rows])
+                self.assertEqual(
+                    [migration[0] for migration in repository_module.MIGRATIONS],
+                    [row["version"] for row in rows],
+                )
                 for row in rows:
                     self.assertRegex(row["migration_sha256"], r"^[0-9a-f]{64}$")
                 repository.connection.execute(

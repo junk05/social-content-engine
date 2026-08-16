@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://social-content-engine.local/contracts/browser-observation.schema.json",
+  "title": "M3 Browser Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "observation_type", "source", "post_url", "source_post_id",
+    "author_name", "username", "text", "timestamp", "public_counters", "media_type",
+    "has_image", "has_video", "collection_context", "observed_fields", "collected_at",
+    "extractor_version", "payload_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "observation_type": {"enum": ["SEARCH_CARD", "POST_DETAIL"]},
+    "source": {"const": "threads"},
+    "post_url": {
+      "type": "string",
+      "pattern": "^https://www\\.threads\\.net/@[A-Za-z0-9._-]+/post/[A-Za-z0-9._-]+$"
+    },
+    "source_post_id": {"type": ["string", "null"], "minLength": 1},
+    "author_name": {"type": ["string", "null"]},
+    "username": {"type": ["string", "null"]},
+    "text": {"type": ["string", "null"]},
+    "timestamp": {"type": ["string", "null"], "format": "date-time"},
+    "public_counters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "view_count", "like_count", "reply_count", "repost_count", "quote_count", "share_count"
+      ],
+      "properties": {
+        "view_count": {"type": ["integer", "null"], "minimum": 0},
+        "like_count": {"type": ["integer", "null"], "minimum": 0},
+        "reply_count": {"type": ["integer", "null"], "minimum": 0},
+        "repost_count": {"type": ["integer", "null"], "minimum": 0},
+        "quote_count": {"type": ["integer", "null"], "minimum": 0},
+        "share_count": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "media_type": {"type": ["string", "null"], "minLength": 1},
+    "has_image": {"type": ["boolean", "null"]},
+    "has_video": {"type": ["boolean", "null"]},
+    "collection_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "page_url", "query", "position"],
+      "properties": {
+        "surface": {"enum": ["threads_search_card", "threads_post_detail"]},
+        "page_url": {"type": ["string", "null"], "format": "uri"},
+        "query": {"type": ["string", "null"]},
+        "position": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "observed_fields": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "value", "surface", "observed_at", "extractor_version"],
+        "properties": {
+          "field": {
+            "enum": [
+              "source_post_id", "author_name", "username", "text", "timestamp",
+              "public_counters.view_count", "public_counters.like_count",
+              "public_counters.reply_count", "public_counters.repost_count",
+              "public_counters.quote_count", "public_counters.share_count", "media_type",
+              "has_image", "has_video"
+            ]
+          },
+          "value": {"type": ["string", "integer", "boolean"]},
+          "surface": {"enum": ["threads_search_card", "threads_post_detail"]},
+          "observed_at": {"type": "string", "format": "date-time"},
+          "extractor_version": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "collected_at": {"type": "string", "format": "date-time"},
+    "extractor_version": {"type": "string", "minLength": 1},
+    "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

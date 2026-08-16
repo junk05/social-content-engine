@@ -33,3 +33,29 @@ Analyzer records must eventually include `analyzer_version`, `taxonomy_version`,
   actually supplies them.
 - The future action-first model is `Action -> Psychology -> Structure -> Content`;
   M0 stores evidence only and does not generate content.
+
+## Additive M3 browser observations
+
+Browser collection does not create API-style raw responses or place DOM content
+in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
+
+- `browser_post_identities`: one Threads identity per canonical normalized
+  `https://www.threads.net/@username/post/code` URL; `source_post_id` is
+  supplemental and nullable.
+- `browser_observations`: immutable accepted search-card or post-detail capture
+  envelopes. Recollection always creates another observation.
+- `browser_observed_fields`: field-level value, surface, time, and extractor
+  provenance linked to one immutable observation.
+- `browser_normalized_versions`: immutable canonical projections. An identical
+  payload hash reuses a version; a changed observed payload creates version
+  `N+1`.
+
+`browser_post_identities.status` records the latest workflow state:
+`COLLECTED`, `DETAIL_PENDING`, `DETAIL_ENRICHED`, or `DETAIL_FAILED`. Search-card
+observations without an observed `view_count` become `DETAIL_PENDING`. Status
+updates never remove observation or failure history.
+
+Browser evidence stores only the closed observation contract. Raw DOM, HTML,
+cookies, authorization headers, access tokens, passwords, and hidden page state
+are forbidden. A nullable `normalized_post_id` is reserved for the later M3
+integration step; browser collection never invents an API `source_post_id`.
