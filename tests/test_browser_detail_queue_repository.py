@@ -18,6 +18,30 @@ def downgrade_before_migration_16(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_migration_18_backfills_existing_selected_pending_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "backfill.sqlite3"
+            with Repository(path) as repository:
+                saved = repository.add_browser_observation(observation())
+                self.assertEqual(1, repository.count("browser_detail_enrichment_queue"))
+            connection = sqlite3.connect(path)
+            connection.execute("DELETE FROM browser_detail_enrichment_queue")
+            connection.execute("DELETE FROM schema_migrations WHERE version = 18")
+            connection.commit()
+            connection.close()
+            with Repository(path) as repository:
+                queued = repository.connection.execute(
+                    "SELECT * FROM browser_detail_enrichment_queue"
+                ).fetchall()
+                self.assertEqual(1, len(queued))
+                self.assertEqual("DETAIL_PENDING", queued[0]["status"])
+                self.assertEqual(
+                    saved["browser_observation_id"], queued[0]["source_observation_id"]
+                )
+                self.assertEqual(1, repository.count("browser_observations"))
+            with Repository(path) as repository:
+                self.assertEqual(1, repository.count("browser_detail_enrichment_queue"))
+
     def test_migration_17_reconciles_multiple_running_batches(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "running.sqlite3"

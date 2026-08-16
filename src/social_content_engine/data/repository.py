@@ -1175,6 +1175,25 @@ def _migration_17_one_running_detail_batch(connection: sqlite3.Connection) -> No
     )
 
 
+def _migration_18_backfill_selected_detail_queue(connection: sqlite3.Connection) -> None:
+    """Queue existing human-selected pending identities without changing observations."""
+    connection.execute(
+        """INSERT OR IGNORE INTO browser_detail_enrichment_queue
+        (browser_post_identity_id, source_observation_id, status, enqueued_at, updated_at)
+        SELECT browser_post_identities.id,
+               browser_post_identities.current_observation_id,
+               'DETAIL_PENDING',
+               browser_post_identities.updated_at,
+               browser_post_identities.updated_at
+        FROM browser_post_identities
+        JOIN browser_observations
+          ON browser_observations.id = browser_post_identities.current_observation_id
+         AND browser_observations.browser_post_identity_id = browser_post_identities.id
+        WHERE browser_post_identities.status = 'DETAIL_PENDING'
+          AND browser_post_identities.current_observation_id IS NOT NULL"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1193,6 +1212,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (15, "browser-text-quality-assessments-v1", _migration_15_browser_text_quality),
     (16, "durable-browser-detail-enrichment-queue-v1", _migration_16_detail_enrichment_queue),
     (17, "one-running-browser-detail-batch-v1", _migration_17_one_running_detail_batch),
+    (18, "backfill-selected-browser-detail-queue-v1", _migration_18_backfill_selected_detail_queue),
 )
 
 
