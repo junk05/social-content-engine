@@ -42,7 +42,7 @@
     {"id":"M3-002","owner":"DATA","title":"Define browser observation schemas, identity, status, and additive storage migration","status":"COMPLETE","depends_on":["M3-001"]},
     {"id":"M3-003","owner":"COLLECTOR","title":"Implement validated loopback browser ingestion receiver","status":"READY","depends_on":["M3-001","M3-002"]},
     {"id":"M3-004","owner":"COLLECTOR","title":"Create minimal unpacked Manifest V3 extension skeleton","status":"COMPLETE","depends_on":["M3-001"]},
-    {"id":"M3-005","owner":"COLLECTOR","title":"Implement versioned Threads search-card extractor with fixtures","status":"READY","depends_on":["M3-004"]},
+    {"id":"M3-005","owner":"COLLECTOR","title":"Implement versioned Threads search-card extractor with fixtures","status":"COMPLETE","depends_on":["M3-004"]},
     {"id":"M3-006","owner":"COLLECTOR","title":"Inject one collection action across initial, infinite-scroll, and SPA content","status":"READY","depends_on":["M3-005"]},
     {"id":"M3-007","owner":"COLLECTOR","title":"Send observations to localhost and implement duplicate-safe collected UX","status":"READY","depends_on":["M3-003","M3-006"]},
     {"id":"M3-008","owner":"DATA","title":"Define detail observation and isolated failure contracts","status":"READY","depends_on":["M3-002"]},

@@ -24,7 +24,7 @@ class ManifestTest(unittest.TestCase):
             {"https://www.threads.com/*", "https://www.threads.net/*"},
             set(scripts[0]["matches"]),
         )
-        self.assertEqual(["content.js"], scripts[0]["js"])
+        self.assertEqual(["extractor.js", "content.js"], scripts[0]["js"])
 
     def test_manifest_references_existing_local_files(self) -> None:
         referenced = {

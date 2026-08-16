@@ -17,6 +17,7 @@
         "https://www.threads.net/*"
       ],
       "js": [
+        "extractor.js",
         "content.js"
       ],
       "run_at": "document_idle"
