@@ -59,6 +59,22 @@
     const time = root.querySelector("time[datetime]");
     return Boolean(canonicalPage && permalink && canonicalPage === permalink.canonical && time && isVisible(time));
   }
+  function extractVisibleThreadNodes(root, pageUrl) {
+    const rootUrl = canonicalPostUrl(pageUrl, pageUrl);
+    if (!rootUrl) return [];
+    const seen = new Set();
+    const nodes = [];
+    for (const link of root.querySelectorAll('a[href*="/post/"]')) {
+      if (!isVisible(link)) continue;
+      const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
+      if (postUrl !== rootUrl) continue;
+      if (!postUrl || seen.has(postUrl)) continue;
+      seen.add(postUrl);
+      nodes.push({ post_url: postUrl, sequence_position: nodes.length,
+        root_post_url: rootUrl, reply_to_post_url: null, same_author_as_root: null });
+    }
+    return nodes;
+  }
   function profileValues(root, canonicalUrl) {
     const username = canonicalUrl.match(/\/@([^/]+)\/post\//)[1];
     let authorName = null;
@@ -188,6 +204,6 @@
     return observation;
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount, recognizePostDetail, extractPostDetail,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount, recognizePostDetail, extractVisibleThreadNodes, extractPostDetail,
   });
 })(globalThis);

@@ -84,6 +84,14 @@ async function main() {
   };
   const page = fixturePage("post_detail_complete.html");
   assert.equal(extractor.recognizePostDetail(page, context.pageUrl), true);
+  const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
+  assert.deepEqual(nodes, [{
+    post_url: "https://www.threads.net/@sample.user/post/AbC_123",
+    sequence_position: 0,
+    root_post_url: "https://www.threads.net/@sample.user/post/AbC_123",
+    reply_to_post_url: null,
+    same_author_as_root: null,
+  }]);
   const complete = await extractor.extractPostDetail(page, context);
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [
