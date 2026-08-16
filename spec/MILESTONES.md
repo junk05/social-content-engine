@@ -82,16 +82,17 @@ Verification: `spec/evidence/M3_DOD_AUDIT.json`.
 
 Status: `IN_PROGRESS`
 
-Approved specifications: `spec/M4_VIRAL_PATTERN_INTELLIGENCE.md` and
-`spec/M4_VIRAL_PATTERN_INTELLIGENCE_V2.md` (`CR-0003`).
+Approved specifications: `spec/M4_VIRAL_PATTERN_INTELLIGENCE.md`,
+`spec/M4_VIRAL_PATTERN_INTELLIGENCE_V2.md` (`CR-0003`), and
+`spec/M4_STRUCTURAL_PATTERN_EXTRACTION.md` (`CR-0006`).
 
 Goal: derive evidence-backed, reusable rhetorical Pattern Intelligence from
 human-selected browser observations, without claiming causal performance or
 implementing content generation.
 
-The initial HG-04 report was rejected for revision. M4 V2 must produce a
-revised local report and repeat HG-04 before any M5 Content Generation scope
-can begin.
+The initial HG-04 report was rejected for revision. M4 now validates
+genre-independent deterministic Structural Patterns before any optional LLM
+enrichment and repeats HG-04 before any M5 Content Generation scope can begin.
 
 ## Deferred until later milestones
 

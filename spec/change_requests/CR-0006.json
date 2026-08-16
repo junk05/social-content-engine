@@ -1,0 +1,23 @@
+{
+  "id": "CR-0006",
+  "status": "IMPLEMENTING",
+  "motivation": "M4 pivots from LLM semantic classification to deterministic, genre-independent Structural Pattern Extraction so source evidence remains reusable for future analyzers without making generation depend on source wording.",
+  "affected_paths": [
+    "spec/M4_STRUCTURAL_PATTERN_EXTRACTION.md",
+    "spec/README.md",
+    "spec/MILESTONES.md",
+    "spec/TASKS.json",
+    "src/social_content_engine/data/repository.py",
+    "src/social_content_engine/intelligence/structural.py",
+    "src/social_content_engine/generation/**",
+    "tests/**"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "Structural components have closed IDs and span/hash evidence",
+    "Pattern artifacts remain text-free and support two distinct source posts",
+    "Thread structure consumes only observed edges",
+    "Generation-safe DTO rejects source text and identifiers",
+    "Report and regression tests contain no live source data"
+  ]
+}

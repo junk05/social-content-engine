@@ -9,6 +9,7 @@ This directory is the project SSOT.
 - `M4_VIRAL_PATTERN_INTELLIGENCE_V2.md`: HG-04 revision contract
 - `M4_HG04_REVISION_CONTRACT.md`: approved coverage, hypothesis, and metric-audit revision
 - `M4_FIRST_LINE_SEMANTIC_REVISION.md`: approved First-Line root-cause and semantic-classifier boundary
+- `M4_STRUCTURAL_PATTERN_EXTRACTION.md`: approved deterministic structural extraction and generation-isolation contract
 - `M4_THREAD_SEQUENCE_CONTRACT.md`: observed multi-reply Thread Sequence contract
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
