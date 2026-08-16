@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "milestone": "M4",
+  "task": "M4-013",
+  "status": "PASS_WITH_INSUFFICIENT_EVIDENCE",
+  "verification_scope": "Aggregate-only audit of ignored local data. No live post text, URLs, usernames, DOM, cookies, tokens, raw browser evidence, or credentials are committed.",
+  "dataset_snapshot_id": 2,
+  "m4_v2_instances": 92,
+  "actionable_pattern_counts": {
+    "first_line": 2,
+    "body": 0,
+    "open_loop": 0,
+    "action": 0
+  },
+  "metric_coverage": {
+    "view_count": 1,
+    "like_count": 0,
+    "reply_count": 0,
+    "repost_count": 0,
+    "quote_count": 0,
+    "share_count": 0
+  },
+  "conclusion": "M4 V2 replay is deterministic and preserves the text-free boundary, but the frozen search-card evidence cannot support human-useful Body, Ending, Action, or performance Patterns. HG-03 human-selected recapture is required before a revised HG-04 report."
+}
