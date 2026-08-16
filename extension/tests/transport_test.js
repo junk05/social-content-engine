@@ -39,6 +39,7 @@ async function main() {
   assert.equal(request.url, transport.receiverUrl);
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.credentials, "omit");
+  assert.equal(request.options.headers["X-SCE-Extension-Origin"], "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   assert.equal(request.options.cache, "no-store");
   assert.deepEqual(JSON.parse(request.options.body), observation, "payload must be exact");
   assert.equal(request.options.body.includes("cookie"), false);
@@ -124,6 +125,7 @@ async function main() {
   }), { accepted: true });
   assert.equal(failureRequest.url, transport.detailFailureUrl);
   assert.equal(failureRequest.options.credentials, "omit");
+  assert.equal(failureRequest.options.headers["X-SCE-Extension-Origin"], "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   assert.deepEqual(JSON.parse(failureRequest.options.body), detailFailure);
   assert.deepEqual(await transport.sendDetailFailure({
     ...detailFailure, cookie: "never-send",

@@ -44,12 +44,17 @@
     if (!observation || typeof observation !== "object" || containsForbiddenKey(observation)) {
       return { accepted: false, retryable: true, reason: "unsafe_observation" };
     }
+    const origin = extensionOrigin();
+    if (!origin) return { accepted: false, retryable: true, reason: "extension_origin_unavailable" };
     const controller = new AbortController();
     const timer = setTimer(() => controller.abort(), timeoutMilliseconds);
     try {
       const response = await fetchImpl(RECEIVER_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-SCE-Extension-Origin": origin,
+        },
         body: JSON.stringify(observation),
         cache: "no-store",
         credentials: "omit",
@@ -122,10 +127,16 @@
         || required.some((key) => typeof failure[key] !== "string")) {
       return { accepted: false, reason: "unsafe_failure" };
     }
+    const origin = extensionOrigin();
+    if (!origin) return { accepted: false, reason: "extension_origin_unavailable" };
     const fetchImpl = options.fetch || fetch;
     try {
       const response = await fetchImpl(DETAIL_FAILURE_URL, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-SCE-Extension-Origin": origin,
+        },
         body: JSON.stringify(failure), cache: "no-store", credentials: "omit",
       });
       return response.status === 201

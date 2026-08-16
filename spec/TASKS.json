@@ -64,6 +64,7 @@
     {"id":"M3-024","owner":"COLLECTOR","title":"Persist accepted card display state across reloads without storing content","status":"COMPLETE","depends_on":["M3-023"]},
     {"id":"M3-025","owner":"COLLECTOR","title":"Expose safe pending-detail receiver failure codes for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-014"]},
     {"id":"M3-026","owner":"COLLECTOR","title":"Expose safe pending-detail HTTP status for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-025"]},
-    {"id":"M3-027","owner":"COLLECTOR","title":"Authorize null-origin detail lookup with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-026"]}
+    {"id":"M3-027","owner":"COLLECTOR","title":"Authorize null-origin detail lookup with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-026"]},
+    {"id":"M3-028","owner":"COLLECTOR","title":"Authorize null-origin detail POST with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-027"]}
   ]
 }

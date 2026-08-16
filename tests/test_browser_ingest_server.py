@@ -9,6 +9,7 @@ from pathlib import Path
 
 from social_content_engine.browser_ingest.server import (
     DETAIL_FAILURE_PATH,
+    INGEST_PATH,
     MAX_BODY_BYTES,
     PENDING_DETAILS_PATH,
     BrowserIngestService,
@@ -64,6 +65,26 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(1, second.payload["normalized_version"])
         self.assertEqual(2, self.repository.count("browser_observations"))
         self.assertEqual(1, self.repository.count("browser_post_identities"))
+
+    def test_null_origin_post_requires_exact_extension_identity_header(self) -> None:
+        payload = observation()
+        accepted = self.service.handle_post(
+            INGEST_PATH,
+            "null",
+            "application/json",
+            json.dumps(payload).encode("utf-8"),
+            ALLOWED_ORIGIN,
+        )
+        self.assertEqual(201, accepted.status)
+        self.assertEqual(ALLOWED_ORIGIN, accepted.origin)
+        rejected = self.service.handle_post(
+            INGEST_PATH,
+            "null",
+            "application/json",
+            json.dumps(payload).encode("utf-8"),
+            "chrome-extension://pppppppppppppppppppppppppppppppp",
+        )
+        self.assertEqual(403, rejected.status)
 
     def test_actual_http_options_and_post_include_allowlisted_cors_headers(self) -> None:
         class StubRepository:

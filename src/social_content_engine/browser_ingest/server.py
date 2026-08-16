@@ -133,25 +133,33 @@ class BrowserIngestService:
         return origin
 
     def handle_post(
-        self, path: str, origin: Optional[str], content_type: str, body: bytes
+        self,
+        path: str,
+        origin: Optional[str],
+        content_type: str,
+        body: bytes,
+        extension_origin: Optional[str] = None,
     ) -> IngestResponse:
-        error = self._request_error(path, origin, {INGEST_PATH, DETAIL_FAILURE_PATH})
+        request_origin = self._effective_origin(origin, extension_origin)
+        error = self._request_error(
+            path, request_origin, {INGEST_PATH, DETAIL_FAILURE_PATH}
+        )
         if error:
             return error
         if content_type.split(";", 1)[0].strip().lower() != "application/json":
-            return IngestResponse(415, {"error": "unsupported_media_type"}, origin)
+            return IngestResponse(415, {"error": "unsupported_media_type"}, request_origin)
         if not body or len(body) > MAX_BODY_BYTES:
-            return IngestResponse(413, {"error": "invalid_body_size"}, origin)
+            return IngestResponse(413, {"error": "invalid_body_size"}, request_origin)
         try:
             decoded = json.loads(body.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
-            return IngestResponse(400, {"error": "invalid_json"}, origin)
+            return IngestResponse(400, {"error": "invalid_json"}, request_origin)
         if not isinstance(decoded, dict):
-            return IngestResponse(422, {"error": "invalid_payload"}, origin)
+            return IngestResponse(422, {"error": "invalid_payload"}, request_origin)
         if path == DETAIL_FAILURE_PATH:
-            return self._handle_detail_failure(decoded, origin)
+            return self._handle_detail_failure(decoded, request_origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
-            return IngestResponse(422, {"error": "invalid_observation"}, origin)
+            return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         try:
             validate_browser_observation(decoded)
             detail_attempt = None
@@ -165,9 +173,9 @@ class BrowserIngestService:
                 decoded, detail_attempt=detail_attempt
             )
         except (ValueError, TypeError):
-            return IngestResponse(422, {"error": "invalid_observation"}, origin)
+            return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         except sqlite3.DatabaseError:
-            return IngestResponse(500, {"error": "persistence_failed"}, origin)
+            return IngestResponse(500, {"error": "persistence_failed"}, request_origin)
         return IngestResponse(
             201,
             {
@@ -177,7 +185,7 @@ class BrowserIngestService:
                 "normalized_version": result["browser_normalized_version"],
                 "observation_status": result["status"],
             },
-            origin,
+            request_origin,
         )
 
     def _handle_detail_failure(
@@ -256,7 +264,13 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
             return
         body = self.rfile.read(length)
         self._send(
-            self.service.handle_post(path, origin, self.headers.get("Content-Type", ""), body)
+            self.service.handle_post(
+                path,
+                origin,
+                self.headers.get("Content-Type", ""),
+                body,
+                self.headers.get("X-SCE-Extension-Origin"),
+            )
         )
 
     def log_message(self, format_string: str, *args: object) -> None:
