@@ -72,7 +72,13 @@ class FakeCard extends FakeElement {
     this.tagName = options.tagName || "DIV";
     this.role = options.role || null;
     this.signals = Array.from({ length: options.signalCount ?? 1 }, () => new FakeSignal());
-    this.links = Array.from({ length: options.postCount ?? 1 }, () => ({ parentElement: this }));
+    this.links = Array.from({ length: options.postCount ?? 1 }, (_, index) => ({
+      parentElement: this,
+      getAttribute(name) {
+        return name === "href" ? `/@${name}-${index}/post/${this.cardName}` : null;
+      },
+      cardName: name,
+    }));
     this.link = this.links[0];
     this.times = Array.from({ length: options.timeCount ?? 1 }, () => ({}));
     this.actionOuter = new FakeActionOuter(this);
@@ -165,9 +171,22 @@ async function main() {
   const windowObject = fakeWindow();
   const timers = fakeTimers();
   const observations = [];
+  const collectedUrls = new Set();
+  const collectionState = {
+    async isCollected(postUrl) { return collectedUrls.has(postUrl); },
+    async markCollected(postUrl) { collectedUrls.add(postUrl); },
+  };
   let extractionCount = 0;
   const extractor = {
     recognizeSearchCard(card) { return card.recognized; },
+    canonicalPostUrl(value, baseUrl) {
+      try {
+        const parsed = new URL(value, baseUrl);
+        return `https://www.threads.net${parsed.pathname}`;
+      } catch (_error) {
+        return null;
+      }
+    },
     async extractSearchCard(card, context) {
       extractionCount += 1;
       await Promise.resolve();
@@ -180,6 +199,7 @@ async function main() {
       observations.push(value);
       return { accepted: true, observationStatus: "DETAIL_PENDING" };
     },
+    collectionState,
     setTimeout: timers.set, clearTimeout: timers.clear,
   });
 
@@ -291,6 +311,19 @@ async function main() {
   assert.equal(observations.length, 1);
   assert.equal(dynamicAction.disabled, true);
   assert.equal(dynamicAction.textContent, "✓ 収集済み");
+  assert.equal(collectedUrls.size, 1, "only the canonical selected URL is persisted locally");
+
+  const restoredCard = new FakeCard("dynamic", true);
+  const restoredController = globalThis.SCE_PATTERN_ACTION_INJECTION.createController({
+    document: new FakeDocument([restoredCard]), window: windowObject, extractor,
+    MutationObserver: FakeObserver, onObservation: () => ({ accepted: true }),
+    collectionState, setTimeout: timers.set, clearTimeout: timers.clear,
+  });
+  restoredController.start();
+  await Promise.resolve();
+  assert.equal(actionButton(restoredCard).textContent, "✓ 収集済み");
+  assert.equal(actionButton(restoredCard).disabled, true);
+  restoredController.stop();
 
   const retryCard = new FakeCard("retry", true);
   const retryController = globalThis.SCE_PATTERN_ACTION_INJECTION.createController({

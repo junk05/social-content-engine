@@ -71,7 +71,10 @@ depend on one generated CSS class.
 
 A `MutationObserver` handles newly added cards. Initial content, SPA
 navigation, infinite-scroll additions and repeated scans must not add duplicate
-buttons. Successful ingestion changes only that card to `✓ 収集済み`.
+buttons. Successful ingestion changes only that card to `✓ 収集済み`. The
+extension may persist only canonical URLs whose ingestion succeeded in its
+local extension storage, solely to restore that display state after a reload;
+it must not persist post text or any credential-like value.
 
 The extension stores no Threads password, cookie or token and sends no
 arbitrary page data or automatic browsing commands.

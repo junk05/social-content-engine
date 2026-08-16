@@ -16,6 +16,8 @@ Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索�
 5. root READMEの手順でloopback receiverを起動します。
 6. 拡張機能の詳細からオプション画面を開き、送信準備済み表示を確認します。
 7. Threads検索カードの`Pattern収集`は、人が押したカードだけを保存します。
+   保存に成功した投稿のcanonical URLだけは拡張機能のローカルストレージへ記録され、
+   再読み込み後も`✓ 収集済み`として復元されます。本文・cookie・tokenは保存しません。
 8. オプション画面の「詳細待ちを読み込む」でURLを確認し、人がリンクを開いて、
    detail pageの「詳細収集」を押します。拡張機能は自動でページを開きません。
 
@@ -26,6 +28,7 @@ Chrome Web Store公開、ビルドツール、パッケージ化、自動更新�
 - Threadsの表示中ページにだけcontent scriptを配置します。
 - localhost権限はloopback IPv4のHTTP originだけです。
 - パスワード、cookie、access tokenを要求・取得・保存しません。
+- Chromeの`storage`権限は、保存成功済みのcanonical投稿URLだけの復元表示に使用します。
 - 自動検索、スクロール、ナビゲーション、DOM dumpを行いません。
 - 外部サイトや公開receiverへデータを送信しません。
 

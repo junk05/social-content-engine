@@ -3,6 +3,7 @@
 (function exposePatternActionController(scope) {
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
+  const COLLECTION_STORAGE_KEY = "sce_collected_threads_post_urls_v1";
   const MAX_CONTAINER_ASCENT = 12;
   const MAX_ACTION_ROW_ASCENT = 8;
 
@@ -18,11 +19,37 @@
     });
   }
 
+  function defaultCollectionState() {
+    const storage = typeof chrome !== "undefined" && chrome.storage && chrome.storage.local;
+    if (!storage) {
+      return Object.freeze({
+        async isCollected(_postUrl) { return false; },
+        async markCollected(_postUrl) {},
+      });
+    }
+    return Object.freeze({
+      async isCollected(postUrl) {
+        const stored = await storage.get(COLLECTION_STORAGE_KEY);
+        const urls = stored[COLLECTION_STORAGE_KEY];
+        return Array.isArray(urls) && urls.includes(postUrl);
+      },
+      async markCollected(postUrl) {
+        const stored = await storage.get(COLLECTION_STORAGE_KEY);
+        const urls = Array.isArray(stored[COLLECTION_STORAGE_KEY])
+          ? stored[COLLECTION_STORAGE_KEY] : [];
+        if (!urls.includes(postUrl)) {
+          await storage.set({ [COLLECTION_STORAGE_KEY]: [...urls, postUrl] });
+        }
+      },
+    });
+  }
+
   function createController(options = {}) {
     const documentObject = options.document || document;
     const windowObject = options.window || window;
     const extractor = options.extractor || scope.SCE_THREADS_SEARCH_CARD_EXTRACTOR;
     const onObservation = options.onObservation || defaultObservationBoundary;
+    const collectionState = options.collectionState || defaultCollectionState();
     const Observer = options.MutationObserver || MutationObserver;
     const delay = options.debounceMilliseconds ?? 100;
     const maximumCards = options.maximumCards ?? 100;
@@ -139,6 +166,24 @@
       card.appendChild(button);
     }
 
+    function canonicalPostUrl(card) {
+      if (typeof extractor.canonicalPostUrl !== "function") return null;
+      for (const link of card.querySelectorAll('a[href*="/post/"]')) {
+        const canonical = extractor.canonicalPostUrl(
+          link.getAttribute("href"), windowObject.location.href,
+        );
+        if (canonical) return canonical;
+      }
+      return null;
+    }
+
+    function setAccepted(button) {
+      button.textContent = "✓ 収集済み";
+      button.setAttribute("aria-label", "このThreads投稿は収集済みです");
+      button.setAttribute("data-sce-state", "accepted");
+      button.disabled = true;
+    }
+
     function cardCandidates() {
       const cards = [];
       const seen = new Set();
@@ -165,6 +210,7 @@
       if (card.querySelector(`[${ACTION_ATTRIBUTE}="${ACTION_VERSION}"]`)) return;
       if (!extractor.recognizeSearchCard(card, windowObject.location.href)) return;
       const button = documentObject.createElement("button");
+      const postUrl = canonicalPostUrl(card);
       button.type = "button";
       button.textContent = "Pattern収集";
       button.setAttribute(ACTION_ATTRIBUTE, ACTION_VERSION);
@@ -184,9 +230,8 @@
             ? await onObservation(observation)
             : { accepted: false, retryable: true, reason: "extraction_failed" };
           if (response && response.accepted === true) {
-            button.textContent = "✓ 収集済み";
-            button.setAttribute("aria-label", "このThreads投稿は収集済みです");
-            button.setAttribute("data-sce-state", "accepted");
+            if (postUrl) await collectionState.markCollected(postUrl);
+            setAccepted(button);
           } else {
             button.textContent = "再試行";
             button.setAttribute("aria-label", "Threads投稿の収集を再試行");
@@ -198,6 +243,11 @@
         }
       });
       appendPatternAction(card, button);
+      if (postUrl) {
+        collectionState.isCollected(postUrl).then((collected) => {
+          if (collected && !button.getAttribute("data-sce-state")) setAccepted(button);
+        }).catch(() => {});
+      }
     }
 
     function scan() {
