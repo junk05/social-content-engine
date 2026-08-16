@@ -87,6 +87,18 @@
     }
     return counters;
   }
+  function pageViewCount(root) {
+    for (const element of root.querySelectorAll("span, div")) {
+      if (!isVisible(element)) continue;
+      const label = renderedText(element);
+      if (!label) continue;
+      const match = label.match(/^表示\s*([0-9][0-9,]*)\s*回$/);
+      if (!match) continue;
+      const value = exactNonnegativeInteger(match[1]);
+      if (value !== null) return value;
+    }
+    return null;
+  }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
     for (const selector of ['[data-testid="post-text"]', '[dir="auto"]']) {
@@ -134,6 +146,7 @@
     if (!post || !timestamp) return null;
     const profile = profileValues(root, post.canonical);
     const counters = visibleCounters(root);
+    if (counters.view_count === null) counters.view_count = pageViewCount(root);
     const counterLabels = Array.from(root.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const text = visiblePostText(root, [profile.authorName, profile.username, timestamp, ...counterLabels]);
     const media = mediaValues(root);
@@ -155,6 +168,6 @@
     return observation;
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, recognizePostDetail, extractPostDetail,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, recognizePostDetail, extractPostDetail,
   });
 })(globalThis);
