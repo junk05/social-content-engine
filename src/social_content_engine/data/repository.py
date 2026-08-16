@@ -1841,6 +1841,59 @@ class Repository:
         ).fetchone()
         return int(row["count"]) if row else 0
 
+    def create_m4_intelligence_run(
+        self, dataset_snapshot_id: int, taxonomy_version: str, derivation_version: str,
+        config: Dict[str, Any], *, created_at: Optional[str] = None,
+    ) -> int:
+        """Pin one finalized dataset to a closed M4 derivation configuration."""
+        snapshot = self.connection.execute(
+            "SELECT status FROM dataset_snapshots WHERE id = ?", (dataset_snapshot_id,)
+        ).fetchone()
+        if snapshot is None or snapshot["status"] != "FINALIZED":
+            raise ValueError("M4 intelligence requires a finalized dataset")
+        if not (
+            _is_contract_identifier(taxonomy_version)
+            and _is_contract_identifier(derivation_version)
+        ):
+            raise ValueError("M4 versions are invalid")
+        config_json = _canonical_json(config)
+        cursor = self.connection.execute(
+            """INSERT INTO m4_intelligence_runs
+            (dataset_snapshot_id, taxonomy_version, derivation_version, config_json,
+             config_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
+            (dataset_snapshot_id, taxonomy_version, derivation_version, config_json,
+             hashlib.sha256(config_json.encode("utf-8")).hexdigest(), created_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return an M4 intelligence run id")
+        return int(cursor.lastrowid)
+
+    def persist_m4_intelligence_instance(
+        self, *, m4_intelligence_run_id: int, normalized_post_version_id: int,
+        analysis_run_row_id: int, first_line_feature_id: int, parent_ending_feature_id: int,
+        feature: Dict[str, Any], input_sha256: str, created_at: Optional[str] = None,
+    ) -> int:
+        """Append a closed, source-text-free M4 feature instance."""
+        _reject_pattern_leakage(feature)
+        if not isinstance(input_sha256, str) or len(input_sha256) != 64:
+            raise ValueError("M4 instance input hash is invalid")
+        feature_json = _canonical_json(feature)
+        cursor = self.connection.execute(
+            """INSERT INTO m4_intelligence_instances
+            (m4_intelligence_run_id, normalized_post_version_id, analysis_run_row_id,
+             first_line_feature_id, parent_ending_feature_id, feature_json, feature_sha256,
+             input_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (m4_intelligence_run_id, normalized_post_version_id, analysis_run_row_id,
+             first_line_feature_id, parent_ending_feature_id, feature_json,
+             hashlib.sha256(feature_json.encode("utf-8")).hexdigest(), input_sha256,
+             created_at or _utc_now()),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return an M4 intelligence instance id")
+        return int(cursor.lastrowid)
+
     def get_normalized_post(self, source_post_id: str, source: str = "threads") -> Dict[str, Any]:
         row = self.connection.execute(
             """SELECT normalized_posts.*, normalized_post_versions.version
