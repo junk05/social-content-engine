@@ -77,7 +77,8 @@
     {"id":"M4-003","owner":"INTELLIGENCE","title":"Derive deterministic First-Line, Body, Ending, and Action intelligence instances","status":"COMPLETE","depends_on":["M4-002"]},
     {"id":"M4-004","owner":"INTELLIGENCE","title":"Mine abstract sequence patterns and descriptive performance associations","status":"COMPLETE","depends_on":["M4-002","M4-003"]},
     {"id":"M4-005","owner":"INTELLIGENCE","title":"Generate text-safe VIRAL_PATTERN_REPORT with runtime review evidence","status":"COMPLETE","depends_on":["M4-004"]},
-    {"id":"M4-006","owner":"QA_REVIEWER","title":"Add M4 deterministic, provenance, leakage, and M0-M3 regression gates","status":"IN_PROGRESS","depends_on":["M4-005"]},
+    {"id":"M4-009","owner":"INTELLIGENCE","title":"Persist supported M4 sequence patterns and member provenance","status":"IN_PROGRESS","depends_on":["M4-004"]},
+    {"id":"M4-006","owner":"QA_REVIEWER","title":"Add M4 deterministic, provenance, leakage, and M0-M3 regression gates","status":"IN_PROGRESS","depends_on":["M4-005","M4-009"]},
     {"id":"M4-007","owner":"ORCHESTRATOR","title":"Generate the initial M3 snapshot 2 report and request HG-04 quality review","status":"PENDING","depends_on":["M4-006"]},
     {"id":"M4-008","owner":"ORCHESTRATOR","title":"Record HG-04 decision and mark M4 complete only when all DoD items pass","status":"BLOCKED","depends_on":["M4-007"]}
   ]

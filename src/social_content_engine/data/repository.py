@@ -933,6 +933,42 @@ def _migration_11_m4_pattern_intelligence(connection: sqlite3.Connection) -> Non
         )
 
 
+def _migration_12_m4_sequence_patterns(connection: sqlite3.Connection) -> None:
+    """Persist only supported, text-free M4 sequence aggregates."""
+    connection.execute(
+        """CREATE TABLE m4_sequence_patterns (
+          id INTEGER PRIMARY KEY,
+          m4_intelligence_run_id INTEGER NOT NULL REFERENCES m4_intelligence_runs(id),
+          signature_json TEXT NOT NULL,
+          signature_sha256 TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          member_count INTEGER NOT NULL CHECK(member_count >= 2),
+          distinct_source_count INTEGER NOT NULL CHECK(distinct_source_count >= 2),
+          confidence TEXT NOT NULL CHECK(confidence IN ('LOW', 'MEDIUM', 'HIGH')),
+          created_at TEXT NOT NULL,
+          UNIQUE(m4_intelligence_run_id, signature_sha256)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE m4_sequence_pattern_members (
+          m4_sequence_pattern_id INTEGER NOT NULL REFERENCES m4_sequence_patterns(id),
+          m4_intelligence_instance_id INTEGER NOT NULL REFERENCES m4_intelligence_instances(id),
+          ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+          PRIMARY KEY(m4_sequence_pattern_id, m4_intelligence_instance_id),
+          UNIQUE(m4_sequence_pattern_id, ordinal)
+        )"""
+    )
+    for table in ("m4_sequence_patterns", "m4_sequence_pattern_members"):
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_update BEFORE UPDATE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'M4 sequence evidence is immutable'); END""".format(table)
+        )
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_delete BEFORE DELETE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'M4 sequence evidence is immutable'); END""".format(table)
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -945,6 +981,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (9, "browser-detail-attempt-failure-history-v1", _migration_9_browser_detail_attempts),
     (10, "browser-normalized-processing-bridge-v1", _migration_10_browser_normalized_bridge),
     (11, "m4-pattern-intelligence-provenance-v1", _migration_11_m4_pattern_intelligence),
+    (12, "m4-sequence-pattern-members-v1", _migration_12_m4_sequence_patterns),
 )
 
 
@@ -1833,6 +1870,8 @@ class Repository:
             "m4_intelligence_runs",
             "m4_intelligence_instances",
             "m4_metric_snapshots",
+            "m4_sequence_patterns",
+            "m4_sequence_pattern_members",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")

@@ -143,6 +143,69 @@ def materialize_metric_snapshots(repository: Repository, dataset_snapshot_id: in
     return inserted
 
 
+def materialize_sequence_patterns(repository: Repository, m4_intelligence_run_id: int) -> int:
+    """Persist only repeated, text-free sequence patterns for one pinned M4 run."""
+    rows = repository.connection.execute(
+        """SELECT m4_intelligence_instances.id, m4_intelligence_instances.feature_json,
+                  m4_intelligence_instances.input_sha256,
+                  normalized_post_versions.normalized_post_id
+           FROM m4_intelligence_instances
+           JOIN normalized_post_versions
+             ON normalized_post_versions.id = m4_intelligence_instances.normalized_post_version_id
+           WHERE m4_intelligence_instances.m4_intelligence_run_id = ?
+           ORDER BY m4_intelligence_instances.id""",
+        (m4_intelligence_run_id,),
+    ).fetchall()
+    groups: Dict[str, List[Any]] = {}
+    for row in rows:
+        signature = sequence_signature(json.loads(str(row["feature_json"])))
+        signature_json = _canonical_json(signature)
+        groups.setdefault(signature_json, []).append(row)
+    inserted = 0
+    for signature_json in sorted(groups):
+        members = groups[signature_json]
+        sources = {int(member["normalized_post_id"]) for member in members}
+        if len(members) < 2 or len(sources) < 2:
+            continue
+        signature_sha256 = hashlib.sha256(signature_json.encode("utf-8")).hexdigest()
+        input_document = {
+            "signature_sha256": signature_sha256,
+            "member_input_sha256s": sorted(str(member["input_sha256"]) for member in members),
+            "sequence_miner_version": "m4-sequence-miner-v1",
+        }
+        input_sha256 = hashlib.sha256(_canonical_json(input_document).encode("utf-8")).hexdigest()
+        existing = repository.connection.execute(
+            """SELECT id, input_sha256 FROM m4_sequence_patterns
+            WHERE m4_intelligence_run_id = ? AND signature_sha256 = ?""",
+            (m4_intelligence_run_id, signature_sha256),
+        ).fetchone()
+        if existing is not None:
+            if str(existing["input_sha256"]) != input_sha256:
+                raise RuntimeError("immutable M4 sequence pattern input changed")
+            continue
+        cursor = repository.connection.execute(
+            """INSERT INTO m4_sequence_patterns
+            (m4_intelligence_run_id, signature_json, signature_sha256, input_sha256,
+             member_count, distinct_source_count, confidence, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (m4_intelligence_run_id, signature_json, signature_sha256, input_sha256,
+             len(members), len(sources), "MEDIUM" if len(members) >= 3 else "LOW"),
+        )
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return an M4 sequence pattern id")
+        pattern_id = int(cursor.lastrowid)
+        for ordinal, member in enumerate(sorted(members, key=lambda item: int(item["id"]))):
+            repository.connection.execute(
+                """INSERT INTO m4_sequence_pattern_members
+                (m4_sequence_pattern_id, m4_intelligence_instance_id, ordinal)
+                VALUES (?, ?, ?)""",
+                (pattern_id, int(member["id"]), ordinal),
+            )
+        inserted += 1
+    repository.connection.commit()
+    return inserted
+
+
 def derive_m4_instances(repository: Repository, m4_intelligence_run_id: int) -> int:
     """Derive one immutable M4 instance per pinned successful M1/M2 input."""
     run = repository.connection.execute(
