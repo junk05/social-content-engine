@@ -171,6 +171,63 @@ async function main() {
     fetch: async () => response(201, { status: "other" }),
   }), { accepted: false, reason: "invalid_receiver_response" });
 
+  const queueSummary = await transport.queueSummary(null, {
+    fetch: async () => response(200, { status: "ok", collected_count: 5,
+      running_batch_id: 7, counts: { DETAIL_PENDING: 2, DETAIL_PROCESSING: 1,
+        DETAIL_ENRICHED: 1, DETAIL_FAILED: 1 } }),
+  });
+  assert.equal(queueSummary.accepted, true);
+  assert.equal(queueSummary.collectedCount, 5);
+  assert.equal(queueSummary.counts.DETAIL_PENDING, 2);
+  assert.equal((await transport.queueSummary(7, {
+    fetch: async () => response(200, { status: "ok", collected_count: 5,
+      running_batch_id: 7, counts: { DETAIL_PENDING: 2, DETAIL_PROCESSING: 1,
+        DETAIL_ENRICHED: 1, DETAIL_FAILED: 1 } }),
+  })).status, "RUNNING");
+
+  let durableRequest;
+  assert.deepEqual(await transport.startBatch(5, { fetch: async (url, options) => {
+    durableRequest = { url, options };
+    return response(200, { status: "accepted", batch_id: 9 });
+  } }), { accepted: true, batchId: 9 });
+  assert.equal(durableRequest.options.credentials, "omit");
+  assert.deepEqual(JSON.parse(durableRequest.options.body), {
+    action: "start", requested_items: 5, max_items: 5, retry_failed: true,
+  });
+
+  const claim = await transport.claimNext(9, { fetch: async () => response(200, {
+    status: "claimed", queue_item_id: 3, batch_id: 9, attempt: 1,
+    lease_version: 2, post_url: "https://www.threads.net/@fixture/post/Queue1",
+  }) });
+  assert.equal(claim.accepted, true);
+  assert.equal(claim.claim.post_url, "https://www.threads.net/@fixture/post/Queue1");
+  assert.deepEqual(await transport.claimNext(9, {
+    fetch: async () => response(200, { status: "empty", batch_id: 9 }),
+  }), { accepted: true, claim: null });
+
+  const correlation = { queue_item_id: 3, batch_id: 9, attempt: 1,
+    lease_version: 2, detail_observation_id: 42 };
+  assert.deepEqual(await transport.completeClaim(correlation, {
+    fetch: async (_url, options) => {
+      assert.deepEqual(JSON.parse(options.body), correlation);
+      return response(200, { status: "completed" });
+    },
+  }), { accepted: true });
+  assert.deepEqual(await transport.failClaim({ queue_item_id: 4, batch_id: 9,
+    attempt: 1, lease_version: 1, error_code: "ACTIVITY_DIALOG_TIMEOUT" }, {
+    fetch: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      assert.equal(body.failure_type, "TIMEOUT");
+      assert.equal(body.failure_reason, "TIME_LIMIT_EXCEEDED");
+      assert.equal(body.error_code, "ACTIVITY_DIALOG_TIMEOUT");
+      assert.equal(options.credentials, "omit");
+      return response(201, { status: "failure_recorded" });
+    },
+  }), { accepted: true });
+  assert.deepEqual(await transport.finishBatch(9, false, {
+    fetch: async () => response(200, { status: "accepted", batch_status: "COMPLETED" }),
+  }), { accepted: true, status: "COMPLETED" });
+
   let messageResponse;
   globalThis.fetch = async () => { throw new Error("receiver unavailable fixture"); };
   const asyncResult = chrome.runtime.onMessage.listener(

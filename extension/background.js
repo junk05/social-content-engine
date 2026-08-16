@@ -1,10 +1,17 @@
 "use strict";
 
+if (typeof importScripts === "function") importScripts("batch_controller.js");
+
 (function exposeBackgroundTransport(scope) {
   const RECEIVER_URL = "http://127.0.0.1:8765/browser-ingest/threads";
   const PENDING_DETAILS_URL = RECEIVER_URL + "/pending-details";
   const DETAIL_FAILURE_URL = RECEIVER_URL + "/detail-failures";
   const THREAD_SEQUENCE_URL = RECEIVER_URL + "/thread-sequences";
+  const DETAIL_QUEUE_SUMMARY_URL = RECEIVER_URL + "/detail-queue/summary";
+  const DETAIL_BATCHES_URL = RECEIVER_URL + "/detail-batches";
+  const DETAIL_QUEUE_CLAIM_URL = RECEIVER_URL + "/detail-queue/claim";
+  const DETAIL_QUEUE_COMPLETE_URL = RECEIVER_URL + "/detail-queue/complete";
+  const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -193,15 +200,207 @@
     } catch (_error) { return { accepted: false, reason: "network_error" }; }
   }
 
+  async function durableRequest(url, method, body, options = {}) {
+    const origin = extensionOrigin();
+    if (!origin) return { accepted: false, reason: "extension_origin_unavailable" };
+    if (body && containsForbiddenKey(body)) {
+      return { accepted: false, reason: "unsafe_queue_request" };
+    }
+    try {
+      const request = {
+        method,
+        headers: { "X-SCE-Extension-Origin": origin },
+        cache: "no-store",
+        credentials: "omit",
+      };
+      if (body) {
+        request.headers["Content-Type"] = "application/json";
+        request.body = JSON.stringify(body);
+      }
+      const response = await (options.fetch || fetch)(url, request);
+      if (![200, 201].includes(response.status)) {
+        return { accepted: false, reason: "receiver_rejected", status: response.status };
+      }
+      const payload = await response.json();
+      return { accepted: true, payload };
+    } catch (_error) {
+      return { accepted: false, reason: "network_error" };
+    }
+  }
+
+  async function queueSummary(batchId = null, options = {}) {
+    const result = await durableRequest(DETAIL_QUEUE_SUMMARY_URL, "GET", null, options);
+    if (!result.accepted) return result;
+    const payload = result.payload;
+    const keys = ["DETAIL_PENDING", "DETAIL_PROCESSING", "DETAIL_ENRICHED", "DETAIL_FAILED"];
+    if (!payload || payload.status !== "ok" || !Number.isInteger(payload.collected_count)
+        || !payload.counts || keys.some((key) => !Number.isInteger(payload.counts[key]))) {
+      return { accepted: false, reason: "invalid_receiver_response" };
+    }
+    return {
+      accepted: true,
+      status: Number.isInteger(batchId) && payload.running_batch_id === batchId
+        ? "RUNNING" : "COMPLETE",
+      batchId,
+      collectedCount: payload.collected_count,
+      counts: payload.counts,
+      runningBatchId: Number.isInteger(payload.running_batch_id)
+        ? payload.running_batch_id : null,
+    };
+  }
+
+  async function startBatch(limit = 50, options = {}) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return { accepted: false, reason: "invalid_limit" };
+    }
+    const result = await durableRequest(DETAIL_BATCHES_URL, "POST", {
+      action: "start", requested_items: limit, max_items: limit, retry_failed: true,
+    }, options);
+    if (!result.accepted) return result;
+    return result.payload && result.payload.status === "accepted"
+      && Number.isInteger(result.payload.batch_id)
+      ? { accepted: true, batchId: result.payload.batch_id }
+      : { accepted: false, reason: "invalid_receiver_response" };
+  }
+
+  async function finishBatch(batchId, stopped = false, options = {}) {
+    if (!Number.isInteger(batchId) || batchId < 1 || typeof stopped !== "boolean") {
+      return { accepted: false, reason: "invalid_batch" };
+    }
+    const result = await durableRequest(DETAIL_BATCHES_URL, "POST", {
+      action: "finish", batch_id: batchId, stopped,
+    }, options);
+    return result.accepted && result.payload && result.payload.status === "accepted"
+      ? { accepted: true, status: result.payload.batch_status }
+      : result.accepted ? { accepted: false, reason: "invalid_receiver_response" } : result;
+  }
+
+  async function claimNext(batchId, options = {}) {
+    if (!Number.isInteger(batchId) || batchId < 1) {
+      return { accepted: false, reason: "invalid_batch" };
+    }
+    const result = await durableRequest(
+      DETAIL_QUEUE_CLAIM_URL, "POST", { batch_id: batchId }, options,
+    );
+    if (!result.accepted) return result;
+    const payload = result.payload;
+    if (payload && payload.status === "empty") return { accepted: true, claim: null };
+    const claim = payload && payload.status === "claimed" ? {
+      queue_item_id: payload.queue_item_id,
+      batch_id: payload.batch_id,
+      attempt: payload.attempt,
+      lease_version: payload.lease_version,
+      post_url: payload.post_url,
+    } : null;
+    if (!claim || !isCanonicalThreadsPostUrl(claim.post_url)
+        || [claim.queue_item_id, claim.batch_id, claim.attempt, claim.lease_version]
+          .some((value) => !Number.isInteger(value) || value < 1)) {
+      return { accepted: false, reason: "invalid_receiver_response" };
+    }
+    return { accepted: true, claim };
+  }
+
+  async function completeClaim(correlation, options = {}) {
+    const result = await durableRequest(
+      DETAIL_QUEUE_COMPLETE_URL, "POST", correlation, options,
+    );
+    return result.accepted && result.payload && result.payload.status === "completed"
+      ? { accepted: true }
+      : result.accepted ? { accepted: false, reason: "invalid_receiver_response" } : result;
+  }
+
+  async function failClaim(correlation, options = {}) {
+    const mappings = {
+      PAGE_TIMEOUT: ["TIMEOUT", "TIME_LIMIT_EXCEEDED"],
+      POST_NOT_FOUND: ["PAGE_UNAVAILABLE", "POST_NOT_FOUND"],
+      ACTIVITY_BUTTON_NOT_FOUND: ["EXTRACTION_FAILED", "EXPECTED_FIELD_MISSING"],
+      ACTIVITY_DIALOG_TIMEOUT: ["TIMEOUT", "TIME_LIMIT_EXCEEDED"],
+      VIEW_COUNT_NOT_FOUND: ["EXTRACTION_FAILED", "EXPECTED_FIELD_MISSING"],
+      THREAD_SEQUENCE_NOT_OBSERVED: ["EXTRACTION_FAILED", "EXPECTED_FIELD_MISSING"],
+      INGESTION_FAILED: ["VALIDATION_FAILED", "INVALID_OBSERVATION"],
+      EXTRACTOR_MISMATCH: ["EXTRACTION_FAILED", "UNRECOGNIZED_PAGE"],
+    };
+    const failure = mappings[correlation && correlation.error_code];
+    if (!failure) return { accepted: false, reason: "invalid_error_code" };
+    const result = await durableRequest(DETAIL_QUEUE_FAIL_URL, "POST", {
+      ...correlation,
+      attempted_at: new Date().toISOString(),
+      extractor_version: "threads_post_detail_extractor_v1",
+      contract_version: "M3_BROWSER_DETAIL_ATTEMPT_V1",
+      failure_type: failure[0],
+      failure_reason: failure[1],
+    }, options);
+    return result.accepted && result.payload && result.payload.status === "failure_recorded"
+      ? { accepted: true }
+      : result.accepted ? { accepted: false, reason: "invalid_receiver_response" } : result;
+  }
+
   scope.SCE_BACKGROUND_TRANSPORT = Object.freeze({
     receiverUrl: RECEIVER_URL,
     timeoutMilliseconds: TIMEOUT_MILLISECONDS,
     pendingDetailsUrl: PENDING_DETAILS_URL,
     detailFailureUrl: DETAIL_FAILURE_URL, threadSequenceUrl: THREAD_SEQUENCE_URL,
     sendObservation, fetchPendingDetails, sendDetailFailure, sendThreadSequence, extensionOrigin,
+    queueSummary, startBatch, finishBatch, claimNext, completeClaim, failClaim,
   });
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  function waitForTabComplete(tabId, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        chrome.tabs.onUpdated.removeListener(listener);
+        reject(new Error("tab_timeout"));
+      }, timeout);
+      function listener(updatedId, changeInfo) {
+        if (updatedId !== tabId || changeInfo.status !== "complete") return;
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve(tabId);
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+  }
+
+  const workerResultBroker = scope.SCE_DETAIL_BATCH
+    && scope.SCE_DETAIL_BATCH.createWorkerResultBroker({ timeoutMilliseconds: 15000 });
+  const durableBatchMethods = [
+    "queueSummary", "startBatch", "claimNext", "completeClaim", "failClaim", "finishBatch",
+  ];
+  const durableTransportReady = durableBatchMethods.every(
+    (name) => typeof scope.SCE_BACKGROUND_TRANSPORT[name] === "function",
+  );
+  const batchController = scope.SCE_DETAIL_BATCH && durableTransportReady
+    && scope.SCE_DETAIL_BATCH.createController({
+    transport: scope.SCE_BACKGROUND_TRANSPORT,
+    storage: chrome.storage.local,
+    tabWorker: {
+      async open(url) {
+        const tab = await chrome.tabs.create({ url, active: false });
+        if (!Number.isInteger(tab.id)) throw new Error("tab_id_missing");
+        if (tab.status !== "complete") await waitForTabComplete(tab.id);
+        return tab.id;
+      },
+      async navigate(tabId, url) {
+        await chrome.tabs.update(tabId, { url, active: false });
+        await waitForTabComplete(tabId);
+        return tabId;
+      },
+      async extract(tabId, url) {
+        return workerResultBroker.request(
+          tabId, (message) => chrome.tabs.sendMessage(tabId, message), url,
+        );
+      },
+      async close(tabId) { await chrome.tabs.remove(tabId); },
+    },
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message && message.type === "SCE_BATCH_WORKER_RESULT" && workerResultBroker) {
+      sendResponse({
+        accepted: workerResultBroker.accept(message, sender),
+        reason: "stale_or_wrong_tab_worker_result",
+      });
+      return false;
+    }
     if (message && message.type === "SCE_SCAFFOLD_STATUS") {
       sendResponse({ ready: true, receiverUrl: RECEIVER_URL, stage: "M3-007" });
       return false;
@@ -214,12 +413,24 @@
       fetchPendingDetails(message.limit).then(sendResponse);
       return true;
     }
+    if (message && message.type === "SCE_DETAIL_QUEUE_STATUS") {
+      queueSummary().then(sendResponse);
+      return true;
+    }
     if (message && message.type === "SCE_DETAIL_FAILURE") {
       sendDetailFailure(message.failure).then(sendResponse);
       return true;
     }
     if (message && message.type === "SCE_THREAD_SEQUENCE_READY") {
       sendThreadSequence(message.sequence).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_START_DETAIL_BATCH" && batchController) {
+      batchController.start(message.limit).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_RESUME_DETAIL_BATCH" && batchController) {
+      batchController.resume().then(sendResponse);
       return true;
     }
     return false;

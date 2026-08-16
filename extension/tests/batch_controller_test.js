@@ -1,0 +1,93 @@
+"use strict";
+const assert = require("node:assert/strict");
+const path = require("node:path");
+require(path.join(__dirname, "..", "batch_controller.js"));
+
+async function main() {
+  const saved = {}, events = [];
+  const u1 = "https://www.threads.net/@fixture/post/U1";
+  const u2 = "https://www.threads.net/@fixture/post/U2";
+  const u3 = "https://www.threads.net/@fixture/post/U3";
+  const claims = [
+    { queue_item_id: 11, batch_id: 7, attempt: 1, lease_version: 2, post_url: u1 },
+    { queue_item_id: 12, batch_id: 7, attempt: 1, lease_version: 3, post_url: u2 },
+    { queue_item_id: 13, batch_id: 7, attempt: 2, lease_version: 4, post_url: u3 },
+  ];
+  const storage = {
+    async set(value) { Object.assign(saved, value); },
+    async get(key) { return { [key]: saved[key] }; },
+  };
+  const transport = {
+    async startBatch(limit) { events.push(["start", limit]); return { accepted: true, batchId: 7 }; },
+    async claimNext(batchId) { return { accepted: true, claim: claims.shift() || null }; },
+    async queueSummary(batchId) { return { accepted: true, status: "COMPLETE", batchId }; },
+    async finishBatch(batchId, stopped) { events.push(["finish", batchId, stopped]); return { accepted: true }; },
+    async sendObservation(observation) {
+      events.push(["observation", observation.post_url]);
+      return { accepted: true, observationId: observation.post_url === u1 ? 101 : 103 };
+    },
+    async sendThreadSequence(sequence) { events.push(["sequence", sequence.nodes]); return { accepted: true }; },
+    async completeClaim(value) { events.push(["complete", value]); return { accepted: true }; },
+    async failClaim(value) { events.push(["fail", value]); return { accepted: true }; },
+  };
+  const tabWorker = {
+    async open(url) { events.push(["open", url]); return 42; },
+    async navigate(id, url) { events.push(["navigate", url]); return id; },
+    async extract(_id, url) {
+      events.push(["extract", url]);
+      if (url === u2) throw new Error("isolated failure");
+      return { ok: true, observation: { post_url: url, collected_at: "2026-08-16T00:00:00Z" },
+        childObservations: [{ post_url: url + "-child", collected_at: "2026-08-16T00:00:00Z" }], nodes: [
+        { post_url: url, sequence_position: 0, reply_to_post_url: null, same_author_as_root: null },
+        { post_url: url + "-child", sequence_position: 1, reply_to_post_url: url, same_author_as_root: null },
+      ] };
+    },
+    async close(id) { events.push(["close", id]); },
+  };
+  const controller = globalThis.SCE_DETAIL_BATCH.createController({ transport, tabWorker, storage });
+  assert.equal((await controller.start(3)).accepted, true);
+  assert.equal(events.filter((item) => item[0] === "open").length, 1);
+  assert.equal(events.filter((item) => item[0] === "navigate").length, 2);
+  assert.equal(events.some((item) => item[0] === "extract" && item[1] === u3), true);
+  assert.equal(events.find((item) => item[0] === "sequence")[1].length, 2,
+    "accepted child observation is sent before its sequence identity");
+  assert.equal(events.findIndex((item) => item[0] === "observation" && item[1] === u1 + "-child")
+    < events.findIndex((item) => item[0] === "sequence"), true);
+  assert.deepEqual(events.find((item) => item[0] === "finish").slice(1), [7, false]);
+  assert.deepEqual(events.find((item) => item[0] === "complete")[1], {
+    queue_item_id: 11, batch_id: 7, attempt: 1, lease_version: 2, detail_observation_id: 101,
+  });
+  assert.deepEqual(events.find((item) => item[0] === "fail")[1], {
+    queue_item_id: 12, batch_id: 7, attempt: 1, lease_version: 3, error_code: "PAGE_TIMEOUT",
+  });
+  assert.equal(saved[globalThis.SCE_DETAIL_BATCH.storageKey], null,
+    "storage is a resume hint, not the durable queue SSOT");
+
+  saved[globalThis.SCE_DETAIL_BATCH.storageKey] = { batch_id: 8, worker_tab_id: null };
+  const resumeTransport = { ...transport,
+    async queueSummary(batchId) { return { accepted: true, status: "RUNNING", batchId }; },
+    async claimNext() { return { accepted: true, claim: null }; } };
+  assert.equal((await globalThis.SCE_DETAIL_BATCH.createController({
+    transport: resumeTransport, tabWorker, storage,
+  }).resume()).accepted, true);
+
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  const locked = globalThis.SCE_DETAIL_BATCH.createController({
+    transport: { ...transport, async startBatch() { await held; return { accepted: true, batchId: 9 }; },
+      async claimNext() { return { accepted: true, claim: null }; } }, tabWorker, storage,
+  });
+  const first = locked.start();
+  assert.deepEqual(await locked.resume(), { accepted: false, reason: "batch_already_running" });
+  release(); await first;
+
+  const broker = globalThis.SCE_DETAIL_BATCH.createWorkerResultBroker({ timeoutMilliseconds: 1000 });
+  let command;
+  const pending = broker.request(42, (message) => { command = message; }, "u1");
+  await assert.rejects(() => broker.request(43, () => {}, "u2"), /worker_busy/);
+  assert.equal(broker.accept({ correlation: "stale", result: {} }, { tab: { id: 42 } }), false);
+  assert.equal(broker.accept({ correlation: command.correlation, result: {} }, { tab: { id: 99 } }), false);
+  assert.equal(broker.accept({ correlation: command.correlation, result: { ok: true } }, { tab: { id: 42 } }), true);
+  assert.deepEqual(await pending, { ok: true });
+}
+main().catch((error) => { console.error(error); process.exitCode = 1; });
