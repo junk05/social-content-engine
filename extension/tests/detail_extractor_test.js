@@ -47,6 +47,11 @@ function fixturePage(name) {
     html.matchAll(/<(?:div|span)(?:\s+[^>]*)?>([^<]+)<\/(?:div|span)>/g),
     (match) => new Element({}, stripTags(match[1])),
   );
+  const dialogs = Array.from(html.matchAll(/<(?:div|section)\s+([^>]*role="dialog"[^>]*)>([\s\S]*?)<\/(?:div|section)>/g),
+    (match) => new Element(attributes(match[1]), stripTags(match[2])));
+  for (const dialog of dialogs) {
+    dialog.querySelectorAll = (selector) => selector === "span, div" ? [dialog] : [];
+  }
   const timeMatch = html.match(/<time\s+([^>]*)>/);
   const media = Array.from(html.matchAll(/<(img|video)\s*([^>]*)>/g),
     (match) => ({ tag: match[1], element: new Element(attributes(match[2])) }));
@@ -58,6 +63,7 @@ function fixturePage(name) {
       if (selector === '[data-testid="post-text"]') return candidates.filter((item) => item.getAttribute("data-testid") === "post-text");
       if (selector === '[dir="auto"]') return candidates.filter((item) => item.getAttribute("dir") === "auto");
       if (selector === "span, div") return displayLabels;
+      if (selector === '[role="dialog"], [aria-modal="true"]') return dialogs;
       if (selector === "video") return media.filter((item) => item.tag === "video").map((item) => item.element);
       if (selector === 'img[alt]:not([alt=""])') return media.filter((item) => item.tag === "img" && item.element.getAttribute("alt")).map((item) => item.element);
       return [];
@@ -129,9 +135,20 @@ async function main() {
     6400,
   );
 
+  const activityExact = await extractor.extractPostDetail(
+    fixturePage("post_detail_activity_exact_view.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/ActivityExact" },
+  );
+  assert.equal(activityExact.public_counters.view_count, 64123);
+  assert.equal(
+    activityExact.observed_fields.find((item) => item.field === "public_counters.view_count").value,
+    64123,
+  );
+
   assert.equal(extractor.exactNonnegativeInteger("Views 12K"), null);
   assert.equal(extractor.exactNonnegativeInteger("1.2K views"), null);
   assert.equal(extractor.pageViewCount(fixturePage("post_detail_missing_view.html")), null);
+  assert.equal(extractor.activityViewCount(fixturePage("post_detail_missing_view.html")), null);
   assert.equal(extractor.exactNonnegativeInteger("Views 0"), 0);
   assert.equal(extractor.canonicalPostUrl("javascript:alert(1)", context.pageUrl), null);
   assert.equal(extractor.recognizePostDetail(page, "https://www.threads.net/@other/post/Elsewhere"), false);

@@ -69,6 +69,7 @@
     {"id":"M3-029","owner":"COLLECTOR","title":"Resolve DIV-only Threads detail container for explicit collection action","status":"COMPLETE","depends_on":["M3-028"]},
     {"id":"M3-030","owner":"COLLECTOR","title":"Inject explicit detail action after Threads SPA detail rendering","status":"COMPLETE","depends_on":["M3-029"]},
     {"id":"M3-031","owner":"COLLECTOR","title":"Select resolvable duplicate detail permalink before injecting action","status":"COMPLETE","depends_on":["M3-030"]},
-    {"id":"M3-032","owner":"COLLECTOR","title":"Read exact page-level Threads Views without inferring abbreviated display counts","status":"COMPLETE","depends_on":["M3-031"]}
+    {"id":"M3-032","owner":"COLLECTOR","title":"Read exact page-level Threads Views without inferring abbreviated display counts","status":"COMPLETE","depends_on":["M3-031"]},
+    {"id":"M3-033","owner":"COLLECTOR","title":"Read exact human-opened Activity Views without opening the dialog automatically","status":"COMPLETE","depends_on":["M3-032"]}
   ]
 }

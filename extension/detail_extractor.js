@@ -99,6 +99,25 @@
     }
     return null;
   }
+  function activityViewCount(root) {
+    // Threads exposes a rounded page-header count (for example, "表示6.4万回")
+    // and may expose the exact count only after the person opens Activity.  We
+    // read the already-visible dialog; opening it remains a human action.
+    const containers = Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
+    containers.push(root);
+    for (const container of containers) {
+      for (const element of container.querySelectorAll("span, div")) {
+        if (!isVisible(element)) continue;
+        const label = renderedText(element);
+        if (!label) continue;
+        const match = label.match(/^(?:閲覧数|views?)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
+        if (!match) continue;
+        const value = exactNonnegativeInteger(match[1]);
+        if (value !== null) return value;
+      }
+    }
+    return null;
+  }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
     for (const selector of ['[data-testid="post-text"]', '[dir="auto"]']) {
@@ -147,6 +166,7 @@
     const profile = profileValues(root, post.canonical);
     const counters = visibleCounters(root);
     if (counters.view_count === null) counters.view_count = pageViewCount(root);
+    if (counters.view_count === null) counters.view_count = activityViewCount(root);
     const counterLabels = Array.from(root.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const text = visiblePostText(root, [profile.authorName, profile.username, timestamp, ...counterLabels]);
     const media = mediaValues(root);
@@ -168,6 +188,6 @@
     return observation;
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, recognizePostDetail, extractPostDetail,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount, recognizePostDetail, extractPostDetail,
   });
 })(globalThis);
