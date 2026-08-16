@@ -873,6 +873,66 @@ def _migration_10_browser_normalized_bridge(connection: sqlite3.Connection) -> N
     )
 
 
+def _migration_11_m4_pattern_intelligence(connection: sqlite3.Connection) -> None:
+    """Additive, text-free M4 run, instance, and metric-provenance storage."""
+    connection.execute(
+        """CREATE TABLE m4_intelligence_runs (
+          id INTEGER PRIMARY KEY,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          taxonomy_version TEXT NOT NULL,
+          derivation_version TEXT NOT NULL,
+          config_json TEXT NOT NULL,
+          config_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(dataset_snapshot_id, taxonomy_version, derivation_version, config_sha256)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE m4_intelligence_instances (
+          id INTEGER PRIMARY KEY,
+          m4_intelligence_run_id INTEGER NOT NULL REFERENCES m4_intelligence_runs(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          analysis_run_row_id INTEGER NOT NULL REFERENCES analysis_runs(id),
+          first_line_feature_id INTEGER NOT NULL REFERENCES first_line_features(id),
+          parent_ending_feature_id INTEGER NOT NULL REFERENCES parent_ending_features(id),
+          feature_json TEXT NOT NULL,
+          feature_sha256 TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          UNIQUE(m4_intelligence_run_id, normalized_post_version_id)
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE m4_metric_snapshots (
+          id INTEGER PRIMARY KEY,
+          dataset_snapshot_id INTEGER NOT NULL REFERENCES dataset_snapshots(id),
+          normalized_post_version_id INTEGER NOT NULL REFERENCES normalized_post_versions(id),
+          browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          field_name TEXT NOT NULL CHECK(field_name IN (
+            'public_counters.view_count', 'public_counters.like_count',
+            'public_counters.reply_count', 'public_counters.repost_count',
+            'public_counters.quote_count', 'public_counters.share_count'
+          )),
+          metric_value INTEGER NOT NULL CHECK(metric_value >= 0),
+          observed_at TEXT NOT NULL,
+          surface TEXT NOT NULL CHECK(surface IN ('threads_search_card', 'threads_post_detail')),
+          extractor_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          metric_version TEXT NOT NULL,
+          UNIQUE(dataset_snapshot_id, browser_observation_id, field_name)
+        )"""
+    )
+    for table in ("m4_intelligence_instances", "m4_metric_snapshots"):
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_update BEFORE UPDATE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'M4 derived evidence is immutable'); END""".format(table)
+        )
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_delete BEFORE DELETE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'M4 derived evidence is immutable'); END""".format(table)
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -884,6 +944,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (8, "browser-observations-url-identity-v1", _migration_8_browser_observations),
     (9, "browser-detail-attempt-failure-history-v1", _migration_9_browser_detail_attempts),
     (10, "browser-normalized-processing-bridge-v1", _migration_10_browser_normalized_bridge),
+    (11, "m4-pattern-intelligence-provenance-v1", _migration_11_m4_pattern_intelligence),
 )
 
 
@@ -1769,6 +1830,9 @@ class Repository:
             "browser_detail_attempts",
             "browser_detail_failures",
             "browser_normalized_bridges",
+            "m4_intelligence_runs",
+            "m4_intelligence_instances",
+            "m4_metric_snapshots",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
