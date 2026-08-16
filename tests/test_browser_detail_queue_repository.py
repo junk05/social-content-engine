@@ -12,12 +12,47 @@ def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
     connection.execute("DROP TABLE browser_detail_enrichment_queue")
     connection.execute("DROP TABLE browser_detail_enrichment_batches")
-    connection.execute("DELETE FROM schema_migrations WHERE version = 16")
+    connection.execute("DELETE FROM schema_migrations WHERE version >= 16")
     connection.commit()
     connection.close()
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_migration_17_reconciles_multiple_running_batches(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "running.sqlite3"
+            with Repository(path):
+                pass
+            connection = sqlite3.connect(path)
+            connection.execute("DROP INDEX one_running_browser_detail_batch")
+            connection.execute("DELETE FROM schema_migrations WHERE version = 17")
+            connection.execute(
+                """INSERT INTO browser_detail_enrichment_batches
+                (status, requested_items, max_items, started_at)
+                VALUES ('RUNNING', 1, 1, '2026-08-16T00:00:00Z')"""
+            )
+            connection.execute(
+                """INSERT INTO browser_detail_enrichment_batches
+                (status, requested_items, max_items, started_at)
+                VALUES ('RUNNING', 1, 1, '2026-08-16T00:01:00Z')"""
+            )
+            connection.commit()
+            connection.close()
+            with Repository(path) as repository:
+                statuses = [
+                    row[0]
+                    for row in repository.connection.execute(
+                        "SELECT status FROM browser_detail_enrichment_batches ORDER BY id"
+                    ).fetchall()
+                ]
+                self.assertEqual(["RUNNING", "STOPPED"], statuses)
+                self.assertIsNotNone(
+                    repository.connection.execute(
+                        """SELECT name FROM sqlite_master
+                        WHERE type = 'index' AND name = 'one_running_browser_detail_batch'"""
+                    ).fetchone()
+                )
+
     def test_duplicate_enqueue_claim_success_and_source_observation_preservation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "queue.sqlite3") as repository:
@@ -47,6 +82,10 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 self.assertEqual(queue_id, repository.enqueue_browser_detail(search["post_url"]))
                 batch_id = repository.start_browser_detail_batch(
                     requested_items=1, max_items=1, started_at="2026-08-16T01:00:30Z"
+                )
+                self.assertEqual(
+                    batch_id,
+                    repository.start_browser_detail_batch(requested_items=1, max_items=1),
                 )
                 claimed = repository.claim_browser_detail(
                     batch_id, claimed_at="2026-08-16T01:01:00Z"
@@ -131,26 +170,20 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 self.assertEqual(1, retry["retry_count"])
 
             with Repository(path) as repository:
-                self.assertEqual(
-                    1,
-                    repository.recover_browser_detail_queue(
-                        claimed_before="2026-08-16T02:03:00Z",
-                        recovered_at="2026-08-16T02:04:00Z",
-                    ),
-                )
+                resumed = repository.resume_browser_detail_batch(retry_batch)
+                self.assertEqual("RUNNING", resumed["status"])
                 recovered = repository.connection.execute(
                     "SELECT * FROM browser_detail_enrichment_queue WHERE id = ?", (queue_id,)
                 ).fetchone()
                 self.assertEqual("DETAIL_PENDING", recovered["status"])
                 self.assertIsNone(recovered["claimed_at"])
                 self.assertIsNone(recovered["last_error_code"])
+                self.assertEqual(3, recovered["lease_version"])
                 self.assertEqual(1, repository.count("browser_detail_attempts"))
-                resumed = repository.resume_browser_detail_batch(retry_batch)
-                self.assertEqual("RUNNING", resumed["status"])
                 reclaimed = repository.claim_browser_detail(retry_batch)
                 self.assertEqual(retry_batch, reclaimed["batch_id"])
                 self.assertEqual(3, reclaimed["attempt"])
-                self.assertEqual(3, reclaimed["lease_version"])
+                self.assertEqual(4, reclaimed["lease_version"])
                 with self.assertRaisesRegex(ValueError, "DETAIL_PROCESSING"):
                     repository.fail_browser_detail_queue(
                         queue_id,

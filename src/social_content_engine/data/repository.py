@@ -1148,6 +1148,33 @@ def _migration_16_detail_enrichment_queue(connection: sqlite3.Connection) -> Non
     )
 
 
+def _migration_17_one_running_detail_batch(connection: sqlite3.Connection) -> None:
+    """Make the durable Source Store authoritative for the single batch worker."""
+    running = connection.execute(
+        """SELECT id, started_at FROM browser_detail_enrichment_batches
+        WHERE status = 'RUNNING' ORDER BY id"""
+    ).fetchall()
+    for stale in running[1:]:
+        connection.execute(
+            """UPDATE browser_detail_enrichment_queue SET
+            status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+            last_error_code = NULL, last_error_type = NULL, last_error_reason = NULL,
+            updated_at = ? WHERE active_batch_id = ? AND status IN (
+              'DETAIL_PENDING', 'DETAIL_PROCESSING'
+            )""",
+            (stale["started_at"], stale["id"]),
+        )
+        connection.execute(
+            """UPDATE browser_detail_enrichment_batches
+            SET status = 'STOPPED', completed_at = started_at WHERE id = ?""",
+            (stale["id"],),
+        )
+    connection.execute(
+        """CREATE UNIQUE INDEX one_running_browser_detail_batch
+        ON browser_detail_enrichment_batches(status) WHERE status = 'RUNNING'"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1165,6 +1192,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (14, "structural-pattern-extraction-v1", _migration_14_structural_pattern_extraction),
     (15, "browser-text-quality-assessments-v1", _migration_15_browser_text_quality),
     (16, "durable-browser-detail-enrichment-queue-v1", _migration_16_detail_enrichment_queue),
+    (17, "one-running-browser-detail-batch-v1", _migration_17_one_running_detail_batch),
 )
 
 
@@ -2164,6 +2192,12 @@ class Repository:
             raise TypeError("max_items must be an integer")
         if requested_items < 1 or max_items < 1 or requested_items > max_items:
             raise ValueError("detail batch item bounds are invalid")
+        running = self.connection.execute(
+            """SELECT id FROM browser_detail_enrichment_batches
+            WHERE status = 'RUNNING' ORDER BY id LIMIT 1"""
+        ).fetchone()
+        if running is not None:
+            return int(running["id"])
         cursor = self.connection.execute(
             """INSERT INTO browser_detail_enrichment_batches
             (status, requested_items, max_items, started_at)
@@ -2176,13 +2210,25 @@ class Repository:
         return int(cursor.lastrowid)
 
     def resume_browser_detail_batch(self, batch_id: int) -> Dict[str, Any]:
-        row = self.connection.execute(
-            "SELECT * FROM browser_detail_enrichment_batches WHERE id = ?", (batch_id,)
-        ).fetchone()
-        if row is None:
-            raise KeyError("detail batch not found: " + str(batch_id))
-        if row["status"] != "RUNNING":
-            raise ValueError("detail batch is not RUNNING")
+        with self.connection:
+            row = self.connection.execute(
+                "SELECT * FROM browser_detail_enrichment_batches WHERE id = ?", (batch_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError("detail batch not found: " + str(batch_id))
+            if row["status"] != "RUNNING":
+                raise ValueError("detail batch is not RUNNING")
+            # A browser/service-worker restart loses the in-memory claimant. Release only
+            # this batch's leases and advance their version so replayed old responses fail.
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_PENDING', claimed_at = NULL,
+                lease_version = lease_version + 1,
+                last_error_code = NULL, last_error_type = NULL, last_error_reason = NULL,
+                updated_at = ?
+                WHERE active_batch_id = ? AND status = 'DETAIL_PROCESSING'""",
+                (_utc_now(), batch_id),
+            )
         return self.browser_detail_batch_summary(batch_id)
 
     def browser_detail_batch_summary(self, batch_id: int) -> Dict[str, Any]:

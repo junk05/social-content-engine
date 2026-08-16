@@ -97,16 +97,27 @@
                 activity_button_not_found: "ACTIVITY_BUTTON_NOT_FOUND",
                 activity_dialog_timeout: "ACTIVITY_DIALOG_TIMEOUT",
               };
-              await transport.failClaim({
+              const failure = await transport.failClaim({
                 ...correlation(claim), error_code: reasonCodes[extracted && extracted.reason]
                   || "EXTRACTOR_MISMATCH",
               });
+              if (!failure.accepted) return failure;
             } else {
+              const viewCount = extracted.observation.public_counters
+                && extracted.observation.public_counters.view_count;
+              if (!Number.isInteger(viewCount) || viewCount < 0) {
+                const failure = await transport.failClaim({
+                  ...correlation(claim), error_code: "VIEW_COUNT_NOT_FOUND",
+                });
+                if (!failure.accepted) return failure;
+                continue;
+              }
               const accepted = await transport.sendObservation(extracted.observation);
               if (!accepted.accepted) {
-                await transport.failClaim({
+                const failure = await transport.failClaim({
                   ...correlation(claim), error_code: "INGESTION_FAILED",
                 });
+                if (!failure.accepted) return failure;
               } else {
                 const acceptedUrls = new Set([extracted.observation.post_url]);
                 for (const child of Array.isArray(extracted.childObservations)
@@ -116,22 +127,37 @@
                 }
                 const observableNodes = Array.isArray(extracted.nodes)
                   ? extracted.nodes.filter((node) => acceptedUrls.has(node.post_url)) : [];
-                if (Number.isInteger(accepted.observationId) && observableNodes.length > 0) {
-                  await transport.sendThreadSequence({
-                    root_post_url: extracted.observation.post_url,
-                    nodes: observableNodes,
-                    detail_observation_id: accepted.observationId,
-                    observed_at: extracted.observation.collected_at,
-                    extractor_version: "threads_post_detail_extractor_v1",
+                if (!Number.isInteger(accepted.observationId)) {
+                  const failure = await transport.failClaim({
+                    ...correlation(claim), error_code: "INGESTION_FAILED",
                   });
+                  if (!failure.accepted) return failure;
+                  continue;
                 }
-                await transport.completeClaim({
+                if (observableNodes.length > 0) {
+                  try {
+                    await transport.sendThreadSequence({
+                      root_post_url: extracted.observation.post_url,
+                      nodes: observableNodes,
+                      detail_observation_id: accepted.observationId,
+                      observed_at: extracted.observation.collected_at,
+                      extractor_version: "threads_post_detail_extractor_v1",
+                    });
+                  } catch (_sequenceError) {
+                    // Sequence evidence is optional; never infer it or fail valid root detail.
+                  }
+                }
+                const completed = await transport.completeClaim({
                   ...correlation(claim), detail_observation_id: accepted.observationId,
                 });
+                if (!completed.accepted) return completed;
               }
             }
           } catch (_error) {
-            await transport.failClaim({ ...correlation(claim), error_code: "PAGE_TIMEOUT" });
+            const failure = await transport.failClaim({
+              ...correlation(claim), error_code: "PAGE_TIMEOUT",
+            });
+            if (!failure.accepted) return failure;
           }
         }
         const summary = await transport.queueSummary(batchId);
@@ -164,7 +190,16 @@
         return { accepted: false, reason: "no_resumable_batch" };
       }
       const summary = await transport.queueSummary(hint.batch_id);
-      if (!summary.accepted || summary.status !== "RUNNING") return summary;
+      if (!summary.accepted) return summary;
+      if (summary.status !== "RUNNING") {
+        await storage.set({ [STORAGE_KEY]: null });
+        return summary;
+      }
+      if (Number.isInteger(hint.worker_tab_id)) {
+        try { await tabWorker.close(hint.worker_tab_id); } catch (_staleTabError) {
+          // The previous dedicated tab may already have disappeared after a restart.
+        }
+      }
       return run(hint.batch_id);
       });
     }

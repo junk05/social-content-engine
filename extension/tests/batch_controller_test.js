@@ -36,7 +36,8 @@ async function main() {
     async extract(_id, url) {
       events.push(["extract", url]);
       if (url === u2) throw new Error("isolated failure");
-      return { ok: true, observation: { post_url: url, collected_at: "2026-08-16T00:00:00Z" },
+      return { ok: true, observation: { post_url: url, collected_at: "2026-08-16T00:00:00Z",
+        public_counters: { view_count: url === u3 ? null : 0 } },
         childObservations: [{ post_url: url + "-child", collected_at: "2026-08-16T00:00:00Z" }], nodes: [
         { post_url: url, sequence_position: 0, reply_to_post_url: null, same_author_as_root: null },
         { post_url: url + "-child", sequence_position: 1, reply_to_post_url: url, same_author_as_root: null },
@@ -60,16 +61,44 @@ async function main() {
   assert.deepEqual(events.find((item) => item[0] === "fail")[1], {
     queue_item_id: 12, batch_id: 7, attempt: 1, lease_version: 3, error_code: "PAGE_TIMEOUT",
   });
+  assert.deepEqual(events.filter((item) => item[0] === "fail")[1][1], {
+    queue_item_id: 13, batch_id: 7, attempt: 2, lease_version: 4,
+    error_code: "VIEW_COUNT_NOT_FOUND",
+  }, "missing view is a failure while an exact zero remains valid");
   assert.equal(saved[globalThis.SCE_DETAIL_BATCH.storageKey], null,
     "storage is a resume hint, not the durable queue SSOT");
 
-  saved[globalThis.SCE_DETAIL_BATCH.storageKey] = { batch_id: 8, worker_tab_id: null };
+  const sequenceEvents = [];
+  let sequenceClaimed = false;
+  const sequenceFailure = globalThis.SCE_DETAIL_BATCH.createController({
+    transport: { ...transport,
+      async startBatch() { return { accepted: true, batchId: 10 }; },
+      async claimNext() {
+        if (sequenceClaimed) return { accepted: true, claim: null };
+        sequenceClaimed = true;
+        return { accepted: true, claim: {
+          queue_item_id: 20, batch_id: 10, attempt: 1, lease_version: 1, post_url: u1,
+        } };
+      },
+      async sendThreadSequence() { return { accepted: false, reason: "receiver_rejected" }; },
+      async failClaim(value) { sequenceEvents.push(["fail", value]); return { accepted: true }; },
+      async completeClaim(value) { sequenceEvents.push(["complete", value]); return { accepted: true }; },
+    }, tabWorker, storage,
+  });
+  assert.equal((await sequenceFailure.start(1)).accepted, true);
+  assert.equal(sequenceEvents.some((item) => item[0] === "fail"), false);
+  assert.equal(sequenceEvents[0][0], "complete",
+    "missing optional sequence leaves relationships unknown without failing valid detail");
+
+  saved[globalThis.SCE_DETAIL_BATCH.storageKey] = { batch_id: 8, worker_tab_id: 77 };
   const resumeTransport = { ...transport,
     async queueSummary(batchId) { return { accepted: true, status: "RUNNING", batchId }; },
     async claimNext() { return { accepted: true, claim: null }; } };
   assert.equal((await globalThis.SCE_DETAIL_BATCH.createController({
     transport: resumeTransport, tabWorker, storage,
   }).resume()).accepted, true);
+  assert.equal(events.some((item) => item[0] === "close" && item[1] === 77), true,
+    "resume closes the prior dedicated worker tab before opening a replacement");
 
   let release;
   const held = new Promise((resolve) => { release = resolve; });

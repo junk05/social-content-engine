@@ -10,3 +10,5 @@ node extension/tests/transport_test.js
 node extension/tests/detail_extractor_test.js
 node extension/tests/detail_action_test.js
 node extension/tests/options_test.js
+node extension/tests/detail_batch_worker_test.js
+node extension/tests/batch_controller_test.js
