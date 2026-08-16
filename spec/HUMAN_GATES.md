@@ -23,3 +23,10 @@ Required before loading the unpacked extension into the user's browser, reading
 the user's signed-in Threads page, or performing live human-selected collection
 and detail enrichment. The user performs login and selection. The implementation
 must never request, inspect or persist browser credentials, cookies or tokens.
+
+## HG-04 Viral Pattern quality review
+
+Required after the first local `VIRAL_PATTERN_REPORT` over an approved frozen
+dataset. A human reviewer decides whether the abstract Pattern Intelligence is
+useful and not over-generalized. This gate does not authorize content
+generation, publication, or an inference that a Pattern causes performance.

@@ -71,6 +71,14 @@
     {"id":"M3-031","owner":"COLLECTOR","title":"Select resolvable duplicate detail permalink before injecting action","status":"COMPLETE","depends_on":["M3-030"]},
     {"id":"M3-032","owner":"COLLECTOR","title":"Read exact page-level Threads Views without inferring abbreviated display counts","status":"COMPLETE","depends_on":["M3-031"]},
     {"id":"M3-033","owner":"COLLECTOR","title":"Read exact human-opened Activity Views without opening the dialog automatically","status":"COMPLETE","depends_on":["M3-032"]},
-    {"id":"M3-034","owner":"COLLECTOR","title":"Expose explicit detail collection action in an already opened Activity dialog","status":"COMPLETE","depends_on":["M3-033"]}
+    {"id":"M3-034","owner":"COLLECTOR","title":"Expose explicit detail collection action in an already opened Activity dialog","status":"COMPLETE","depends_on":["M3-033"]},
+    {"id":"M4-001","owner":"ORCHESTRATOR","title":"Define M4 Viral Pattern Intelligence contract, DoD, and HG-04","status":"COMPLETE","depends_on":["M3-016"]},
+    {"id":"M4-002","owner":"DATA","title":"Add versioned M4 intelligence and metric-snapshot persistence","status":"PENDING","depends_on":["M4-001"]},
+    {"id":"M4-003","owner":"INTELLIGENCE","title":"Derive deterministic First-Line, Body, Ending, and Action intelligence instances","status":"PENDING","depends_on":["M4-002"]},
+    {"id":"M4-004","owner":"INTELLIGENCE","title":"Mine abstract sequence patterns and descriptive performance associations","status":"PENDING","depends_on":["M4-002","M4-003"]},
+    {"id":"M4-005","owner":"INTELLIGENCE","title":"Generate text-safe VIRAL_PATTERN_REPORT with runtime review evidence","status":"PENDING","depends_on":["M4-004"]},
+    {"id":"M4-006","owner":"QA_REVIEWER","title":"Add M4 deterministic, provenance, leakage, and M0-M3 regression gates","status":"PENDING","depends_on":["M4-005"]},
+    {"id":"M4-007","owner":"ORCHESTRATOR","title":"Generate the initial M3 snapshot 2 report and request HG-04 quality review","status":"PENDING","depends_on":["M4-006"]},
+    {"id":"M4-008","owner":"ORCHESTRATOR","title":"Record HG-04 decision and mark M4 complete only when all DoD items pass","status":"BLOCKED","depends_on":["M4-007"]}
   ]
 }
