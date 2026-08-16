@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "M4_HG04_REVISION_AUDIT",
+  "snapshot": {
+    "dataset_snapshot_id": 6,
+    "analyzed_posts": 107,
+    "source_text_or_identifiers_stored": false
+  },
+  "first_line_funnel": {
+    "first_line_available": 107,
+    "feature_detected": 107,
+    "no_meaningful_feature_detected": 95,
+    "pattern_candidate": 12,
+    "singleton_candidate": 8,
+    "support_gte_2": 4,
+    "promoted_pattern": 2,
+    "excluded_generic_pattern": 95
+  },
+  "metric_collection_audit": {
+    "view_count": "OBSERVED_BY_BROWSER_COLLECTOR: 4 observations",
+    "like_count": "NOT_OBSERVED_BY_BROWSER_COLLECTOR",
+    "reply_count": "NOT_OBSERVED_BY_BROWSER_COLLECTOR",
+    "repost_count": "NOT_OBSERVED_BY_BROWSER_COLLECTOR",
+    "quote_count": "NOT_OBSERVED_BY_BROWSER_COLLECTOR",
+    "share_count": "NOT_OBSERVED_BY_BROWSER_COLLECTOR"
+  },
+  "conclusions": [
+    "The previous zero like/reply/repost coverage is collector absence, not an M4 bridge omission.",
+    "M4 now retains historical counter observations for the same browser identity through snapshot finalization, with observation provenance.",
+    "No PARENT_TO_SELF_REPLY Pattern was promoted because no observed same-author edge supports it.",
+    "Generic ASSERTION/NONE/UNKNOWN clusters remain diagnostic-only and are excluded from actionable ranking."
+  ],
+  "verification": {
+    "same_frozen_snapshot_replayed": true,
+    "m4_derivation_version": "m4-intelligence-v2.2",
+    "report_version": "M4_V2_VIRAL_PATTERN_REPORT_V3",
+    "full_regression_passed": true
+  }
+}
