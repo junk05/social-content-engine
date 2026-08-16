@@ -25,14 +25,14 @@
     return (ariaLabel || element.innerText || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
-  function closestClickable(element) {
-    if (typeof element.closest === "function") {
-      const resolved = element.closest('button, [role="button"], a, [tabindex]');
-      if (resolved) return resolved;
-    }
-    // Clicking the text node itself is still useful on React's delegated
-    // handlers, and makes the fallback safe for a role-less Threads control.
-    return element;
+  function isExactActivityLabel(label) {
+    // Do not use substring matching here.  Ancestor divs on Threads include
+    // the complete post card text, including the extension's Pattern button;
+    // clicking those ancestors can invoke the wrong control.
+    return label === "activity" ||
+      label === "view activity" ||
+      label === "アクティビティ" ||
+      label === "アクティビティを見る";
   }
 
   function activityButton() {
@@ -40,13 +40,13 @@
       'button, [role="button"], a, [tabindex], div, span',
     )).filter((element) => {
       const label = labelOf(element);
-      return isVisible(element) && (label.includes("activity") || label.includes("アクティビティ"));
-    }).map(closestClickable);
-    // Prefer the post-level control over an unrelated Activity navigation
-    // control when both exist on the page.
+      return isVisible(element) && isExactActivityLabel(label);
+    });
+    // Click the exact labelled element itself.  Native click events bubble to
+    // a React-delegated parent, while avoiding broad clickable ancestors.
     return candidates.find((element) => {
       const label = labelOf(element);
-      return label.includes("view activity") || label.includes("アクティビティを見る");
+      return label === "view activity" || label === "アクティビティを見る";
     }) || candidates[0] || null;
   }
 

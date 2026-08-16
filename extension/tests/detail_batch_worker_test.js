@@ -68,6 +68,24 @@ async function main() {
   assert.equal(runtimeMessages[0].correlation, "detail-7-1");
   assert.equal(runtimeMessages[0].type, "SCE_BATCH_WORKER_RESULT");
 
+  const broadCard = {
+    hidden: false,
+    innerText: "アクティビティを見る Pattern収集 収集済み",
+    getAttribute() { return null; },
+    click() { throw new Error("a broad post card must never be clicked"); },
+  };
+  const exactActivity = {
+    hidden: false,
+    innerText: "アクティビティを見る",
+    getAttribute() { return null; },
+    click() {},
+  };
+  const originalCandidates = document.querySelectorAll;
+  document.querySelectorAll = (selector) => selector.includes("button") ? [broadCard, exactActivity] : [];
+  assert.equal(globalThis.SCE_DETAIL_BATCH_WORKER.activityButton(), exactActivity,
+    "only an exact Activity label is eligible; a post-card ancestor is not");
+  document.querySelectorAll = originalCandidates;
+
   const originalQuerySelectorAll = document.querySelectorAll;
   document.querySelectorAll = () => [];
   assert.deepEqual(await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url), {
