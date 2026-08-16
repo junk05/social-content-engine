@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "milestone": "M3",
+  "task": "M3-016",
+  "decision": "MARK_COMPLETE",
+  "status": "COMPLETE",
+  "verified_commit": "9059599d250b9c619dc861b17c27e0f5351e4078",
+  "verification_scope": "Aggregate-only local evidence and committed sanitized fixtures. No live post text, URL, DOM, cookie, token, or raw browser evidence is committed.",
+  "checks": [
+    {"item": 1, "status": "PASS_HG-03", "evidence": "Unpacked extension loaded and exercised by the user."},
+    {"item": 2, "status": "PASS_HG-03_AND_TESTS", "evidence": "Live initial/dynamic card discovery plus sanitized extension fixtures."},
+    {"item": 3, "status": "PASS_HG-03_AND_TESTS", "evidence": "One action per recognized card and reinjection idempotency."},
+    {"item": 4, "status": "PASS", "evidence": "Validated loopback receiver and 117 accepted immutable browser observations."},
+    {"item": 5, "status": "PASS_HG-03_AND_TESTS", "evidence": "Accepted state is restored from canonical URL-only extension storage."},
+    {"item": 6, "status": "PASS", "evidence": "14 identities have repeated observations; 92 canonical identities remain."},
+    {"item": 7, "status": "PASS", "evidence": "Browser URL identity, field provenance, normalized versions, and bridge provenance are tested and persisted."},
+    {"item": 8, "status": "PASS", "evidence": "91 identities remain DETAIL_PENDING when exact views are unavailable."},
+    {"item": 9, "status": "PASS_HG-03_AND_TESTS", "evidence": "Explicit per-post detail enrichment records isolated attempts and failures."},
+    {"item": 10, "status": "PASS_HG-03", "evidence": "One exact visible Activity-dialog view count was observed; rounded displays remain UNKNOWN."},
+    {"item": 11, "status": "PASS", "evidence": "Two successful detail attempts link append-only detail observations to their existing identities."},
+    {"item": 12, "status": "PASS_HG-03", "evidence": "92 human-selected live canonical browser identities."},
+    {"item": 13, "status": "PASS", "evidence": "Finalized snapshot 2: 92 M1 successes, 92 First-Line features, 92 Parent-Ending features, 92 Pattern Instances, and one promoted Pattern."},
+    {"item": 14, "status": "PASS", "evidence": "128 local tests, lint, strict typecheck, schema/security validation, and extension JS suites pass."},
+    {"item": 15, "status": "PASS", "github_actions_run_id": 31927773597, "python": ["3.9", "3.12"]},
+    {"item": 16, "status": "PASS", "evidence": "Tracked-file audit excludes data/ and .env paths; committed evidence is aggregate-only or synthetic/sanitized."}
+  ],
+  "linked_live_verification": "spec/evidence/M3_LIVE_VERIFICATION.json",
+  "ci": {
+    "run_id": 31927773597,
+    "url": "https://github.com/junk05/social-content-engine/actions/runs/31927773597",
+    "conclusion": "success"
+  }
+}
