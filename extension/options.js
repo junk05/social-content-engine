@@ -4,6 +4,10 @@ const status = document.querySelector("#status");
 const loadPending = document.querySelector("#load-pending");
 const pendingStatus = document.querySelector("#pending-status");
 const pendingDetails = document.querySelector("#pending-details");
+const startDetailBatch = document.querySelector("#start-detail-batch");
+const resumeDetailBatch = document.querySelector("#resume-detail-batch");
+const batchStatus = document.querySelector("#batch-status");
+const queueSummary = document.querySelector("#queue-summary");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -15,6 +19,24 @@ chrome.runtime.sendMessage({ type: "SCE_SCAFFOLD_STATUS" }, (response) => {
   }
   status.textContent = response.stage + ": " + (response.ready ? "送信準備済み" : "未接続");
 });
+
+function refreshQueueSummary() {
+  chrome.runtime.sendMessage({ type: "SCE_DETAIL_QUEUE_STATUS" }, (response) => {
+    if (chrome.runtime.lastError || !response || !response.accepted || !response.counts) {
+      queueSummary.textContent = "詳細queueを確認できませんでした。";
+      return;
+    }
+    queueSummary.textContent = [
+      `収集済み: ${response.collectedCount}`,
+      `DETAIL_PENDING: ${response.counts.DETAIL_PENDING}`,
+      `DETAIL_PROCESSING: ${response.counts.DETAIL_PROCESSING}`,
+      `DETAIL_ENRICHED: ${response.counts.DETAIL_ENRICHED}`,
+      `DETAIL_FAILED: ${response.counts.DETAIL_FAILED}`,
+    ].join(" / ");
+  });
+}
+
+refreshQueueSummary();
 
 loadPending.addEventListener("click", () => {
   loadPending.disabled = true;
@@ -46,3 +68,25 @@ loadPending.addEventListener("click", () => {
     },
   );
 });
+
+function runDetailBatch(type) {
+  startDetailBatch.disabled = true;
+  resumeDetailBatch.disabled = true;
+  batchStatus.textContent = "詳細バッチを実行しています。";
+  chrome.runtime.sendMessage({ type, limit: 50 }, (response) => {
+    startDetailBatch.disabled = false;
+    resumeDetailBatch.disabled = false;
+    if (chrome.runtime.lastError || !response || !response.accepted) {
+      batchStatus.textContent = "詳細バッチを完了できませんでした。再開できます。";
+      return;
+    }
+    const results = response.state && Array.isArray(response.state.results)
+      ? response.state.results : [];
+    const counts = response.counts || {};
+    batchStatus.textContent = `詳細補完完了: ${counts.DETAIL_ENRICHED || results.length}件`;
+    refreshQueueSummary();
+  });
+}
+
+startDetailBatch.addEventListener("click", () => runDetailBatch("SCE_START_DETAIL_BATCH"));
+resumeDetailBatch.addEventListener("click", () => runDetailBatch("SCE_RESUME_DETAIL_BATCH"));

@@ -12,7 +12,11 @@
       <p id="status">状態を確認しています。</p>
       <p>受信先: <code>http://127.0.0.1:8765/browser-ingest/threads</code></p>
       <p>人が選んだ観測だけをloopback receiverへ送信します。</p>
+      <p id="queue-summary" aria-live="polite">詳細queueを確認しています。</p>
       <button id="load-pending" type="button">詳細待ちを読み込む</button>
+      <button id="start-detail-batch" type="button">詳細をまとめて補完</button>
+      <button id="resume-detail-batch" type="button">中断した詳細補完を再開</button>
+      <p id="batch-status" aria-live="polite"></p>
       <p id="pending-status">詳細待ちはまだ読み込んでいません。</p>
       <ul id="pending-details"></ul>
     </main>

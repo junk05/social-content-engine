@@ -19,6 +19,9 @@ class Node {
 const nodes = {
   "#status": new Node(), "#load-pending": new Node("button"),
   "#pending-status": new Node(), "#pending-details": new Node("ul"),
+  "#start-detail-batch": new Node("button"), "#resume-detail-batch": new Node("button"),
+  "#batch-status": new Node(),
+  "#queue-summary": new Node(),
 };
 globalThis.document = {
   querySelector(selector) { return nodes[selector]; },
@@ -36,6 +39,10 @@ globalThis.chrome = {
       messages.push(message);
       if (message.type === "SCE_SCAFFOLD_STATUS") {
         callback({ ready: true, stage: "M3-010" });
+      } else if (message.type === "SCE_DETAIL_QUEUE_STATUS") {
+        callback({ accepted: true, collectedCount: 4, counts: {
+          DETAIL_PENDING: 1, DETAIL_PROCESSING: 0, DETAIL_ENRICHED: 2, DETAIL_FAILED: 1,
+        } });
       } else {
         callback(pendingResponse);
       }
@@ -44,12 +51,15 @@ globalThis.chrome = {
 };
 
 require(path.join(__dirname, "..", "options.js"));
-assert.deepEqual(messages, [{ type: "SCE_SCAFFOLD_STATUS" }]);
+assert.deepEqual(messages, [
+  { type: "SCE_SCAFFOLD_STATUS" }, { type: "SCE_DETAIL_QUEUE_STATUS" },
+]);
+assert.equal(nodes["#queue-summary"].textContent.includes("DETAIL_PENDING: 1"), true);
 assert.equal(nodes["#pending-details"].children.length, 0);
 assert.equal(typeof globalThis.open, "undefined");
 
 nodes["#load-pending"].listeners.click();
-assert.deepEqual(messages[1], { type: "SCE_LOAD_PENDING_DETAILS", limit: 50 });
+assert.deepEqual(messages[2], { type: "SCE_LOAD_PENDING_DETAILS", limit: 50 });
 assert.equal(nodes["#pending-details"].children.length, 1);
 const link = nodes["#pending-details"].children[0].children[0];
 assert.equal(link.tag, "a");
@@ -65,3 +75,13 @@ assert.equal(nodes["#pending-status"].textContent.includes("must-not-display"), 
 pendingResponse = { accepted: false, reason: "receiver_rejected", status: 403 };
 nodes["#load-pending"].listeners.click();
 assert.equal(nodes["#pending-status"].textContent, "詳細待ちを読み込めませんでした。 (receiver_rejected) [HTTP 403]");
+
+pendingResponse = { accepted: true, counts: { DETAIL_ENRICHED: 2 } };
+nodes["#start-detail-batch"].listeners.click();
+assert.equal(messages.some((message) => message.type === "SCE_START_DETAIL_BATCH"), true);
+assert.equal(nodes["#batch-status"].textContent, "詳細補完完了: 2件");
+
+pendingResponse = { accepted: false, reason: "network_error" };
+nodes["#resume-detail-batch"].listeners.click();
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_RESUME_DETAIL_BATCH", limit: 50 });
+assert.equal(nodes["#batch-status"].textContent, "詳細バッチを完了できませんでした。再開できます。");
