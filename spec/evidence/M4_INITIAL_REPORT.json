@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "milestone": "M4",
+  "task": "M4-007",
+  "status": "HUMAN_GATE_REQUIRED",
+  "verification_scope": "Aggregate-only evidence from ignored local browser-ingest.sqlite3 and ignored local report artifacts. No live post text, URLs, DOM, cookies, tokens, raw browser evidence, or credentials are committed.",
+  "dataset_snapshot_id": 2,
+  "aggregate_counts": {
+    "canonical_browser_identities": 92,
+    "m4_intelligence_instances": 92,
+    "persistent_supported_sequence_patterns": 1,
+    "report_sequence_groups": 2,
+    "observed_metric_snapshots": 1
+  },
+  "report_sections": {
+    "top_first_line_patterns": "SUPPORTED",
+    "top_open_loop_patterns": "INSUFFICIENT_EVIDENCE",
+    "top_action_patterns": "SUPPORTED",
+    "hook_ending_combinations": "SUPPORTED",
+    "performance_association": "INSUFFICIENT_COVERAGE"
+  },
+  "human_gate": {
+    "id": "HG-04",
+    "required_decision": "Review local VIRAL_PATTERN_REPORT quality. Decide whether the abstract structures are useful and not over-generalized, or request taxonomy refinement.",
+    "local_artifacts": [
+      "data/reports/m4-viral-pattern-report.md",
+      "data/reports/m4-viral-pattern-report.json"
+    ],
+    "m5_content_generation": "FORBIDDEN_PENDING_HG-04"
+  }
+}
