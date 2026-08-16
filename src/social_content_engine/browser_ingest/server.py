@@ -90,34 +90,47 @@ class BrowserIngestService:
             schema, format_checker=jsonschema.FormatChecker()
         )
 
-    def handle_options(self, path: str, origin: Optional[str]) -> IngestResponse:
+    def handle_options(
+        self, path: str, origin: Optional[str], extension_origin: Optional[str] = None
+    ) -> IngestResponse:
+        request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
-            path, origin, {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH}
+            path, request_origin, {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH}
         )
-        return error or IngestResponse(204, {"status": "preflight_ok"}, origin)
+        return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
 
     def handle_get(
-        self, path: str, query: str, origin: Optional[str]
+        self, path: str, query: str, origin: Optional[str], extension_origin: Optional[str] = None
     ) -> IngestResponse:
-        error = self._request_error(path, origin, {PENDING_DETAILS_PATH})
+        request_origin = self._effective_origin(origin, extension_origin)
+        error = self._request_error(path, request_origin, {PENDING_DETAILS_PATH})
         if error:
             return error
         values = parse_qs(query, keep_blank_values=True)
         if set(values) - {"limit"} or len(values.get("limit", [])) > 1:
-            return IngestResponse(400, {"error": "invalid_query"}, origin)
+            return IngestResponse(400, {"error": "invalid_query"}, request_origin)
         raw_limit = values.get("limit", [str(DEFAULT_PENDING_LIMIT)])[0]
         try:
             limit = int(raw_limit)
         except ValueError:
-            return IngestResponse(400, {"error": "invalid_limit"}, origin)
+            return IngestResponse(400, {"error": "invalid_limit"}, request_origin)
         if not 1 <= limit <= MAX_PENDING_LIMIT:
-            return IngestResponse(400, {"error": "invalid_limit"}, origin)
+            return IngestResponse(400, {"error": "invalid_limit"}, request_origin)
         urls = self.repository.list_browser_pending_detail_urls(limit=limit)
         return IngestResponse(
             200,
             {"status": "ok", "count": len(urls), "urls": list(urls)},
-            origin,
+            request_origin,
         )
+
+    def _effective_origin(
+        self, origin: Optional[str], extension_origin: Optional[str]
+    ) -> Optional[str]:
+        if origin in self.allowed_origins:
+            return origin
+        if origin in {None, "null"} and extension_origin in self.allowed_origins:
+            return extension_origin
+        return origin
 
     def handle_post(
         self, path: str, origin: Optional[str], content_type: str, body: bytes
@@ -212,14 +225,21 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:
         self._send(
-            self.service.handle_options(urlsplit(self.path).path, self.headers.get("Origin"))
+            self.service.handle_options(
+                urlsplit(self.path).path,
+                self.headers.get("Origin"),
+                self.headers.get("X-SCE-Extension-Origin"),
+            )
         )
 
     def do_GET(self) -> None:
         parsed = urlsplit(self.path)
         self._send(
             self.service.handle_get(
-                parsed.path, parsed.query, self.headers.get("Origin")
+                parsed.path,
+                parsed.query,
+                self.headers.get("Origin"),
+                self.headers.get("X-SCE-Extension-Origin"),
             )
         )
 
@@ -254,7 +274,7 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", response.origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-SCE-Extension-Origin")
         self.end_headers()
         if body:
             self.wfile.write(body)

@@ -30,6 +30,12 @@
     }
   }
 
+  function extensionOrigin() {
+    const id = chrome.runtime && chrome.runtime.id;
+    return typeof id === "string" && /^[a-p]{32}$/.test(id)
+      ? "chrome-extension://" + id : null;
+  }
+
   async function sendObservation(observation, options = {}) {
     const fetchImpl = options.fetch || fetch;
     const timeoutMilliseconds = options.timeoutMilliseconds ?? TIMEOUT_MILLISECONDS;
@@ -82,10 +88,15 @@
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
       return { accepted: false, reason: "invalid_limit", urls: [] };
     }
+    const origin = extensionOrigin();
+    if (!origin) return { accepted: false, reason: "extension_origin_unavailable", urls: [] };
     const fetchImpl = options.fetch || fetch;
     try {
       const response = await fetchImpl(PENDING_DETAILS_URL + "?limit=" + limit, {
-        method: "GET", cache: "no-store", credentials: "omit",
+        method: "GET",
+        headers: { "X-SCE-Extension-Origin": origin },
+        cache: "no-store",
+        credentials: "omit",
       });
       if (response.status !== 200) {
         return { accepted: false, reason: "receiver_rejected", status: response.status, urls: [] };
@@ -130,7 +141,7 @@
     timeoutMilliseconds: TIMEOUT_MILLISECONDS,
     pendingDetailsUrl: PENDING_DETAILS_URL,
     detailFailureUrl: DETAIL_FAILURE_URL,
-    sendObservation, fetchPendingDetails, sendDetailFailure,
+    sendObservation, fetchPendingDetails, sendDetailFailure, extensionOrigin,
   });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

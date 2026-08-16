@@ -104,6 +104,9 @@ parallel text semantics are introduced.
 - public information visible on the selected Threads page only;
 - localhost receiver by default and bounded body size;
 - explicit extension-origin allowlist;
+- if Chromium emits a missing or `null` HTTP Origin for a loopback request, an
+  exact `chrome.runtime.id` origin supplied in `X-SCE-Extension-Origin` is
+  checked against that same allowlist; arbitrary origins remain rejected;
 - no password, cookie, token, DOM dump or hidden application state;
 - no automatic search, scrolling, bulk selection or anti-detection behavior;
 - live observations, raw page evidence and report excerpts stay under ignored

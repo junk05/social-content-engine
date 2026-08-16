@@ -158,6 +158,11 @@ class BrowserIngestServerTest(unittest.TestCase):
                 PENDING_DETAILS_PATH, "limit=101", ALLOWED_ORIGIN
             ).status,
         )
+        header_authorized = self.service.handle_get(
+            PENDING_DETAILS_PATH, "limit=1", "null", ALLOWED_ORIGIN
+        )
+        self.assertEqual(200, header_authorized.status)
+        self.assertEqual(ALLOWED_ORIGIN, header_authorized.origin)
         self.assertEqual(
             403,
             self.service.handle_get(

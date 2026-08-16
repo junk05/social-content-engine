@@ -63,6 +63,7 @@
     {"id":"M3-023","owner":"COLLECTOR","title":"Reinject Pattern action after Threads card rerender from HG-03 evidence","status":"COMPLETE","depends_on":["M3-022"]},
     {"id":"M3-024","owner":"COLLECTOR","title":"Persist accepted card display state across reloads without storing content","status":"COMPLETE","depends_on":["M3-023"]},
     {"id":"M3-025","owner":"COLLECTOR","title":"Expose safe pending-detail receiver failure codes for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-014"]},
-    {"id":"M3-026","owner":"COLLECTOR","title":"Expose safe pending-detail HTTP status for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-025"]}
+    {"id":"M3-026","owner":"COLLECTOR","title":"Expose safe pending-detail HTTP status for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-025"]},
+    {"id":"M3-027","owner":"COLLECTOR","title":"Authorize null-origin detail lookup with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-026"]}
   ]
 }

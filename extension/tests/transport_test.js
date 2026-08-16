@@ -3,7 +3,12 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-globalThis.chrome = { runtime: { onMessage: { addListener(listener) { this.listener = listener; } } } };
+globalThis.chrome = {
+  runtime: {
+    id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    onMessage: { addListener(listener) { this.listener = listener; } },
+  },
+};
 require(path.join(__dirname, "..", "background.js"));
 
 const transport = globalThis.SCE_BACKGROUND_TRANSPORT;
@@ -90,6 +95,7 @@ async function main() {
   assert.equal(pending.urls.length, 2);
   assert.equal(pendingRequest.options.method, "GET");
   assert.equal(pendingRequest.options.credentials, "omit");
+  assert.equal(pendingRequest.options.headers["X-SCE-Extension-Origin"], "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   assert.equal(pendingRequest.url, transport.pendingDetailsUrl + "?limit=2");
   assert.deepEqual(await transport.fetchPendingDetails(101), {
     accepted: false, reason: "invalid_limit", urls: [],
