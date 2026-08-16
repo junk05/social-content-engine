@@ -18,6 +18,12 @@ class M4V2ReportTest(unittest.TestCase):
         )
         self.assertEqual(0, coverage["public_counters.like_count"]["observed_count"])
 
+    def test_short_form_patterns_are_actionable_when_supported(self) -> None:
+        patterns = _aggregate(
+            [{"labels": ["STANDALONE_SHORT"]}] * 2, "labels"
+        )
+        self.assertEqual("STANDALONE_SHORT", patterns[0]["mechanism"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

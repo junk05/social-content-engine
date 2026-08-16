@@ -8,6 +8,7 @@ from social_content_engine.data.repository import Repository
 
 DERIVATION_VERSION = "m4-intelligence-v2"
 FEATURE_CONTRACT_VERSION = "M4_INTELLIGENCE_FEATURE_V2"
+SHORT_FORM_MAX_CHARS = 100
 
 
 def _canonical_json(value: Dict[str, Any]) -> str:
@@ -53,7 +54,29 @@ def _first_line(text: str) -> Tuple[int, str]:
     return 0, ""
 
 
-def build_v2_feature(text: str, parent_ending: Dict[str, Any]) -> Dict[str, Any]:
+def classify_thread_form(
+    text: str, internal_open_loop_mechanisms: List[str], *, observed_self_reply: bool
+) -> Dict[str, Any]:
+    """Classify a post form without treating short text as missing evidence."""
+    if observed_self_reply:
+        form = "PARENT_TO_SELF_REPLY"
+    elif len(text) > SHORT_FORM_MAX_CHARS:
+        form = "LONG_FORM"
+    elif internal_open_loop_mechanisms:
+        form = "OPEN_LOOP_SHORT"
+    else:
+        form = "STANDALONE_SHORT"
+    return {
+        "form": form,
+        "short_form_max_chars": SHORT_FORM_MAX_CHARS,
+        "observed_self_reply_transition": observed_self_reply,
+        "relationship_evidence_mode": "OBSERVED" if observed_self_reply else "UNKNOWN",
+    }
+
+
+def build_v2_feature(
+    text: str, parent_ending: Dict[str, Any], *, observed_self_reply: bool = False
+) -> Dict[str, Any]:
     """Classify normalized text without retaining it in the output feature."""
     line_start, line = _first_line(text)
     rhetorical_rules = (
@@ -139,6 +162,9 @@ def build_v2_feature(text: str, parent_ending: Dict[str, Any]) -> Dict[str, Any]
     internal_open_loop = sorted(
         set(label for label in continuation if label in {"CURIOSITY_GAP", "INCOMPLETE_INFORMATION"})
     )
+    thread_form = classify_thread_form(
+        text, internal_open_loop, observed_self_reply=observed_self_reply
+    )
     return {
         "schema_version": 2,
         "feature_contract_version": FEATURE_CONTRACT_VERSION,
@@ -167,6 +193,7 @@ def build_v2_feature(text: str, parent_ending: Dict[str, Any]) -> Dict[str, Any]
             "evidence_mode": "PSYCHOLOGY_HYPOTHESIS",
             "evidence_refs": action_evidence,
         },
+        "thread_form": thread_form,
     }
 
 
@@ -196,7 +223,16 @@ def derive_m4_v2_instances(repository: Repository, m4_intelligence_run_id: int) 
                   parent_ending_features.id AS parent_ending_feature_id,
                   parent_ending_features.feature_json AS parent_ending_json,
                   parent_ending_features.input_sha256 AS parent_ending_input_sha256,
-                  parent_ending_features.feature_sha256 AS parent_ending_feature_sha256
+                  parent_ending_features.feature_sha256 AS parent_ending_feature_sha256,
+                  EXISTS(
+                    SELECT 1 FROM browser_normalized_bridges
+                    JOIN browser_thread_sequence_observations
+                      ON browser_thread_sequence_observations.root_browser_post_identity_id =
+                         browser_normalized_bridges.browser_post_identity_id
+                    WHERE browser_normalized_bridges.normalized_post_version_id =
+                          dataset_members.normalized_post_version_id
+                      AND browser_thread_sequence_observations.same_author_as_root = 1
+                  ) AS observed_self_reply
            FROM dataset_members
            JOIN normalized_post_versions
              ON normalized_post_versions.id = dataset_members.normalized_post_version_id
@@ -226,7 +262,9 @@ def derive_m4_v2_instances(repository: Repository, m4_intelligence_run_id: int) 
         if not isinstance(text, str):
             text = ""
         ending = json.loads(str(row["parent_ending_json"]))
-        feature = build_v2_feature(text, ending)
+        feature = build_v2_feature(
+            text, ending, observed_self_reply=bool(row["observed_self_reply"])
+        )
         input_document = {
             "analysis_input_sha256": row["input_sha256"],
             "first_line_input_sha256": row["first_line_input_sha256"],

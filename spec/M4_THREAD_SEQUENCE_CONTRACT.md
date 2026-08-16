@@ -7,6 +7,13 @@ classified independently as `STANDALONE_SHORT`, `OPEN_LOOP_SHORT`,
 `PARENT_TO_SELF_REPLY`, or `LONG_FORM`. The classification is a closed,
 evidence-backed hypothesis; no relationship is inferred from wording alone.
 
+For M4 V2, short form means text of at most 100 Unicode code points. A short
+post with a span-backed internal information gap is `OPEN_LOOP_SHORT`; one
+without that mechanism is `STANDALONE_SHORT`. Any root with an observed
+same-author reply edge is `PARENT_TO_SELF_REPLY` regardless of its length.
+`LONG_FORM` otherwise requires more than 100 code points. An absent edge is
+`UNKNOWN`, never evidence against a self-reply pattern.
+
 Thread structure is an observed directed graph, not a parent-to-one-reply
 model. Every observed node stores `root_post_id`, `sequence_position`,
 `reply_to_post_id`, and `same_author_as_root` only when those values are visible

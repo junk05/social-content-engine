@@ -63,6 +63,7 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
     bodies = [{"roles": item["body"]["roles"]} for item in features]
     endings = [{"labels": item["ending"]["internal_open_loop_mechanisms"]} for item in features]
     actions = [{"labels": item["actions"]["hypotheses"]} for item in features]
+    thread_forms = [{"labels": [item["thread_form"]["form"]]} for item in features]
     metric_rows = repository.connection.execute(
         "SELECT field_name FROM m4_metric_snapshots WHERE dataset_snapshot_id = ?",
         (run["dataset_snapshot_id"],),
@@ -74,6 +75,7 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
         "top_body_patterns": _aggregate(bodies, "roles"),
         "top_open_loop_patterns": _aggregate(endings, "labels"),
         "top_action_patterns": _aggregate(actions, "labels"),
+        "top_thread_form_patterns": _aggregate(thread_forms, "labels"),
         "metric_coverage": metric_coverage(metric_rows),
         "coverage_diagnostic": {"instances": len(features), "source_text_stored": False},
     }

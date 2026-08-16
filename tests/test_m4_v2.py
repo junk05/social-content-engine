@@ -1,6 +1,10 @@
 import unittest
 
-from social_content_engine.intelligence.m4_v2 import build_v2_feature
+from social_content_engine.intelligence.m4_v2 import (
+    SHORT_FORM_MAX_CHARS,
+    build_v2_feature,
+    classify_thread_form,
+)
 
 
 class M4V2Test(unittest.TestCase):
@@ -34,6 +38,25 @@ class M4V2Test(unittest.TestCase):
             "これは事実です", {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"}
         )
         self.assertEqual(["UNKNOWN"], plain["body"]["roles"])
+
+    def test_short_forms_are_not_missing_and_self_reply_requires_observed_edge(self) -> None:
+        standalone = classify_thread_form("短い完結投稿", [], observed_self_reply=False)
+        self.assertEqual("STANDALONE_SHORT", standalone["form"])
+        self.assertEqual("UNKNOWN", standalone["relationship_evidence_mode"])
+        open_loop = build_v2_feature(
+            "続きは…", {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"}
+        )
+        self.assertEqual("OPEN_LOOP_SHORT", open_loop["thread_form"]["form"])
+        self_reply = build_v2_feature(
+            "完結している短文", {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"},
+            observed_self_reply=True,
+        )
+        self.assertEqual("PARENT_TO_SELF_REPLY", self_reply["thread_form"]["form"])
+        self.assertTrue(self_reply["thread_form"]["observed_self_reply_transition"])
+        long_form = classify_thread_form(
+            "あ" * (SHORT_FORM_MAX_CHARS + 1), [], observed_self_reply=False
+        )
+        self.assertEqual("LONG_FORM", long_form["form"])
 
 
 if __name__ == "__main__":
