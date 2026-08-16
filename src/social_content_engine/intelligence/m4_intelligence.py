@@ -97,6 +97,52 @@ def sequence_signature(feature: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def materialize_metric_snapshots(repository: Repository, dataset_snapshot_id: int) -> int:
+    """Copy only explicitly observed browser counters into append-only M4 rows."""
+    rows = repository.connection.execute(
+        """SELECT dataset_members.normalized_post_version_id, browser_observed_fields.*
+           FROM dataset_members
+           JOIN browser_normalized_bridges
+             ON browser_normalized_bridges.normalized_post_version_id =
+                dataset_members.normalized_post_version_id
+           JOIN browser_normalized_versions
+             ON browser_normalized_versions.id =
+                browser_normalized_bridges.browser_normalized_version_id
+           JOIN browser_observed_fields
+             ON browser_observed_fields.browser_observation_id =
+                browser_normalized_versions.source_observation_id
+           WHERE dataset_members.dataset_snapshot_id = ?
+             AND browser_observed_fields.field_name LIKE 'public_counters.%'
+           ORDER BY dataset_members.ordinal, browser_observed_fields.id""",
+        (dataset_snapshot_id,),
+    ).fetchall()
+    inserted = 0
+    for row in rows:
+        value = json.loads(str(row["observed_value_json"]))
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            continue
+        document = {
+            "browser_observation_id": row["browser_observation_id"],
+            "field_name": row["field_name"], "value": value,
+            "observed_at": row["observed_at"], "extractor_version": row["extractor_version"],
+            "metric_version": "m4-performance-v1",
+        }
+        input_sha256 = hashlib.sha256(_canonical_json(document).encode("utf-8")).hexdigest()
+        cursor = repository.connection.execute(
+            """INSERT OR IGNORE INTO m4_metric_snapshots
+            (dataset_snapshot_id, normalized_post_version_id, browser_observation_id,
+             field_name, metric_value, observed_at, surface, extractor_version,
+             input_sha256, metric_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (dataset_snapshot_id, row["normalized_post_version_id"], row["browser_observation_id"],
+             row["field_name"], value, row["observed_at"], row["surface"],
+             row["extractor_version"], input_sha256,
+             "m4-performance-v1"),
+        )
+        inserted += cursor.rowcount
+    repository.connection.commit()
+    return inserted
+
+
 def derive_m4_instances(repository: Repository, m4_intelligence_run_id: int) -> int:
     """Derive one immutable M4 instance per pinned successful M1/M2 input."""
     run = repository.connection.execute(
