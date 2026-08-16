@@ -76,6 +76,9 @@ async function main() {
   assert.equal(complete.author_name, "Sample Author");
   assert.equal(complete.username, "sample.user");
   assert.equal(complete.text, "Sanitized public post text.");
+  assert.equal(extractor.isBrowserDateMetadata("2026/08/16"), true);
+  assert.equal(extractor.isBrowserDateMetadata("2026-08-16"), true);
+  assert.equal(extractor.isBrowserDateMetadata("2026年8月16日"), false);
   assert.deepEqual(complete.public_counters, {
     view_count: null, like_count: 1234, reply_count: 0,
     repost_count: 7, quote_count: null, share_count: null,
@@ -105,6 +108,11 @@ async function main() {
   assert.equal(noText.public_counters.like_count, 12);
   assert.equal(noText.text, null);
   assert.equal(noText.observed_fields.some((item) => item.field === "text"), false);
+
+  const dateMetadata = await extractor.extractSearchCard(
+    fixtureCard("search_card_date_metadata.html"), context,
+  );
+  assert.equal(dateMetadata.text, "短文");
 
   assert.equal(extractor.exactNonnegativeInteger("Like 1.2K"), null);
   assert.equal(extractor.canonicalPostUrl("javascript:alert(1)", context.pageUrl), null);

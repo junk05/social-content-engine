@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "M4_FIRST_LINE_ROOT_CAUSE_AUDIT",
+  "dataset_snapshot_id": 6,
+  "analyzed_posts": 107,
+  "source_text_or_identifiers_stored": false,
+  "pre_repair": {
+    "generic_assertion_posts": 95,
+    "exact_date_only_first_line_metadata": 45,
+    "deterministic_m1_psychology_hypotheses_on_generic_posts": 0
+  },
+  "metadata_aware_replay": {
+    "first_line_available": 62,
+    "first_line_unavailable_after_date_metadata_exclusion": 45,
+    "generic_assertion_residual": 50,
+    "non_generic_first_line_candidates": 12,
+    "promoted_non_generic_patterns": 2
+  },
+  "decision": {
+    "deterministic_taxonomy_alone": "INSUFFICIENT_FOR_SEMANTIC_RESIDUAL",
+    "llm_semantic_classifier": "RECOMMENDED",
+    "live_llm_run": "REQUIRES_HG_01_EXTERNAL_CREDENTIALS"
+  },
+  "conclusions": [
+    "A browser extractor defect allowed exact date metadata to be observed as post text; future collection rejects this metadata.",
+    "The historical 45 date-only observations have no recoverable post text in the frozen snapshot and remain unavailable rather than inferred.",
+    "The remaining 50 short, non-date assertions cannot be assigned semantic mechanisms from generic form alone; an LLM layer needs validated, provenance-preserving output before use."
+  ]
+}

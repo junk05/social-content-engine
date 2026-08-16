@@ -10,7 +10,7 @@ from social_content_engine.intelligence.m4_v2 import (
 
 class M4V2Test(unittest.TestCase):
     def test_derivation_version_tracks_taxonomy_revision(self) -> None:
-        self.assertEqual("m4-intelligence-v2.2", DERIVATION_VERSION)
+        self.assertEqual("m4-intelligence-v2.3", DERIVATION_VERSION)
 
     def test_multi_label_first_line_and_text_free_evidence(self) -> None:
         feature = build_v2_feature(
@@ -79,6 +79,14 @@ class M4V2Test(unittest.TestCase):
         )
         self.assertEqual("EMPTY", feature["first_line"]["availability"])
         self.assertEqual([], feature["first_line"]["rhetorical_mechanisms"])
+
+    def test_exact_browser_date_metadata_does_not_displace_visible_post_first_line(self) -> None:
+        feature = build_v2_feature(
+            "2026/08/16\nあなたへ、実は大切なこと",
+            {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"},
+        )
+        self.assertIn("REVELATION", feature["first_line"]["rhetorical_mechanisms"])
+        self.assertIn("READER_TARGETING", feature["first_line"]["audience_tension_mechanisms"])
 
 
 if __name__ == "__main__":

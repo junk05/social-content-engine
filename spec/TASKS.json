@@ -92,5 +92,8 @@
     ,{"id":"M4-018","owner":"INTELLIGENCE","title":"Expose First-Line coverage funnel and closed psychology hypotheses","status":"COMPLETE","depends_on":["M4-017"]}
     ,{"id":"M4-019","owner":"DATA","title":"Audit browser metrics and preserve historical observation provenance in M4 selection","status":"COMPLETE","depends_on":["M4-017"]}
     ,{"id":"M4-020","owner":"QA_REVIEWER","title":"Verify M4 revision coverage, provenance, leakage, and regression","status":"COMPLETE","depends_on":["M4-018","M4-019"]}
+    ,{"id":"M4-021","owner":"INTELLIGENCE","title":"Repair browser metadata-aware First-Line selection and audit semantic residual","status":"COMPLETE","depends_on":["M4-020"]}
+    ,{"id":"M4-022","owner":"INTELLIGENCE","title":"Define validated LLM semantic-classifier escalation boundary when deterministic coverage is insufficient","status":"COMPLETE","depends_on":["M4-021"]}
+    ,{"id":"M4-023","owner":"ORCHESTRATOR","title":"Replay same snapshot and repeat HG-04 after semantic coverage revision","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-021","M4-022"]}
   ]
 }

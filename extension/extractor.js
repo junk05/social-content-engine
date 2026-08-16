@@ -43,6 +43,10 @@
     return cleaned || null;
   }
 
+  function isBrowserDateMetadata(value) {
+    return typeof value === "string" && /^\d{4}\s*[/-]\s*\d{1,2}\s*[/-]\s*\d{1,2}$/.test(value);
+  }
+
   function findPostLink(card, pageUrl) {
     for (const link of card.querySelectorAll('a[href*="/post/"]')) {
       const canonical = canonicalPostUrl(link.getAttribute("href"), pageUrl);
@@ -104,7 +108,7 @@
         if (candidate.hidden || candidate.getAttribute("aria-hidden") === "true") continue;
         if (candidate.closest('a[href^="/@"], a[href*="/post/"], time, button, [role="button"]')) continue;
         const value = cleanText(candidate.textContent);
-        if (!value || excluded.has(value.toLowerCase())) continue;
+        if (!value || excluded.has(value.toLowerCase()) || isBrowserDateMetadata(value)) continue;
         if (/^\d+\s*\/\s*\d+$/.test(value)) continue;
         candidates.push(value);
       }
@@ -172,7 +176,8 @@
   }
 
   scope.SCE_THREADS_SEARCH_CARD_EXTRACTOR = Object.freeze({
-    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, recognizeSearchCard,
+    version: VERSION, canonicalPostUrl, exactNonnegativeInteger, isBrowserDateMetadata,
+    recognizeSearchCard,
     extractSearchCard,
   });
 })(globalThis);

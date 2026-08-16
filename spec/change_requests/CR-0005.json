@@ -1,0 +1,19 @@
+{
+  "id": "CR-0005",
+  "status": "IMPLEMENTED",
+  "motivation": "HG-04 rejected REV2 because generic ASSERTION is a rhetorical form rather than sufficient evidence of absent semantic mechanism. Audit found browser date metadata can displace the actual visible post first line, while the residual requires semantic classification beyond the deterministic mock analyzer.",
+  "affected_paths": [
+    "spec/M4_FIRST_LINE_SEMANTIC_REVISION.md",
+    "spec/README.md",
+    "spec/TASKS.json",
+    "src/social_content_engine/intelligence/m4_v2.py",
+    "tests/test_m4_v2.py"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "Exact date-only browser metadata is skipped without removing natural-language numeric lines",
+    "No source text or identity is persisted in M4 feature or report artifacts",
+    "Aggregate audit distinguishes deterministic recovery from the semantic residual",
+    "Any live LLM classification remains blocked on HG-01 credentials"
+  ]
+}

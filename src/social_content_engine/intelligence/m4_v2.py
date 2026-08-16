@@ -7,12 +7,13 @@ from typing import Any, Dict, List, Tuple
 
 from social_content_engine.data.repository import Repository
 
-DERIVATION_VERSION = "m4-intelligence-v2.2"
+DERIVATION_VERSION = "m4-intelligence-v2.3"
 FEATURE_CONTRACT_VERSION = "M4_INTELLIGENCE_FEATURE_V2"
 SHORT_FORM_MAX_CHARS = 100
 _NUMBER_LIST = re.compile(
     r"(?<![0-9０-９])(?:[0-9０-９]+|[一二三四五六七八九十]+)\s*(?:つ|個|選|項目|理由|ポイント|ステップ)"
 )
+_BROWSER_DATE_METADATA = re.compile(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$")
 
 
 def _canonical_json(value: Dict[str, Any]) -> str:
@@ -57,9 +58,10 @@ def _number_list_evidence(text: str, offset: int = 0) -> List[Dict[str, Any]]:
 
 
 def _first_line(text: str) -> Tuple[int, str]:
-    for offset, raw in enumerate(text.splitlines() or [text]):
+    """Select visible content, skipping only an exact browser date metadata line."""
+    for _offset, raw in enumerate(text.splitlines() or [text]):
         value = raw.strip()
-        if value:
+        if value and not _BROWSER_DATE_METADATA.fullmatch(value):
             start = text.find(value)
             return start, value
     return 0, ""
