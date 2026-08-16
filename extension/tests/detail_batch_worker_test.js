@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 let activityClicked = 0;
+let dialogEnabled = true;
 const dialog = {};
 const activity = {
   innerText: "Activity",
@@ -12,8 +13,12 @@ const activity = {
 };
 globalThis.document = {
   documentElement: {},
-  querySelectorAll(selector) { return selector.includes("button") ? [activity] : []; },
-  querySelector(selector) { return selector.includes("dialog") ? dialog : null; },
+  querySelectorAll(selector) {
+    if (selector.includes("button")) return [activity];
+    if (selector.includes("dialog")) return dialogEnabled && activityClicked > 0 ? [dialog] : [];
+    return [];
+  },
+  querySelector(selector) { return selector.includes("dialog") && dialogEnabled && activityClicked > 0 ? dialog : null; },
 };
 globalThis.MutationObserver = class { observe() {} disconnect() {} };
 let listener;
@@ -38,6 +43,7 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   async extractVisibleThreadDetails() {
     return [{ post_url: "https://www.threads.net/@fixture/post/Child1" }];
   },
+  visibleActivityViewCount() { return null; },
 };
 require(path.join(__dirname, "..", "detail_batch_worker.js"));
 
@@ -52,6 +58,8 @@ async function main() {
   assert.equal(result.childObservations.length, 1);
   assert.equal(calls.some((item) => item[0] === "sequence"), true);
   assert.equal(listener({ type: "UNRELATED" }, {}, () => {}), false);
+  // A worker request arrives after navigation to a fresh detail document.
+  activityClicked = 0;
   let acknowledgement;
   assert.equal(listener({ type: "SCE_BATCH_EXTRACT_DETAIL", url, correlation: "detail-7-1" }, {},
     (value) => { acknowledgement = value; }), true);
@@ -68,6 +76,7 @@ async function main() {
   document.querySelectorAll = originalQuerySelectorAll;
   const originalQuerySelector = document.querySelector;
   const originalSetTimeout = globalThis.setTimeout;
+  dialogEnabled = false;
   document.querySelector = () => null;
   globalThis.setTimeout = (callback) => { queueMicrotask(callback); return 1; };
   assert.deepEqual(await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url), {
@@ -75,6 +84,31 @@ async function main() {
   });
   globalThis.setTimeout = originalSetTimeout;
   document.querySelector = originalQuerySelector;
+
+  const originalQueryAll = document.querySelectorAll;
+  const rolelessMetric = {
+    hidden: false,
+    innerText: "閲覧数 456",
+    getAttribute() { return null; },
+  };
+  let clickedRoleless = false;
+  const activityText = {
+    hidden: false,
+    innerText: "アクティビティを見る",
+    getAttribute() { return null; },
+    click() { clickedRoleless = true; },
+  };
+  document.querySelector = () => null;
+  document.querySelectorAll = (selector) => {
+    if (selector.includes("button")) return [activityText];
+    if (selector === "span, div") return clickedRoleless ? [rolelessMetric] : [];
+    return [];
+  };
+  assert.equal((await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url)).ok, true,
+    "a role-less click-triggered Activity metric is accepted");
+  document.querySelectorAll = originalQueryAll;
+  document.querySelector = originalQuerySelector;
+  dialogEnabled = true;
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -150,7 +150,11 @@
         if (!isVisible(element)) continue;
         const label = renderedText(element);
         if (!label) continue;
-        const match = label.match(/^(?:閲覧数|views?)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
+        // The Japanese activity sheet has used both "閲覧数 64,123" and
+        // "表示 64,123 回".  The page header can be rounded ("表示6.4万回"),
+        // so retain the exact-integer requirement rather than interpreting a
+        // rounded header as an exact Activity value.
+        const match = label.match(/^(?:閲覧数|views?|表示)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
         if (!match) continue;
         const value = exactNonnegativeInteger(match[1]);
         if (value !== null) return value;
@@ -165,6 +169,14 @@
       if (value !== null) return value;
     }
     return null;
+  }
+  function visibleActivityViewCount(root) {
+    // Current Threads variants do not consistently expose the Activity sheet
+    // with role=dialog.  An exact, visible Activity metric is the observable
+    // contract we need; do not require a particular accessibility wrapper.
+    const dialogValue = visibleActivityDialogViewCount(root);
+    if (dialogValue !== null) return dialogValue;
+    return activityViewCount(root);
   }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
@@ -216,7 +228,7 @@
     const profile = profileValues(postRoot, post.canonical);
     const counters = visibleCounters(postRoot);
     if (counters.view_count === null) counters.view_count = pageViewCount(postRoot);
-    if (counters.view_count === null) counters.view_count = visibleActivityDialogViewCount(root);
+    if (counters.view_count === null) counters.view_count = visibleActivityViewCount(root);
     const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const text = visiblePostText(postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels]);
     const media = mediaValues(postRoot);
@@ -251,6 +263,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
+    visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, extractVisibleThreadNodes, extractPostDetail,
     extractVisibleThreadDetails,
   });

@@ -178,6 +178,11 @@
       return exclusively(async () => {
       const started = await transport.startBatch(limit);
       if (!started.accepted || !Number.isInteger(started.batchId)) return started;
+      // `start` is duplicate-safe in the Source Store and can return a batch
+      // left RUNNING by a service-worker restart. Recover its stale lease
+      // before the first claim rather than requiring a different user action.
+      const resumed = await transport.resumeBatch(started.batchId);
+      if (!resumed.accepted) return resumed;
       return run(started.batchId);
       });
     }
@@ -189,11 +194,10 @@
       if (!hint || !Number.isInteger(hint.batch_id)) {
         return { accepted: false, reason: "no_resumable_batch" };
       }
-      const summary = await transport.queueSummary(hint.batch_id);
-      if (!summary.accepted) return summary;
-      if (summary.status !== "RUNNING") {
+      const resumed = await transport.resumeBatch(hint.batch_id);
+      if (!resumed.accepted) {
         await storage.set({ [STORAGE_KEY]: null });
-        return summary;
+        return resumed;
       }
       if (Number.isInteger(hint.worker_tab_id)) {
         try { await tabWorker.close(hint.worker_tab_id); } catch (_staleTabError) {

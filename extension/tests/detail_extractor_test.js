@@ -156,6 +156,13 @@ async function main() {
     64123,
   );
 
+  const rolelessActivityExact = await extractor.extractPostDetail(
+    fixturePage("post_detail_roleless_activity_exact_view.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/RolelessActivityExact" },
+  );
+  assert.equal(rolelessActivityExact.public_counters.view_count, 64123,
+    "an exact role-less Activity sheet remains observable without accepting rounded headers");
+
   assert.equal(extractor.exactNonnegativeInteger("Views 12K"), null);
   assert.equal(extractor.exactNonnegativeInteger("1.2K views"), null);
   assert.equal(extractor.pageViewCount(fixturePage("post_detail_missing_view.html")), null);

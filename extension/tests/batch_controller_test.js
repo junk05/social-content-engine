@@ -19,6 +19,7 @@ async function main() {
   };
   const transport = {
     async startBatch(limit) { events.push(["start", limit]); return { accepted: true, batchId: 7 }; },
+    async resumeBatch(batchId) { events.push(["resume", batchId]); return { accepted: true, batchId }; },
     async claimNext(batchId) { return { accepted: true, claim: claims.shift() || null }; },
     async queueSummary(batchId) { return { accepted: true, status: "COMPLETE", batchId }; },
     async finishBatch(batchId, stopped) { events.push(["finish", batchId, stopped]); return { accepted: true }; },
@@ -47,6 +48,8 @@ async function main() {
   };
   const controller = globalThis.SCE_DETAIL_BATCH.createController({ transport, tabWorker, storage });
   assert.equal((await controller.start(3)).accepted, true);
+  assert.deepEqual(events.find((item) => item[0] === "resume"), ["resume", 7],
+    "a duplicate-safe start recovers any stale processing lease before claim");
   assert.equal(events.filter((item) => item[0] === "open").length, 1);
   assert.equal(events.filter((item) => item[0] === "navigate").length, 2);
   assert.equal(events.some((item) => item[0] === "extract" && item[1] === u3), true);
@@ -92,7 +95,7 @@ async function main() {
 
   saved[globalThis.SCE_DETAIL_BATCH.storageKey] = { batch_id: 8, worker_tab_id: 77 };
   const resumeTransport = { ...transport,
-    async queueSummary(batchId) { return { accepted: true, status: "RUNNING", batchId }; },
+    async resumeBatch(batchId) { return { accepted: true, batchId }; },
     async claimNext() { return { accepted: true, claim: null }; } };
   assert.equal((await globalThis.SCE_DETAIL_BATCH.createController({
     transport: resumeTransport, tabWorker, storage,

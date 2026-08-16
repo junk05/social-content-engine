@@ -263,6 +263,19 @@ if (typeof importScripts === "function") importScripts("batch_controller.js");
       : { accepted: false, reason: "invalid_receiver_response" };
   }
 
+  async function resumeBatch(batchId, options = {}) {
+    if (!Number.isInteger(batchId) || batchId < 1) {
+      return { accepted: false, reason: "invalid_batch" };
+    }
+    const result = await durableRequest(DETAIL_BATCHES_URL, "POST", {
+      action: "resume", batch_id: batchId,
+    }, options);
+    return result.accepted && result.payload && result.payload.status === "accepted"
+      && result.payload.batch_id === batchId && result.payload.batch_status === "RUNNING"
+      ? { accepted: true, batchId }
+      : result.accepted ? { accepted: false, reason: "invalid_receiver_response" } : result;
+  }
+
   async function finishBatch(batchId, stopped = false, options = {}) {
     if (!Number.isInteger(batchId) || batchId < 1 || typeof stopped !== "boolean") {
       return { accepted: false, reason: "invalid_batch" };
@@ -341,7 +354,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js");
     pendingDetailsUrl: PENDING_DETAILS_URL,
     detailFailureUrl: DETAIL_FAILURE_URL, threadSequenceUrl: THREAD_SEQUENCE_URL,
     sendObservation, fetchPendingDetails, sendDetailFailure, sendThreadSequence, extensionOrigin,
-    queueSummary, startBatch, finishBatch, claimNext, completeClaim, failClaim,
+    queueSummary, startBatch, resumeBatch, finishBatch, claimNext, completeClaim, failClaim,
   });
 
   function waitForTabComplete(tabId, timeout = 15000) {
@@ -363,7 +376,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js");
   const workerResultBroker = scope.SCE_DETAIL_BATCH
     && scope.SCE_DETAIL_BATCH.createWorkerResultBroker({ timeoutMilliseconds: 15000 });
   const durableBatchMethods = [
-    "queueSummary", "startBatch", "claimNext", "completeClaim", "failClaim", "finishBatch",
+    "queueSummary", "startBatch", "resumeBatch", "claimNext", "completeClaim", "failClaim", "finishBatch",
   ];
   const durableTransportReady = durableBatchMethods.every(
     (name) => typeof scope.SCE_BACKGROUND_TRANSPORT[name] === "function",

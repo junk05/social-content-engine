@@ -45,6 +45,15 @@ async function main() {
   assert.equal(request.options.body.includes("cookie"), false);
   assert.equal(request.options.body.includes("token"), false);
 
+  const resumed = await transport.resumeBatch(7, {
+    fetch: async (url, options) => {
+      assert.equal(url, transport.receiverUrl + "/detail-batches");
+      assert.deepEqual(JSON.parse(options.body), { action: "resume", batch_id: 7 });
+      return response(200, { status: "accepted", batch_id: 7, batch_status: "RUNNING" });
+    },
+  });
+  assert.deepEqual(resumed, { accepted: true, batchId: 7 });
+
   let unsafeFetchCalls = 0;
   const unsafe = await transport.sendObservation(
     { ...observation, access_token: "must-not-send" },
