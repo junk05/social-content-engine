@@ -1,6 +1,9 @@
 import unittest
 
-from social_content_engine.intelligence.m4_intelligence import build_intelligence_feature
+from social_content_engine.intelligence.m4_intelligence import (
+    build_intelligence_feature,
+    sequence_signature,
+)
 
 
 class M4IntelligenceTest(unittest.TestCase):
@@ -21,6 +24,9 @@ class M4IntelligenceTest(unittest.TestCase):
         )
         self.assertEqual("HYPOTHESIS", feature["action_evidence_mode"])
         self.assertNotIn("text", str(feature).lower())
+        signature = sequence_signature(feature)
+        self.assertEqual("QUESTION", signature["hook_family"])
+        self.assertNotIn("text", str(signature).lower())
 
 
 if __name__ == "__main__":

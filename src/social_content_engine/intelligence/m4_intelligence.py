@@ -82,6 +82,21 @@ def _canonical_json(value: Dict[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
 
+def sequence_signature(feature: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the text-free canonical Hook -> Body -> Ending -> Action signature."""
+    hook = feature["hook"]
+    ending = feature["ending"]
+    return {
+        "hook_family": hook["family"],
+        "hook_subtype": hook["subtype"],
+        "continue_reading_mechanisms": sorted(hook["continue_reading_mechanisms"]),
+        "body_roles": sorted(feature["body_roles"]),
+        "parent_ending_availability": ending["availability"],
+        "parent_cliffhanger_technique": ending["cliffhanger_technique"],
+        "expected_reader_actions": sorted(feature["expected_reader_actions"]),
+    }
+
+
 def derive_m4_instances(repository: Repository, m4_intelligence_run_id: int) -> int:
     """Derive one immutable M4 instance per pinned successful M1/M2 input."""
     run = repository.connection.execute(
