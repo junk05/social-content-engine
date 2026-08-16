@@ -48,7 +48,7 @@ Actions passed on Python 3.9 and 3.12. Evidence:
 
 ## M2 — Cross-post Pattern Mining & Dataset Expansion
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M2_PATTERN_MINING.md`
 (`M2-PATTERN-MINING-V1`).
@@ -80,7 +80,7 @@ Verification: `spec/evidence/M3_DOD_AUDIT.json`.
 
 ## M4 — Viral Pattern Intelligence
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specifications: `spec/M4_VIRAL_PATTERN_INTELLIGENCE.md`,
 `spec/M4_VIRAL_PATTERN_INTELLIGENCE_V2.md` (`CR-0003`), and
@@ -90,9 +90,11 @@ Goal: derive evidence-backed, reusable rhetorical Pattern Intelligence from
 human-selected browser observations, without claiming causal performance or
 implementing content generation.
 
-The initial HG-04 report was rejected for revision. M4 now validates
-genre-independent deterministic Structural Patterns before any optional LLM
-enrichment and repeats HG-04 before any M5 Content Generation scope can begin.
+HG-04 approved the clean, genre-independent deterministic Structural Pattern
+report. Old date-metadata text observations are retained for audit but excluded
+from clean structural snapshots. Observed metric coverage remains insufficient
+for performance-superiority or causal claims. Any M5 Content Generation scope
+requires separate approval and its applicable Human Gate.
 
 ## Deferred until later milestones
 

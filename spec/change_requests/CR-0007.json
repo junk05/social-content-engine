@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0007",
+  "status": "IMPLEMENTED",
+  "title": "Exclude legacy date metadata from clean M4 structural snapshots",
+  "risk": "LOW",
+  "affected_components": [
+    "browser_text_quality_assessments",
+    "dataset_snapshots",
+    "structural_feature_runs",
+    "structural_pattern_report"
+  ],
+  "approved_decision": "Retain source observations and identity, but append a deterministic text-quality status. Exclude INVALID_TEXT_DATE_METADATA and TEXT_UNAVAILABLE observations from structural analysis snapshots while preserving provenance and observed metrics.",
+  "non_goals": [
+    "physical source deletion",
+    "metric imputation",
+    "performance causality claims",
+    "content generation"
+  ]
+}

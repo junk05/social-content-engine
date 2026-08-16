@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "evidence_type": "M4_CLEAN_DATASET_AUDIT",
+  "dataset_snapshot_id": 7,
+  "structural_feature_run_id": 4,
+  "selection_contract": "m4-clean-browser-text-v1",
+  "quality_assessment_counts": {
+    "VALID_TEXT": 42,
+    "INVALID_TEXT_DATE_METADATA": 93,
+    "TEXT_UNAVAILABLE": 0
+  },
+  "clean_snapshot_member_count": 39,
+  "clean_snapshot_selected_quality": {
+    "VALID_TEXT": 39
+  },
+  "structural_coverage": {
+    "instances": 39,
+    "first_line_unavailable": 0,
+    "first_line_patterns": 15,
+    "post_patterns": 40,
+    "thread_patterns": 0
+  },
+  "invariants": {
+    "source_evidence_physically_deleted": false,
+    "invalid_text_identity_invalidated": false,
+    "invalid_text_excluded_from_structural_snapshot": true,
+    "pattern_report_stores_source_text": false,
+    "generation_safe_boundary_enforced": true,
+    "thread_relationship_inferred": false,
+    "performance_superiority_or_causality_claimed": false
+  },
+  "human_gate": {
+    "id": "HG-04",
+    "decision": "APPROVED",
+    "scope": "Structural Pattern quality review"
+  }
+}

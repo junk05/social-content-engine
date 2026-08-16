@@ -80,13 +80,13 @@
     {"id":"M4-009","owner":"INTELLIGENCE","title":"Persist supported M4 sequence patterns and member provenance","status":"COMPLETE","depends_on":["M4-004"]},
     {"id":"M4-006","owner":"QA_REVIEWER","title":"Add M4 deterministic, provenance, leakage, and M0-M3 regression gates","status":"COMPLETE","depends_on":["M4-005","M4-009"]},
     {"id":"M4-007","owner":"ORCHESTRATOR","title":"Generate the initial M3 snapshot 2 report and request HG-04 quality review","status":"REJECTED_REVISION_REQUIRED","depends_on":["M4-006"]},
-    {"id":"M4-008","owner":"ORCHESTRATOR","title":"Record HG-04 decision and mark M4 complete only when all DoD items pass","status":"BLOCKED","depends_on":["M4-007"]}
+    {"id":"M4-008","owner":"ORCHESTRATOR","title":"Record HG-04 decision and mark M4 complete only when all DoD items pass","status":"COMPLETE","depends_on":["M4-007","M4-031"]}
     ,{"id":"M4-010","owner":"ORCHESTRATOR","title":"Record HG-04 rejection, root-cause audit, and M4 V2 revision contract","status":"COMPLETE","depends_on":["M4-007"]}
     ,{"id":"M4-011","owner":"INTELLIGENCE","title":"Implement deterministic multi-label First-Line, Body, Ending, and Action taxonomy V2","status":"COMPLETE","depends_on":["M4-010"]}
     ,{"id":"M4-012","owner":"INTELLIGENCE","title":"Decompose actionable Pattern families and exclude UNKNOWN/NONE-only clusters","status":"COMPLETE","depends_on":["M4-011"]}
     ,{"id":"M4-013","owner":"QA_REVIEWER","title":"Audit metric coverage and validate M4 V2 deterministic replay and leakage boundaries","status":"COMPLETE","depends_on":["M4-011","M4-012"]}
     ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"COMPLETE","depends_on":["M4-013"]}
-    ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-013","M4-014","M4-020"]}
+    ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"COMPLETE","depends_on":["M4-013","M4-014","M4-020"]}
     ,{"id":"M4-016","owner":"DATA","title":"Persist observed multi-reply Thread Sequence graph without inferred edges","status":"COMPLETE","depends_on":["M4-014"]}
     ,{"id":"M4-017","owner":"INTELLIGENCE","title":"Classify short-form and observed self-reply transition Patterns","status":"COMPLETE","depends_on":["M4-016"]}
     ,{"id":"M4-018","owner":"INTELLIGENCE","title":"Expose First-Line coverage funnel and closed psychology hypotheses","status":"COMPLETE","depends_on":["M4-017"]}
@@ -99,6 +99,9 @@
     ,{"id":"M4-025","owner":"INTELLIGENCE","title":"Extract closed First-Line and Post Structural Components with ordered span/hash evidence","status":"COMPLETE","depends_on":["M4-024"]}
     ,{"id":"M4-026","owner":"INTELLIGENCE","title":"Mine text-free Local/Post/observed-Thread Structural Patterns and generation-safe DTOs","status":"COMPLETE","depends_on":["M4-025"]}
     ,{"id":"M4-027","owner":"QA_REVIEWER","title":"Verify structural provenance, generation isolation, no leakage, and regression","status":"COMPLETE","depends_on":["M4-026"]}
-    ,{"id":"M4-028","owner":"ORCHESTRATOR","title":"Generate Structural Pattern Report and repeat HG-04","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-027"]}
+    ,{"id":"M4-028","owner":"ORCHESTRATOR","title":"Generate Structural Pattern Report and repeat HG-04","status":"COMPLETE","depends_on":["M4-027"]}
+    ,{"id":"M4-029","owner":"DATA","title":"Classify immutable browser source-text quality and create clean structural snapshots","status":"COMPLETE","depends_on":["M4-028"]}
+    ,{"id":"M4-030","owner":"INTELLIGENCE","title":"Replay structural extraction and report from valid browser source text only","status":"COMPLETE","depends_on":["M4-029"]}
+    ,{"id":"M4-031","owner":"QA_REVIEWER","title":"Audit clean-snapshot exclusion, generation isolation, and M4 completion evidence","status":"COMPLETE","depends_on":["M4-029","M4-030"]}
   ]
 }

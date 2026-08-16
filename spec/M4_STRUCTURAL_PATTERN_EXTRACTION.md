@@ -1,10 +1,26 @@
 # M4 Structural Pattern Extraction
 
-STATUS: `APPROVED REVISION UNDER CR-0006`
+STATUS: `COMPLETE`
 
 M4 prioritizes deterministic, genre-independent Structural Pattern Extraction.
 LLM semantic/psychology classification is an optional future enrichment layer.
-M4 remains `IN_PROGRESS`; M5 remains prohibited.
+M4 is complete after HG-04 approval. M5 remains prohibited until its own
+approved scope and any applicable Human Gate are satisfied.
+
+## Browser source-text quality selection
+
+Browser observations remain immutable Source Layer evidence. A deterministic,
+append-only `browser_text_quality_assessment` may classify an observation as
+`VALID_TEXT`, `INVALID_TEXT_DATE_METADATA`, or `TEXT_UNAVAILABLE`.
+
+`INVALID_TEXT_DATE_METADATA` means an old collector stored an exact absolute
+or relative date label as `text`; it does not invalidate the post identity,
+its other observations, or observed metrics. It is excluded from First-Line,
+Structural Pattern, and Post Structure snapshots. It is never physically
+deleted. A clean structural snapshot selects only bridged browser versions
+whose source observation is `VALID_TEXT`, deterministically choosing one
+version per identity. This keeps the analysis denominator honest while
+preserving full provenance for audit and later reanalysis.
 
 ## Layer boundaries
 
