@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from typing import Any, Dict, List, Tuple
 
 from social_content_engine.data.repository import Repository
@@ -9,6 +10,9 @@ from social_content_engine.data.repository import Repository
 DERIVATION_VERSION = "m4-intelligence-v2"
 FEATURE_CONTRACT_VERSION = "M4_INTELLIGENCE_FEATURE_V2"
 SHORT_FORM_MAX_CHARS = 100
+_NUMBER_LIST = re.compile(
+    r"(?<![0-9０-９])(?:[0-9０-９]+|[一二三四五六七八九十]+)\s*(?:つ|個|選|項目|理由|ポイント|ステップ)"
+)
 
 
 def _canonical_json(value: Dict[str, Any]) -> str:
@@ -43,6 +47,13 @@ def _labels_with_evidence(
             labels.append(label)
             evidence[label] = refs
     return sorted(labels), evidence
+
+
+def _number_list_evidence(text: str, offset: int = 0) -> List[Dict[str, Any]]:
+    return [
+        _ref(text, offset + match.start(), offset + match.end())
+        for match in _NUMBER_LIST.finditer(text)
+    ]
 
 
 def _first_line(text: str) -> Tuple[int, str]:
@@ -85,7 +96,6 @@ def build_v2_feature(
         ("WARNING", ("注意", "危険", "やめ", "NG", "失敗")),
         ("CONFESSION", ("私は", "正直", "本音")),
         ("REVELATION", ("実は", "知らなかった", "真実")),
-        ("NUMBER_LIST", ("1", "2", "3", "一つ", "3つ", "５つ")),
     )
     audience_rules = (
         ("READER_TARGETING", ("あなた", "女性", "男性", "人へ", "方へ")),
@@ -105,6 +115,10 @@ def build_v2_feature(
         ("SURPRISE", ("実は", "まさか", "意外", "逆")),
     )
     rhetorical, rhetorical_evidence = _labels_with_evidence(line, rhetorical_rules, line_start)
+    number_list = _number_list_evidence(line, line_start)
+    if number_list:
+        rhetorical.append("NUMBER_LIST")
+        rhetorical_evidence["NUMBER_LIST"] = number_list
     if line.endswith(("?", "？")):
         rhetorical.append("QUESTION")
         rhetorical_evidence["QUESTION"] = [

@@ -17,15 +17,55 @@ def _key(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _is_generic_first_line(signature: Any) -> bool:
+    return (
+        isinstance(signature, dict)
+        and signature == {
+            "audience_tension": [], "certainty": "UNKNOWN",
+            "continuation": ["NONE"], "rhetorical": ["ASSERTION"],
+        }
+    )
+
+
+def _abstract_formula(signature: Any) -> str:
+    if isinstance(signature, dict):
+        parts = []
+        for key in ("rhetorical", "audience_tension", "continuation", "certainty"):
+            value = signature.get(key)
+            if value in (None, [], ["NONE"], "UNKNOWN"):
+                continue
+            parts.append(key.upper() + ":" + _key(value))
+        return " -> ".join(parts) or "UNSPECIFIED"
+    return _key(signature)
+
+
+def _psychological_effect(signature: Any) -> str:
+    serialized = _key(signature)
+    if "CURIOSITY_GAP" in serialized or "INCOMPLETE_INFORMATION" in serialized:
+        return "CONTINUE_READING_HYPOTHESIS"
+    if "QUESTION" in serialized:
+        return "REPLY_OR_COMMENT_HYPOTHESIS"
+    if "PAIN_PROBLEM_ACTIVATION" in serialized or "EMOTIONAL_VALIDATION" in serialized:
+        return "SELF_RELEVANCE_HYPOTHESIS"
+    if "IMPLIED_BENEFIT" in serialized:
+        return "SAVE_HYPOTHESIS"
+    return "UNSPECIFIED"
+
+
 def _aggregate(values: List[Dict[str, Any]], field: str) -> List[Dict[str, Any]]:
     groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     for value in values:
         signature = value[field]
-        if signature in (["UNKNOWN"], ["NONE"], {"roles": ["UNKNOWN"]}):
+        if (
+            signature in (["UNKNOWN"], ["NONE"], {"roles": ["UNKNOWN"]})
+            or _is_generic_first_line(signature)
+        ):
             continue
         groups[_key(signature)].append(signature)
     result = [
-        {"mechanism": members[0], "support_count": len(members),
+        {"mechanism": members[0], "abstract_formula": _abstract_formula(members[0]),
+         "expected_psychological_effect": _psychological_effect(members[0]),
+         "support_count": len(members), "evidence_count": len(members),
          "confidence": "MEDIUM" if len(members) >= 3 else "LOW"}
         for members in groups.values() if len(members) >= 2
     ]
@@ -59,7 +99,12 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
         (run_id,),
     ).fetchall()
     features = [json.loads(str(row["feature_json"])) for row in rows]
-    first_lines = [{"labels": item["first_line"]["rhetorical_mechanisms"]} for item in features]
+    first_lines = [{"signature": {
+        "rhetorical": item["first_line"]["rhetorical_mechanisms"],
+        "audience_tension": item["first_line"]["audience_tension_mechanisms"],
+        "continuation": item["first_line"]["continuation_mechanisms"],
+        "certainty": item["first_line"]["certainty_level"],
+    }} for item in features]
     bodies = [{"roles": item["body"]["roles"]} for item in features]
     endings = [{"labels": item["ending"]["internal_open_loop_mechanisms"]} for item in features]
     actions = [{"labels": item["actions"]["hypotheses"]} for item in features]
@@ -71,7 +116,7 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
     return {
         "report_version": "M4_V2_VIRAL_PATTERN_REPORT_V1",
         "run_id": run_id,
-        "top_first_line_patterns": _aggregate(first_lines, "labels"),
+        "top_first_line_patterns": _aggregate(first_lines, "signature"),
         "top_body_patterns": _aggregate(bodies, "roles"),
         "top_open_loop_patterns": _aggregate(endings, "labels"),
         "top_action_patterns": _aggregate(actions, "labels"),

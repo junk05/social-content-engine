@@ -58,6 +58,17 @@ class M4V2Test(unittest.TestCase):
         )
         self.assertEqual("LONG_FORM", long_form["form"])
 
+    def test_number_list_requires_a_list_structure_not_an_incidental_digit(self) -> None:
+        incidental = build_v2_feature(
+            "2026年の恋愛事情", {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"}
+        )
+        self.assertNotIn("NUMBER_LIST", incidental["first_line"]["rhetorical_mechanisms"])
+        listed = build_v2_feature(
+            "恋愛で覚えておきたい3つの理由",
+            {"availability": "NO_PARENT", "cliffhanger_technique": "UNKNOWN"},
+        )
+        self.assertIn("NUMBER_LIST", listed["first_line"]["rhetorical_mechanisms"])
+
 
 if __name__ == "__main__":
     unittest.main()

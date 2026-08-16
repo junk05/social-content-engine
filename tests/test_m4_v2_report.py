@@ -24,6 +24,23 @@ class M4V2ReportTest(unittest.TestCase):
         )
         self.assertEqual("STANDALONE_SHORT", patterns[0]["mechanism"][0])
 
+    def test_first_line_aggregation_keeps_multilabel_dimensions(
+        self,
+    ) -> None:
+        generic = {"signature": {
+            "rhetorical": ["ASSERTION"], "audience_tension": [],
+            "continuation": ["NONE"], "certainty": "UNKNOWN",
+        }}
+        useful = {"signature": {
+            "rhetorical": ["QUESTION"], "audience_tension": ["READER_TARGETING"],
+            "continuation": ["CURIOSITY_GAP"], "certainty": "AMBIGUOUS",
+        }}
+        result = _aggregate([generic, generic, useful, useful], "signature")
+        self.assertEqual(1, len(result))
+        self.assertEqual(2, result[0]["support_count"])
+        self.assertEqual("CONTINUE_READING_HYPOTHESIS", result[0]["expected_psychological_effect"])
+        self.assertIn("READER_TARGETING", result[0]["abstract_formula"])
+
 
 if __name__ == "__main__":
     unittest.main()
