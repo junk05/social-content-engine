@@ -2,6 +2,8 @@
 
 (function exposeBackgroundTransport(scope) {
   const RECEIVER_URL = "http://127.0.0.1:8765/browser-ingest/threads";
+  const PENDING_DETAILS_URL = RECEIVER_URL + "/pending-details";
+  const DETAIL_FAILURE_URL = RECEIVER_URL + "/detail-failures";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -13,6 +15,19 @@
     return Object.entries(value).some(
       ([key, child]) => FORBIDDEN_KEYS.has(key.toLowerCase()) || containsForbiddenKey(child),
     );
+  }
+
+  function isCanonicalThreadsPostUrl(value) {
+    if (typeof value !== "string") return false;
+    try {
+      const parsed = new URL(value);
+      return parsed.protocol === "https:"
+        && parsed.hostname === "www.threads.net"
+        && /^\/@[A-Za-z0-9._-]+\/post\/[A-Za-z0-9._-]+$/.test(parsed.pathname)
+        && !parsed.search && !parsed.hash;
+    } catch (_error) {
+      return false;
+    }
   }
 
   async function sendObservation(observation, options = {}) {
@@ -63,10 +78,59 @@
     }
   }
 
+  async function fetchPendingDetails(limit = 50, options = {}) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return { accepted: false, reason: "invalid_limit", urls: [] };
+    }
+    const fetchImpl = options.fetch || fetch;
+    try {
+      const response = await fetchImpl(PENDING_DETAILS_URL + "?limit=" + limit, {
+        method: "GET", cache: "no-store", credentials: "omit",
+      });
+      if (response.status !== 200) {
+        return { accepted: false, reason: "receiver_rejected", urls: [] };
+      }
+      const payload = await response.json();
+      if (!payload || payload.status !== "ok" || !Array.isArray(payload.urls)
+          || payload.urls.some((url) => !isCanonicalThreadsPostUrl(url))) {
+        return { accepted: false, reason: "invalid_receiver_response", urls: [] };
+      }
+      return { accepted: true, urls: payload.urls.slice(0, limit) };
+    } catch (_error) {
+      return { accepted: false, reason: "network_error", urls: [] };
+    }
+  }
+
+  async function sendDetailFailure(failure, options = {}) {
+    const required = [
+      "post_url", "attempted_at", "extractor_version", "contract_version",
+      "failure_type", "failure_reason",
+    ];
+    if (!failure || typeof failure !== "object" || containsForbiddenKey(failure)
+        || Object.keys(failure).length !== required.length
+        || required.some((key) => typeof failure[key] !== "string")) {
+      return { accepted: false, reason: "unsafe_failure" };
+    }
+    const fetchImpl = options.fetch || fetch;
+    try {
+      const response = await fetchImpl(DETAIL_FAILURE_URL, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(failure), cache: "no-store", credentials: "omit",
+      });
+      return response.status === 201
+        ? { accepted: true }
+        : { accepted: false, reason: "receiver_rejected" };
+    } catch (_error) {
+      return { accepted: false, reason: "network_error" };
+    }
+  }
+
   scope.SCE_BACKGROUND_TRANSPORT = Object.freeze({
     receiverUrl: RECEIVER_URL,
     timeoutMilliseconds: TIMEOUT_MILLISECONDS,
-    sendObservation,
+    pendingDetailsUrl: PENDING_DETAILS_URL,
+    detailFailureUrl: DETAIL_FAILURE_URL,
+    sendObservation, fetchPendingDetails, sendDetailFailure,
   });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -76,6 +140,14 @@
     }
     if (message && message.type === "SCE_OBSERVATION_READY") {
       sendObservation(message.observation).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_LOAD_PENDING_DETAILS") {
+      fetchPendingDetails(message.limit).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_DETAIL_FAILURE") {
+      sendDetailFailure(message.failure).then(sendResponse);
       return true;
     }
     return false;

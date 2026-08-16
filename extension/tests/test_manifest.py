@@ -24,7 +24,16 @@ class ManifestTest(unittest.TestCase):
             {"https://www.threads.com/*", "https://www.threads.net/*"},
             set(scripts[0]["matches"]),
         )
-        self.assertEqual(["extractor.js", "injection.js", "content.js"], scripts[0]["js"])
+        self.assertEqual(
+            [
+                "extractor.js",
+                "detail_extractor.js",
+                "injection.js",
+                "detail_action.js",
+                "content.js",
+            ],
+            scripts[0]["js"],
+        )
 
     def test_manifest_references_existing_local_files(self) -> None:
         referenced = {
@@ -49,6 +58,16 @@ class ManifestTest(unittest.TestCase):
         self.assertIn("fetchImpl(RECEIVER_URL", background)
         self.assertNotIn("document.querySelector", content)
         self.assertNotIn("MutationObserver", content)
+
+    def test_detail_flow_has_no_automatic_navigation_capability(self) -> None:
+        sources = "\n".join(
+            (ROOT / name).read_text(encoding="utf-8")
+            for name in ("background.js", "detail_action.js", "options.js")
+        )
+        self.assertNotIn("chrome.tabs", sources)
+        self.assertNotIn("window.open", sources)
+        self.assertNotIn("location.assign", sources)
+        self.assertNotIn("location.replace", sources)
 
 
 if __name__ == "__main__":

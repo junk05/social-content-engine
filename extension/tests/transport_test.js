@@ -73,6 +73,53 @@ async function main() {
   });
   assert.deepEqual(timeout, { accepted: false, retryable: true, reason: "timeout" });
 
+  let pendingRequest;
+  const pending = await transport.fetchPendingDetails(2, {
+    fetch: async (url, options) => {
+      pendingRequest = { url, options };
+      return response(200, {
+        status: "ok",
+        urls: [
+          "https://www.threads.net/@fixture/post/Pending1",
+          "https://www.threads.net/@fixture/post/Pending2",
+        ],
+      });
+    },
+  });
+  assert.equal(pending.accepted, true);
+  assert.equal(pending.urls.length, 2);
+  assert.equal(pendingRequest.options.method, "GET");
+  assert.equal(pendingRequest.options.credentials, "omit");
+  assert.equal(pendingRequest.url, transport.pendingDetailsUrl + "?limit=2");
+  assert.deepEqual(await transport.fetchPendingDetails(101), {
+    accepted: false, reason: "invalid_limit", urls: [],
+  });
+  assert.deepEqual(await transport.fetchPendingDetails(1, {
+    fetch: async () => response(200, { status: "ok", urls: ["javascript:alert(1)"] }),
+  }), { accepted: false, reason: "invalid_receiver_response", urls: [] });
+
+  const detailFailure = {
+    post_url: "https://www.threads.net/@fixture/post/Pending1",
+    attempted_at: "2026-08-16T04:00:00Z",
+    extractor_version: "threads_post_detail_extractor_v1",
+    contract_version: "M3_BROWSER_DETAIL_ATTEMPT_V1",
+    failure_type: "TIMEOUT",
+    failure_reason: "TIME_LIMIT_EXCEEDED",
+  };
+  let failureRequest;
+  assert.deepEqual(await transport.sendDetailFailure(detailFailure, {
+    fetch: async (url, options) => {
+      failureRequest = { url, options };
+      return response(201, { status: "failure_recorded" });
+    },
+  }), { accepted: true });
+  assert.equal(failureRequest.url, transport.detailFailureUrl);
+  assert.equal(failureRequest.options.credentials, "omit");
+  assert.deepEqual(JSON.parse(failureRequest.options.body), detailFailure);
+  assert.deepEqual(await transport.sendDetailFailure({
+    ...detailFailure, cookie: "never-send",
+  }), { accepted: false, reason: "unsafe_failure" });
+
   let messageResponse;
   globalThis.fetch = async () => { throw new Error("receiver unavailable fixture"); };
   const asyncResult = chrome.runtime.onMessage.listener(

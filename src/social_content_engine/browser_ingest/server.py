@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, Sequence, Set, Type
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import jsonschema  # type: ignore[import-untyped]
 
@@ -17,6 +17,10 @@ from social_content_engine.data.repository import Repository
 
 MAX_BODY_BYTES = 65_536
 INGEST_PATH = "/browser-ingest/threads"
+PENDING_DETAILS_PATH = INGEST_PATH + "/pending-details"
+DETAIL_FAILURE_PATH = INGEST_PATH + "/detail-failures"
+DEFAULT_PENDING_LIMIT = 50
+MAX_PENDING_LIMIT = 100
 
 
 @dataclass(frozen=True)
@@ -85,13 +89,38 @@ class BrowserIngestService:
         )
 
     def handle_options(self, path: str, origin: Optional[str]) -> IngestResponse:
-        error = self._request_error(path, origin)
+        error = self._request_error(
+            path, origin, {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH}
+        )
         return error or IngestResponse(204, {"status": "preflight_ok"}, origin)
+
+    def handle_get(
+        self, path: str, query: str, origin: Optional[str]
+    ) -> IngestResponse:
+        error = self._request_error(path, origin, {PENDING_DETAILS_PATH})
+        if error:
+            return error
+        values = parse_qs(query, keep_blank_values=True)
+        if set(values) - {"limit"} or len(values.get("limit", [])) > 1:
+            return IngestResponse(400, {"error": "invalid_query"}, origin)
+        raw_limit = values.get("limit", [str(DEFAULT_PENDING_LIMIT)])[0]
+        try:
+            limit = int(raw_limit)
+        except ValueError:
+            return IngestResponse(400, {"error": "invalid_limit"}, origin)
+        if not 1 <= limit <= MAX_PENDING_LIMIT:
+            return IngestResponse(400, {"error": "invalid_limit"}, origin)
+        urls = self.repository.list_browser_pending_detail_urls(limit=limit)
+        return IngestResponse(
+            200,
+            {"status": "ok", "count": len(urls), "urls": list(urls)},
+            origin,
+        )
 
     def handle_post(
         self, path: str, origin: Optional[str], content_type: str, body: bytes
     ) -> IngestResponse:
-        error = self._request_error(path, origin)
+        error = self._request_error(path, origin, {INGEST_PATH, DETAIL_FAILURE_PATH})
         if error:
             return error
         if content_type.split(";", 1)[0].strip().lower() != "application/json":
@@ -103,12 +132,20 @@ class BrowserIngestService:
         except (UnicodeDecodeError, json.JSONDecodeError):
             return IngestResponse(400, {"error": "invalid_json"}, origin)
         if not isinstance(decoded, dict):
-            return IngestResponse(422, {"error": "invalid_observation"}, origin)
+            return IngestResponse(422, {"error": "invalid_payload"}, origin)
+        if path == DETAIL_FAILURE_PATH:
+            return self._handle_detail_failure(decoded, origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
             return IngestResponse(422, {"error": "invalid_observation"}, origin)
         try:
             validate_browser_observation(decoded)
             result = self.repository.add_browser_observation(decoded)
+            if decoded["observation_type"] == "POST_DETAIL":
+                self.repository.record_browser_detail_success(
+                    browser_observation_id=int(result["browser_observation_id"]),
+                    attempted_at=str(decoded["collected_at"]),
+                    extractor_version=str(decoded["extractor_version"]),
+                )
         except (ValueError, TypeError):
             return IngestResponse(422, {"error": "invalid_observation"}, origin)
         return IngestResponse(
@@ -123,8 +160,40 @@ class BrowserIngestService:
             origin,
         )
 
-    def _request_error(self, path: str, origin: Optional[str]) -> Optional[IngestResponse]:
-        if path != INGEST_PATH:
+    def _handle_detail_failure(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        required = {
+            "post_url",
+            "attempted_at",
+            "extractor_version",
+            "contract_version",
+            "failure_type",
+            "failure_reason",
+        }
+        if set(decoded) != required or any(
+            not isinstance(decoded[key], str) for key in required
+        ):
+            return IngestResponse(422, {"error": "invalid_detail_failure"}, origin)
+        try:
+            attempt_id = self.repository.record_browser_detail_failure(
+                post_url=decoded["post_url"],
+                attempted_at=decoded["attempted_at"],
+                extractor_version=decoded["extractor_version"],
+                contract_version=decoded["contract_version"],
+                failure_type=decoded["failure_type"],
+                failure_reason=decoded["failure_reason"],
+            )
+        except (KeyError, TypeError, ValueError):
+            return IngestResponse(422, {"error": "invalid_detail_failure"}, origin)
+        return IngestResponse(
+            201, {"status": "failure_recorded", "attempt_id": attempt_id}, origin
+        )
+
+    def _request_error(
+        self, path: str, origin: Optional[str], allowed_paths: Set[str]
+    ) -> Optional[IngestResponse]:
+        if path not in allowed_paths:
             return IngestResponse(404, {"error": "not_found"})
         if origin not in self.allowed_origins:
             return IngestResponse(403, {"error": "origin_not_allowed"})
@@ -137,6 +206,14 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         self._send(
             self.service.handle_options(urlsplit(self.path).path, self.headers.get("Origin"))
+        )
+
+    def do_GET(self) -> None:
+        parsed = urlsplit(self.path)
+        self._send(
+            self.service.handle_get(
+                parsed.path, parsed.query, self.headers.get("Origin")
+            )
         )
 
     def do_POST(self) -> None:
@@ -169,7 +246,7 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
         if response.origin:
             self.send_header("Access-Control-Allow-Origin", response.origin)
             self.send_header("Vary", "Origin")
-            self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         if body:

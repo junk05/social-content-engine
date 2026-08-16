@@ -1500,6 +1500,18 @@ class Repository:
                 )
         return attempt_id
 
+    def list_browser_pending_detail_urls(self, *, limit: int) -> Sequence[str]:
+        """Return only canonical URL identities currently awaiting explicit detail work."""
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("pending detail limit must be between 1 and 100")
+        rows = self.connection.execute(
+            """SELECT post_url FROM browser_post_identities
+            WHERE status = 'DETAIL_PENDING'
+            ORDER BY updated_at, id LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [str(row["post_url"]) for row in rows]
+
     def count(self, table: str) -> int:
         allowed = {
             "collection_runs",

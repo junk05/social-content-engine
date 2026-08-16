@@ -40,18 +40,22 @@
     const value = Number(token.replaceAll(",", ""));
     return Number.isSafeInteger(value) ? value : null;
   }
-  function findPermalink(root, pageUrl) {
+  function findPermalink(root, pageUrl, expectedCanonical = null) {
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const canonical = canonicalPostUrl(link.getAttribute("href"), pageUrl);
-      if (canonical) return { link, canonical };
+      if (canonical && (!expectedCanonical || canonical === expectedCanonical)) {
+        return { link, canonical };
+      }
     }
     return null;
   }
   function recognizePostDetail(root, pageUrl) {
     if (!root || typeof root.querySelectorAll !== "function" || typeof root.querySelector !== "function") return false;
     const canonicalPage = canonicalPostUrl(pageUrl, pageUrl);
-    const permalink = findPermalink(root, pageUrl || "https://www.threads.net/");
+    const permalink = findPermalink(
+      root, pageUrl || "https://www.threads.net/", canonicalPage
+    );
     const time = root.querySelector("time[datetime]");
     return Boolean(canonicalPage && permalink && canonicalPage === permalink.canonical && time && isVisible(time));
   }
@@ -122,7 +126,9 @@
     const pageUrl = typeof context.pageUrl === "string" ? context.pageUrl : null;
     if (!recognizePostDetail(root, pageUrl)) return null;
     const collectedAt = context.collectedAt || new Date().toISOString();
-    const post = findPermalink(root, pageUrl);
+    const post = findPermalink(
+      root, pageUrl, canonicalPostUrl(pageUrl, pageUrl)
+    );
     const time = root.querySelector("time[datetime]");
     const timestamp = cleanText(time.getAttribute("datetime"));
     if (!post || !timestamp) return null;

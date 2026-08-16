@@ -11,7 +11,10 @@
       <h1>Threads Collector</h1>
       <p id="status">状態を確認しています。</p>
       <p>受信先: <code>http://127.0.0.1:8765/browser-ingest/threads</code></p>
-      <p>この版はM3-007です。人が選んだ観測だけをloopback receiverへ送信します。</p>
+      <p>人が選んだ観測だけをloopback receiverへ送信します。</p>
+      <button id="load-pending" type="button">詳細待ちを読み込む</button>
+      <p id="pending-status">詳細待ちはまだ読み込んでいません。</p>
+      <ul id="pending-details"></ul>
     </main>
     <script src="options.js"></script>
   </body>

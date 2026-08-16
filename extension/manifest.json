@@ -18,7 +18,9 @@
       ],
       "js": [
         "extractor.js",
+        "detail_extractor.js",
         "injection.js",
+        "detail_action.js",
         "content.js"
       ],
       "run_at": "document_idle"

@@ -8,7 +8,9 @@ from http.server import HTTPServer
 from pathlib import Path
 
 from social_content_engine.browser_ingest.server import (
+    DETAIL_FAILURE_PATH,
     MAX_BODY_BYTES,
+    PENDING_DETAILS_PATH,
     BrowserIngestService,
     configured_handler,
     load_schema,
@@ -39,6 +41,14 @@ class BrowserIngestServerTest(unittest.TestCase):
             kwargs.get("content_type", "application/json"),
             json.dumps(payload).encode("utf-8"),
         )
+
+    def observed_url(self, post_code: str, **kwargs: object) -> dict:
+        payload = observation(**kwargs)
+        payload["post_url"] = (
+            "https://www.threads.net/@fixture/post/" + post_code
+        )
+        payload["payload_sha256"] = browser_observation_payload_sha256(payload)
+        return payload
 
     def test_options_success_and_duplicate_observation(self) -> None:
         preflight = self.service.handle_options(
@@ -90,7 +100,8 @@ class BrowserIngestServerTest(unittest.TestCase):
                 ALLOWED_ORIGIN, preflight.getheader("Access-Control-Allow-Origin")
             )
             self.assertEqual(
-                "POST, OPTIONS", preflight.getheader("Access-Control-Allow-Methods")
+                "GET, POST, OPTIONS",
+                preflight.getheader("Access-Control-Allow-Methods"),
             )
             preflight.read()
 
@@ -118,6 +129,103 @@ class BrowserIngestServerTest(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+    def test_pending_details_are_pending_only_url_only_and_bounded(self) -> None:
+        self.post(self.observed_url("PendingA"))
+        self.post(self.observed_url("PendingB"))
+        self.post(self.observed_url("Collected", view_count=0))
+        self.post(
+            self.observed_url(
+                "Enriched", observation_type="POST_DETAIL", view_count=None
+            )
+        )
+        response = self.service.handle_get(
+            PENDING_DETAILS_PATH, "limit=1", ALLOWED_ORIGIN
+        )
+        self.assertEqual(200, response.status)
+        self.assertEqual(1, response.payload["count"])
+        self.assertEqual(
+            ["https://www.threads.net/@fixture/post/PendingA"],
+            response.payload["urls"],
+        )
+        self.assertEqual({"status", "count", "urls"}, set(response.payload))
+        self.assertNotIn("text", response.body.decode("utf-8"))
+        self.assertEqual(
+            400,
+            self.service.handle_get(
+                PENDING_DETAILS_PATH, "limit=101", ALLOWED_ORIGIN
+            ).status,
+        )
+        self.assertEqual(
+            403,
+            self.service.handle_get(
+                PENDING_DETAILS_PATH,
+                "limit=1",
+                "chrome-extension://pppppppppppppppppppppppppppppppp",
+            ).status,
+        )
+
+    def test_post_detail_acceptance_records_success_even_when_view_is_missing(self) -> None:
+        self.post(self.observed_url("DetailMissingView"))
+        accepted = self.post(
+            self.observed_url(
+                "DetailMissingView", observation_type="POST_DETAIL", view_count=None
+            )
+        )
+        self.assertEqual(201, accepted.status)
+        self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
+        attempt = self.repository.connection.execute(
+            """SELECT outcome, detail_observation_id FROM browser_detail_attempts
+            ORDER BY id DESC LIMIT 1"""
+        ).fetchone()
+        self.assertEqual(("SUCCEEDED", accepted.payload["observation_id"]), tuple(attempt))
+        self.assertEqual(
+            "DETAIL_ENRICHED",
+            self.repository.connection.execute(
+                """SELECT status FROM browser_post_identities
+                WHERE post_url = ?""",
+                ("https://www.threads.net/@fixture/post/DetailMissingView",),
+            ).fetchone()[0],
+        )
+
+    def test_detail_failure_is_closed_and_does_not_affect_other_pending_url(self) -> None:
+        first = self.observed_url("FailureA")
+        second = self.observed_url("FailureB")
+        self.post(first)
+        self.post(second)
+        failure = {
+            "post_url": first["post_url"],
+            "attempted_at": "2026-08-16T04:00:00Z",
+            "extractor_version": "threads_post_detail_extractor_v1",
+            "contract_version": "M3_BROWSER_DETAIL_ATTEMPT_V1",
+            "failure_type": "EXTRACTION_FAILED",
+            "failure_reason": "EXPECTED_FIELD_MISSING",
+        }
+        recorded = self.service.handle_post(
+            DETAIL_FAILURE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            json.dumps(failure).encode("utf-8"),
+        )
+        self.assertEqual(201, recorded.status)
+        statuses = dict(
+            self.repository.connection.execute(
+                "SELECT post_url, status FROM browser_post_identities"
+            ).fetchall()
+        )
+        self.assertEqual("DETAIL_FAILED", statuses[first["post_url"]])
+        self.assertEqual("DETAIL_PENDING", statuses[second["post_url"]])
+        leaked = dict(failure)
+        leaked["cookie"] = "must-not-store"
+        rejected = self.service.handle_post(
+            DETAIL_FAILURE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            json.dumps(leaked).encode("utf-8"),
+        )
+        self.assertEqual(422, rejected.status)
+        self.assertNotIn("cookie", rejected.body.decode("utf-8"))
+        self.assertEqual(1, self.repository.count("browser_detail_failures"))
 
     def test_rejects_invalid_schema_hash_origin_content_type_and_oversize(self) -> None:
         invalid_schema = observation()
