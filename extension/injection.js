@@ -3,6 +3,7 @@
 (function exposePatternActionController(scope) {
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
+  const MAX_CONTAINER_ASCENT = 6;
 
   function defaultObservationBoundary(observation) {
     return new Promise((resolve) => {
@@ -32,11 +33,48 @@
     let lastUrl = windowObject.location.href;
     let observer = null;
 
+    function isVisibleSignal(element) {
+      return !element.hidden && element.getAttribute("aria-hidden") !== "true";
+    }
+
+    function signalCount(candidate) {
+      const signals = new Set();
+      for (const element of candidate.querySelectorAll('[dir="auto"], a[href*="/@"]')) {
+        const href = element.getAttribute("href");
+        if (href && href.includes("/post/")) continue;
+        if (isVisibleSignal(element)) signals.add(element);
+      }
+      return signals.size;
+    }
+
+    function isSemanticFallback(candidate) {
+      const tag = (candidate.tagName || "").toLowerCase();
+      return tag === "article" || candidate.getAttribute("role") === "article";
+    }
+
+    function resolveCardContainer(link) {
+      let candidate = link.parentElement;
+      let semanticFallback = null;
+      for (let depth = 0; candidate && depth < MAX_CONTAINER_ASCENT; depth += 1) {
+        const postLinks = candidate.querySelectorAll('a[href*="/post/"]');
+        const times = candidate.querySelectorAll("time[datetime]");
+        const boundedShape = postLinks.length === 1 && times.length === 1;
+        if (boundedShape && extractor.recognizeSearchCard(candidate, windowObject.location.href)) {
+          const signals = signalCount(candidate);
+          if (signals >= 2) return candidate;
+          if (signals >= 1 && (candidate.tagName || "").toLowerCase() === "div") return candidate;
+          if (!semanticFallback && isSemanticFallback(candidate)) semanticFallback = candidate;
+        }
+        candidate = candidate.parentElement;
+      }
+      return semanticFallback;
+    }
+
     function cardCandidates() {
       const cards = [];
       const seen = new Set();
       for (const link of documentObject.querySelectorAll('a[href*="/post/"]')) {
-        const card = link.closest('article, [role="article"]');
+        const card = resolveCardContainer(link);
         const alreadyInjected = card && card.querySelector(`[${ACTION_ATTRIBUTE}="${ACTION_VERSION}"]`);
         if (card && !alreadyInjected && !seen.has(card) && extractor.recognizeSearchCard(card, windowObject.location.href)) {
           seen.add(card);
@@ -131,7 +169,7 @@
       if (windowObject.navigation) windowObject.navigation.removeEventListener("navigate", scheduleScan);
     }
 
-    return Object.freeze({ start, stop, scan, scheduleScan });
+    return Object.freeze({ start, stop, scan, scheduleScan, resolveCardContainer });
   }
 
   scope.SCE_PATTERN_ACTION_INJECTION = Object.freeze({

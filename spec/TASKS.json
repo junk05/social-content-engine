@@ -53,6 +53,7 @@
     {"id":"M3-013","owner":"COLLECTOR","title":"Load unpacked extension and ingest at least ten human-selected live posts","status":"BLOCKED","depends_on":["M3-012"]},
     {"id":"M3-014","owner":"COLLECTOR","title":"Enrich multiple live detail pages including at least one observed view count","status":"BLOCKED","depends_on":["M3-013"]},
     {"id":"M3-015","owner":"QA_REVIEWER","title":"Verify sanitized live evidence and GitHub Actions","status":"BLOCKED","depends_on":["M3-014"]},
-    {"id":"M3-016","owner":"ORCHESTRATOR","title":"Mark M3 complete only after Definition of Done passes","status":"BLOCKED","depends_on":["M3-015"]}
+    {"id":"M3-016","owner":"ORCHESTRATOR","title":"Mark M3 complete only after Definition of Done passes","status":"BLOCKED","depends_on":["M3-015"]},
+    {"id":"M3-017","owner":"COLLECTOR","title":"Repair search-card container discovery from HG-03 live DOM evidence","status":"COMPLETE","depends_on":["M3-006"]}
   ]
 }

@@ -1,12 +1,20 @@
 <main aria-label="Sanitized Threads search surfaces">
-  <article data-fixture="initial-one">
+  <div data-fixture="initial-one">
+    <a href="/@first">First Profile</a>
     <a href="/@first/post/PostOne"><time datetime="2026-08-16T01:00:00Z">now</time></a>
-  </article>
-  <section role="article" data-fixture="initial-two">
+    <div dir="auto">First sanitized post</div>
+  </div>
+  <div data-fixture="initial-two">
     <a href="https://www.threads.net/@second/post/PostTwo"><time datetime="2026-08-16T02:00:00Z">now</time></a>
-  </section>
-  <article data-fixture="non-card"><a href="/@profile">Profile only</a></article>
+    <div dir="auto">Second sanitized post</div>
+  </div>
+  <div data-fixture="non-card"><a href="/@profile">Profile only</a></div>
   <template data-fixture="dynamic">
-    <article><a href="/@dynamic/post/PostThree"><time datetime="2026-08-16T03:00:00Z">now</time></a></article>
+    <div><a href="/@dynamic/post/PostThree"><time datetime="2026-08-16T03:00:00Z">now</time></a><div dir="auto">Dynamic sanitized post</div></div>
   </template>
+  <div data-fixture="broad-parent">
+    <span><a href="/@broad-one/post/Broad1"><time datetime="2026-08-16T04:00:00Z">now</time></a></span>
+    <span><a href="/@broad-two/post/Broad2"><time datetime="2026-08-16T05:00:00Z">now</time></a></span>
+    <div dir="auto">Broad search page text must never become one card</div>
+  </div>
 </main>

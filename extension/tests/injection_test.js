@@ -20,12 +20,30 @@ class FakeButton {
   }
 }
 
+class FakeSignal {
+  constructor() { this.hidden = false; }
+  getAttribute(name) { return name === "aria-hidden" ? null : null; }
+}
+
 class FakeCard {
-  constructor(name, recognized) {
+  constructor(name, recognized, options = {}) {
     this.name = name;
     this.recognized = recognized;
     this.children = [];
-    this.link = { closest: () => this };
+    this.parentElement = options.parentElement || null;
+    this.tagName = options.tagName || "DIV";
+    this.role = options.role || null;
+    this.signals = Array.from({ length: options.signalCount ?? 1 }, () => new FakeSignal());
+    this.links = Array.from({ length: options.postCount ?? 1 }, () => ({ parentElement: this }));
+    this.link = this.links[0];
+    this.times = Array.from({ length: options.timeCount ?? 1 }, () => ({}));
+  }
+  getAttribute(name) { return name === "role" ? this.role : null; }
+  querySelectorAll(selector) {
+    if (selector === 'a[href*="/post/"]') return this.links;
+    if (selector === "time[datetime]") return this.times;
+    if (selector.includes('[dir="auto"]')) return this.signals;
+    return [];
   }
   querySelector(selector) {
     if (selector.includes("data-sce-pattern-action")) {
@@ -79,6 +97,7 @@ function fakeTimers() {
 function cardsFromFixture() {
   const html = fs.readFileSync(path.join(__dirname, "fixtures", "injection_surfaces.html"), "utf8");
   assert.equal(html.includes("cookie"), false);
+  assert.equal(html.includes("<article"), false, "fixture must reproduce DIV-only cards");
   return [
     new FakeCard("initial-one", html.includes('data-fixture="initial-one"')),
     new FakeCard("initial-two", html.includes('data-fixture="initial-two"')),
@@ -115,6 +134,21 @@ async function main() {
   assert.equal(extractionCount, 0, "initial scan must not collect automatically");
   controller.scan();
   assert.deepEqual(cards.map((card) => card.children.length), [1, 1, 0]);
+
+  const broad = new FakeCard("broad", true, { postCount: 2, timeCount: 2, signalCount: 3 });
+  const narrowWithoutSignals = new FakeCard("narrow", true, {
+    signalCount: 0, tagName: "SPAN", parentElement: broad,
+  });
+  narrowWithoutSignals.link.parentElement = narrowWithoutSignals;
+  assert.equal(
+    controller.resolveCardContainer(narrowWithoutSignals.link), null,
+    "a multi-post broad parent must never be selected",
+  );
+  const minimalArticle = new FakeCard("minimal", true, { signalCount: 0, tagName: "ARTICLE" });
+  assert.equal(
+    controller.resolveCardContainer(minimalArticle.link), minimalArticle,
+    "minimal semantic cards retain a conservative fallback",
+  );
 
   const dynamic = new FakeCard("dynamic", true);
   documentObject.cards.push(dynamic);
