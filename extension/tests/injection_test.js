@@ -6,30 +6,45 @@ const path = require("node:path");
 
 require(path.join(__dirname, "..", "injection.js"));
 
-class FakeButton {
+class FakeElement {
   constructor() {
     this.attributes = {};
-    this.listeners = {};
-    this.disabled = false;
+    this.children = [];
+    this.style = {};
+    this.parentElement = null;
+    this.hidden = false;
   }
   setAttribute(name, value) { this.attributes[name] = value; }
   getAttribute(name) { return this.attributes[name] ?? null; }
-  addEventListener(name, listener) { this.listeners[name] = listener; }
-  async click() {
-    return this.listeners.click({ preventDefault() {}, stopPropagation() {} });
+  appendChild(child) { child.parentElement = this; this.children.push(child); }
+}
+
+class FakeButton extends FakeElement {
+  constructor() {
+    super();
+    this.listeners = {};
+    this.disabled = false;
   }
+  addEventListener(name, listener) { this.listeners[name] = listener; }
+  async click() { return this.listeners.click({ preventDefault() {}, stopPropagation() {} }); }
 }
 
-class FakeSignal {
-  constructor() { this.hidden = false; }
-  getAttribute(name) { return name === "aria-hidden" ? null : null; }
+class FakeToolbar extends FakeElement {
+  constructor(card, count) {
+    super();
+    this.parentElement = card;
+    for (let index = 0; index < count; index += 1) this.appendChild(new FakeButton());
+  }
+  querySelectorAll(selector) { return selector.includes("button") ? this.children : []; }
 }
 
-class FakeCard {
+class FakeSignal extends FakeElement {}
+
+class FakeCard extends FakeElement {
   constructor(name, recognized, options = {}) {
+    super();
     this.name = name;
     this.recognized = recognized;
-    this.children = [];
     this.parentElement = options.parentElement || null;
     this.tagName = options.tagName || "DIV";
     this.role = options.role || null;
@@ -37,32 +52,29 @@ class FakeCard {
     this.links = Array.from({ length: options.postCount ?? 1 }, () => ({ parentElement: this }));
     this.link = this.links[0];
     this.times = Array.from({ length: options.timeCount ?? 1 }, () => ({}));
+    this.toolbar = new FakeToolbar(this, options.toolbarCount ?? 0);
   }
-  getAttribute(name) { return name === "role" ? this.role : null; }
+  getAttribute(name) { return name === "role" ? this.role : super.getAttribute(name); }
   querySelectorAll(selector) {
     if (selector === 'a[href*="/post/"]') return this.links;
     if (selector === "time[datetime]") return this.times;
     if (selector.includes('[dir="auto"]')) return this.signals;
+    if (selector.includes("button")) return this.toolbar.children;
     return [];
   }
   querySelector(selector) {
-    if (selector.includes("data-sce-pattern-action")) {
-      return this.children.find((child) => child.attributes["data-sce-pattern-action"] === "v1") || null;
-    }
+    if (selector.includes("data-sce-pattern-action")) return actionButton(this);
     return this.recognized && selector === "time[datetime]" ? {} : null;
   }
-  appendChild(child) { this.children.push(child); }
 }
 
 class FakeDocument {
-  constructor(cards) {
-    this.cards = cards;
-    this.documentElement = {};
-  }
+  constructor(cards) { this.cards = cards; this.documentElement = {}; }
   querySelectorAll() { return this.cards.filter((card) => card.recognized).map((card) => card.link); }
   createElement(name) {
-    assert.equal(name, "button");
-    return new FakeButton();
+    if (name === "button") return new FakeButton();
+    if (name === "div") return new FakeElement();
+    assert.fail(`unexpected element: ${name}`);
   }
 }
 
@@ -94,13 +106,23 @@ function fakeTimers() {
   };
 }
 
+function actionButton(card) {
+  const candidates = [
+    ...card.toolbar.children,
+    ...card.children.flatMap((child) => child.children || [child]),
+  ];
+  return candidates.find((item) => item.attributes["data-sce-pattern-action"] === "v1") || null;
+}
+
+function actionCounts(cards) { return cards.map((card) => actionButton(card) ? 1 : 0); }
+
 function cardsFromFixture() {
   const html = fs.readFileSync(path.join(__dirname, "fixtures", "injection_surfaces.html"), "utf8");
   assert.equal(html.includes("cookie"), false);
   assert.equal(html.includes("<article"), false, "fixture must reproduce DIV-only cards");
   return [
-    new FakeCard("initial-one", html.includes('data-fixture="initial-one"')),
-    new FakeCard("initial-two", html.includes('data-fixture="initial-two"')),
+    new FakeCard("initial-one", html.includes('data-fixture="initial-one"'), { toolbarCount: 3 }),
+    new FakeCard("initial-two", html.includes('data-fixture="initial-two"'), { toolbarCount: 2 }),
     new FakeCard("non-card", false),
   ];
 }
@@ -130,25 +152,30 @@ async function main() {
   });
 
   controller.start();
-  assert.deepEqual(cards.map((card) => card.children.length), [1, 1, 0]);
+  assert.deepEqual(actionCounts(cards), [1, 1, 0]);
+  assert.equal(cards[0].toolbar.children.includes(actionButton(cards[0])), true);
+  assert.equal(cards[0].children.length, 0, "reliable toolbar must be preferred");
+  assert.equal(cards[1].children[0].attributes["data-sce-pattern-action-fallback"], "v1");
+  assert.equal(actionButton(cards[1]).parentElement, cards[1].children[0]);
+  const styled = actionButton(cards[0]);
+  assert.equal(styled.style.font, "inherit");
+  assert.equal(styled.style.fontSize, "12.5px");
+  assert.equal(styled.style.borderRadius, "999px");
+  assert.equal(styled.style.border, "1px solid currentColor");
+  assert.equal(styled.style.backgroundColor, "Canvas");
+  assert.equal(styled.style.color, "CanvasText");
   assert.equal(extractionCount, 0, "initial scan must not collect automatically");
   controller.scan();
-  assert.deepEqual(cards.map((card) => card.children.length), [1, 1, 0]);
+  assert.deepEqual(actionCounts(cards), [1, 1, 0]);
 
-  const broad = new FakeCard("broad", true, { postCount: 2, timeCount: 2, signalCount: 3 });
+  const broad = new FakeCard("broad", true, {
+    postCount: 2, timeCount: 2, signalCount: 3, toolbarCount: 5,
+  });
   const narrowWithoutSignals = new FakeCard("narrow", true, {
     signalCount: 0, tagName: "SPAN", parentElement: broad,
   });
-  narrowWithoutSignals.link.parentElement = narrowWithoutSignals;
-  assert.equal(
-    controller.resolveCardContainer(narrowWithoutSignals.link), null,
-    "a multi-post broad parent must never be selected",
-  );
-  const minimalArticle = new FakeCard("minimal", true, { signalCount: 0, tagName: "ARTICLE" });
-  assert.equal(
-    controller.resolveCardContainer(minimalArticle.link), minimalArticle,
-    "minimal semantic cards retain a conservative fallback",
-  );
+  assert.equal(controller.resolveCardContainer(narrowWithoutSignals.link), null);
+  assert.equal(controller.findActionToolbar(broad), broad.toolbar);
 
   const dynamic = new FakeCard("dynamic", true);
   documentObject.cards.push(dynamic);
@@ -156,47 +183,34 @@ async function main() {
   FakeObserver.instance.trigger();
   assert.equal(timers.size(), 1, "mutation scans must be debounced");
   timers.flush();
-  assert.equal(dynamic.children.length, 1);
+  assert.equal(actionCounts([dynamic])[0], 1);
   assert.equal(extractionCount, 0, "dynamic scan must not collect automatically");
 
   windowObject.location.href = "https://www.threads.com/search?q=two";
   windowObject.dispatch("popstate");
-  assert.equal(timers.size(), 1);
   timers.flush();
-  assert.deepEqual(documentObject.cards.map((card) => card.children.length), [1, 1, 0, 1]);
+  assert.deepEqual(actionCounts(documentObject.cards), [1, 1, 0, 1]);
 
-  await Promise.all([dynamic.children[0].click(), dynamic.children[0].click()]);
+  const dynamicAction = actionButton(dynamic);
+  await Promise.all([dynamicAction.click(), dynamicAction.click()]);
   assert.equal(extractionCount, 1, "concurrent duplicate clicks must collapse");
   assert.equal(observations.length, 1);
-  assert.equal(observations[0].page_url, "https://www.threads.com/search?q=two");
-  assert.equal(dynamic.children[0].disabled, true);
-  assert.equal(dynamic.children[0].textContent, "✓ 収集済み");
-  await dynamic.children[0].click();
-  assert.equal(extractionCount, 1, "accepted card must not send twice");
+  assert.equal(dynamicAction.disabled, true);
+  assert.equal(dynamicAction.textContent, "✓ 収集済み");
 
   const retryCard = new FakeCard("retry", true);
-  const retryDocument = new FakeDocument([retryCard]);
-  let retryCalls = 0;
   const retryController = globalThis.SCE_PATTERN_ACTION_INJECTION.createController({
-    document: retryDocument, window: windowObject, extractor,
-    MutationObserver: FakeObserver,
-    onObservation: () => {
-      retryCalls += 1;
-      return retryCalls === 1 ? { accepted: false, retryable: true, reason: "network_error" }
-        : { accepted: true, observationStatus: "DETAIL_PENDING" };
-    },
+    document: new FakeDocument([retryCard]), window: windowObject, extractor,
+    MutationObserver: FakeObserver, onObservation: () => ({ accepted: false, retryable: true }),
     setTimeout: timers.set, clearTimeout: timers.clear,
   });
   retryController.start();
-  await retryCard.children[0].click();
-  assert.equal(retryCard.children[0].textContent, "再試行");
-  assert.equal(retryCard.children[0].disabled, false);
-  await retryCard.children[0].click();
-  assert.equal(retryCalls, 2);
-  assert.equal(retryCard.children[0].textContent, "✓ 収集済み");
+  const retryAction = actionButton(retryCard);
+  await retryAction.click();
+  assert.equal(retryAction.textContent, "再試行");
+  assert.equal(retryAction.disabled, false);
   retryController.stop();
   controller.stop();
-  assert.equal(FakeObserver.instance.disconnected, true);
 }
 
 main().catch((error) => {

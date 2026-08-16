@@ -4,6 +4,7 @@
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
   const MAX_CONTAINER_ASCENT = 6;
+  const MAX_TOOLBAR_ASCENT = 2;
 
   function defaultObservationBoundary(observation) {
     return new Promise((resolve) => {
@@ -70,6 +71,58 @@
       return semanticFallback;
     }
 
+    function isVisibleControl(element) {
+      return !element.hidden && element.getAttribute("aria-hidden") !== "true";
+    }
+
+    function findActionToolbar(card) {
+      const controls = Array.from(card.querySelectorAll('button, [role="button"]'))
+        .filter(isVisibleControl);
+      for (const control of controls) {
+        let candidate = control.parentElement;
+        for (let depth = 0; candidate && candidate !== card && depth < MAX_TOOLBAR_ASCENT; depth += 1) {
+          const grouped = Array.from(candidate.querySelectorAll('button, [role="button"]'))
+            .filter(isVisibleControl);
+          if (grouped.length >= 3) return candidate;
+          candidate = candidate.parentElement;
+        }
+      }
+      return null;
+    }
+
+    function stylePatternButton(button) {
+      button.style.font = "inherit";
+      button.style.fontSize = "12.5px";
+      button.style.lineHeight = "1.25";
+      button.style.borderRadius = "999px";
+      button.style.border = "1px solid currentColor";
+      button.style.backgroundColor = "Canvas";
+      button.style.color = "CanvasText";
+      button.style.padding = "5px 10px";
+      button.style.margin = "0";
+      button.style.cursor = "pointer";
+      button.style.maxWidth = "100%";
+    }
+
+    function appendPatternAction(card, button) {
+      const toolbar = findActionToolbar(card);
+      if (toolbar) {
+        toolbar.appendChild(button);
+        return;
+      }
+      const fallback = documentObject.createElement("div");
+      fallback.setAttribute("data-sce-pattern-action-fallback", ACTION_VERSION);
+      fallback.style.display = "flex";
+      fallback.style.alignItems = "center";
+      fallback.style.justifyContent = "flex-start";
+      fallback.style.boxSizing = "border-box";
+      fallback.style.width = "100%";
+      fallback.style.padding = "6px 0";
+      fallback.style.margin = "4px 0 0";
+      fallback.appendChild(button);
+      card.appendChild(fallback);
+    }
+
     function cardCandidates() {
       const cards = [];
       const seen = new Set();
@@ -101,6 +154,7 @@
       button.textContent = "Pattern収集";
       button.setAttribute(ACTION_ATTRIBUTE, ACTION_VERSION);
       button.setAttribute("aria-label", "このThreads投稿をPattern収集");
+      stylePatternButton(button);
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -128,7 +182,7 @@
           button.disabled = button.getAttribute("data-sce-state") === "accepted";
         }
       });
-      card.appendChild(button);
+      appendPatternAction(card, button);
     }
 
     function scan() {
@@ -169,7 +223,9 @@
       if (windowObject.navigation) windowObject.navigation.removeEventListener("navigate", scheduleScan);
     }
 
-    return Object.freeze({ start, stop, scan, scheduleScan, resolveCardContainer });
+    return Object.freeze({
+      start, stop, scan, scheduleScan, resolveCardContainer, findActionToolbar,
+    });
   }
 
   scope.SCE_PATTERN_ACTION_INJECTION = Object.freeze({
