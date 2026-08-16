@@ -13,6 +13,25 @@ python3 -m venv .venv
 PATH=".venv/bin:$PATH" sh scripts/check.sh
 ```
 
+## Browser ingestion receiver
+
+Chromeの拡張機能管理画面（`chrome://extensions`）で、unpacked extensionの
+32文字の拡張機能IDを確認します。実際のIDはファイルへ書いたりcommitしたりせず、
+起動するshellだけでorigin allowlistへ設定してください。
+
+```bash
+export SCE_BROWSER_EXTENSION_ORIGINS='chrome-extension://<32-char-id>'
+.venv/bin/sce-browser-ingest \
+  --database data/browser-ingest.sqlite3 \
+  --host 127.0.0.1 \
+  --port 8765
+```
+
+receiverは`http://127.0.0.1:8765/browser-ingest/threads`で待機します。SQLite
+databaseはgit ignoredの`data/`配下へ保存してください。このreceiverにAPI token、
+cookie、passwordなどのsecretは不要です。localhost専用なので、外部tunnelは不要であり、
+使用しないでください。
+
 ## HG-01: live Threads API spike
 
 Required credential: a Threads user access token granted through a Meta App's

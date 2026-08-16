@@ -1,0 +1,172 @@
+import copy
+import http.client
+import json
+import tempfile
+import threading
+import unittest
+from http.server import HTTPServer
+from pathlib import Path
+
+from social_content_engine.browser_ingest.server import (
+    MAX_BODY_BYTES,
+    BrowserIngestService,
+    configured_handler,
+    load_schema,
+    parse_extension_origins,
+    require_loopback_host,
+)
+from social_content_engine.data.browser_observation import browser_observation_payload_sha256
+from social_content_engine.data.repository import Repository
+from tests.test_browser_observation_repository import observation
+
+ALLOWED_ORIGIN = "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
+
+
+class BrowserIngestServerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.repository = Repository(Path(temporary.name) / "browser.sqlite3")
+        self.addCleanup(self.repository.close)
+        self.service = BrowserIngestService(
+            self.repository, {ALLOWED_ORIGIN}, load_schema()
+        )
+
+    def post(self, payload: dict, **kwargs: str):
+        return self.service.handle_post(
+            "/browser-ingest/threads",
+            kwargs.get("origin", ALLOWED_ORIGIN),
+            kwargs.get("content_type", "application/json"),
+            json.dumps(payload).encode("utf-8"),
+        )
+
+    def test_options_success_and_duplicate_observation(self) -> None:
+        preflight = self.service.handle_options(
+            "/browser-ingest/threads", ALLOWED_ORIGIN
+        )
+        self.assertEqual(204, preflight.status)
+        first = self.post(observation())
+        second = self.post(observation())
+        self.assertEqual(201, first.status)
+        self.assertEqual(201, second.status)
+        self.assertNotEqual(first.payload["observation_id"], second.payload["observation_id"])
+        self.assertEqual(first.payload["identity_id"], second.payload["identity_id"])
+        self.assertEqual(1, second.payload["normalized_version"])
+        self.assertEqual(2, self.repository.count("browser_observations"))
+        self.assertEqual(1, self.repository.count("browser_post_identities"))
+
+    def test_actual_http_options_and_post_include_allowlisted_cors_headers(self) -> None:
+        class StubRepository:
+            def add_browser_observation(self, payload: dict) -> dict:
+                return {
+                    "browser_observation_id": 1,
+                    "browser_post_identity_id": 1,
+                    "browser_normalized_version": 1,
+                    "status": "DETAIL_PENDING",
+                }
+
+        http_service = BrowserIngestService(
+            StubRepository(),  # type: ignore[arg-type]
+            {ALLOWED_ORIGIN},
+            load_schema(),
+        )
+        server = HTTPServer(
+            ("127.0.0.1", 0), configured_handler(http_service)
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        connection = http.client.HTTPConnection(
+            "127.0.0.1", server.server_address[1], timeout=2
+        )
+        try:
+            connection.request(
+                "OPTIONS",
+                "/browser-ingest/threads",
+                headers={"Origin": ALLOWED_ORIGIN},
+            )
+            preflight = connection.getresponse()
+            self.assertEqual(204, preflight.status)
+            self.assertEqual(
+                ALLOWED_ORIGIN, preflight.getheader("Access-Control-Allow-Origin")
+            )
+            self.assertEqual(
+                "POST, OPTIONS", preflight.getheader("Access-Control-Allow-Methods")
+            )
+            preflight.read()
+
+            body = json.dumps(observation()).encode("utf-8")
+            connection.request(
+                "POST",
+                "/browser-ingest/threads",
+                body=body,
+                headers={
+                    "Origin": ALLOWED_ORIGIN,
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(body)),
+                },
+            )
+            accepted = connection.getresponse()
+            response_payload = json.loads(accepted.read())
+            self.assertEqual(201, accepted.status)
+            self.assertEqual(
+                ALLOWED_ORIGIN, accepted.getheader("Access-Control-Allow-Origin")
+            )
+            self.assertEqual("no-store", accepted.getheader("Cache-Control"))
+            self.assertEqual("accepted", response_payload["status"])
+        finally:
+            connection.close()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_rejects_invalid_schema_hash_origin_content_type_and_oversize(self) -> None:
+        invalid_schema = observation()
+        invalid_schema["invented"] = "value"
+        self.assertEqual(422, self.post(invalid_schema).status)
+
+        invalid_hash = observation()
+        invalid_hash["text"] = "changed after hashing"
+        self.assertEqual(422, self.post(invalid_hash).status)
+        self.assertEqual(
+            403,
+            self.post(observation(), origin="chrome-extension://pppppppppppppppppppppppppppppppp").status,
+        )
+        self.assertEqual(
+            415, self.post(observation(), content_type="text/plain").status
+        )
+        oversized = self.service.handle_post(
+            "/browser-ingest/threads",
+            ALLOWED_ORIGIN,
+            "application/json",
+            b"x" * (MAX_BODY_BYTES + 1),
+        )
+        self.assertEqual(413, oversized.status)
+        self.assertEqual(0, self.repository.count("browser_observations"))
+
+    def test_credential_like_input_is_rejected_without_secret_echo(self) -> None:
+        secret = "secret-browser-token-value"
+        payload = copy.deepcopy(observation())
+        payload["collection_context"]["access_token"] = secret
+        payload["payload_sha256"] = browser_observation_payload_sha256(payload)
+        response = self.post(payload)
+        self.assertEqual(422, response.status)
+        self.assertNotIn(secret, response.body.decode("utf-8"))
+        self.assertNotIn("access_token", response.body.decode("utf-8"))
+        self.assertEqual({"error": "invalid_observation"}, response.payload)
+
+    def test_loopback_and_extension_origin_configuration_is_closed(self) -> None:
+        require_loopback_host("127.0.0.1")
+        require_loopback_host("::1")
+        with self.assertRaises(ValueError):
+            require_loopback_host("0.0.0.0")
+        with self.assertRaises(ValueError):
+            require_loopback_host("192.168.1.10")
+        self.assertEqual({ALLOWED_ORIGIN}, parse_extension_origins(ALLOWED_ORIGIN))
+        with self.assertRaises(ValueError):
+            parse_extension_origins("https://example.test")
+        with self.assertRaises(ValueError):
+            parse_extension_origins("")
+
+
+if __name__ == "__main__":
+    unittest.main()
