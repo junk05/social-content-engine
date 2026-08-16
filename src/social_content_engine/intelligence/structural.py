@@ -9,9 +9,13 @@ from typing import Any, Dict, List, Tuple
 from social_content_engine.data.repository import Repository
 
 TAXONOMY_VERSION = "M4_STRUCTURAL_TAXONOMY_V1"
-EXTRACTOR_VERSION = "m4-structural-extractor-v1"
+EXTRACTOR_VERSION = "m4-structural-extractor-v3"
 FEATURE_CONTRACT_VERSION = "M4_STRUCTURAL_FEATURE_V1"
 _DATE_METADATA = re.compile(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$")
+_RELATIVE_TIME_METADATA = re.compile(
+    r"^(?:\d+\s*(?:分|時間|日|週|ヶ月|か月|月|年|m|min|h|d|w|mo|y)|昨日|一昨日)$",
+    re.IGNORECASE,
+)
 
 _RULES: Tuple[Tuple[str, re.Pattern[str]], ...] = (
     ("QUESTION", re.compile(r"[?？]|(?:なぜ|どうして|どんな|何)")),
@@ -52,9 +56,11 @@ def _first_content_line(text: str) -> Tuple[int, str]:
     offset = 0
     for raw in text.splitlines(keepends=True) or [text]:
         line = raw.strip()
-        if line and not _DATE_METADATA.fullmatch(line):
+        if line and not (_DATE_METADATA.fullmatch(line) or _RELATIVE_TIME_METADATA.fullmatch(line)):
             start = offset + raw.find(line)
-            return start, line
+            sentence = re.match(r"^.*?[。！？!?]|^.+$", line)
+            selected = sentence.group(0).strip() if sentence else line
+            return start, selected
         offset += len(raw)
     return 0, ""
 
@@ -64,7 +70,7 @@ def _metadata_ranges(text: str) -> List[Tuple[int, int]]:
     offset = 0
     for raw in text.splitlines(keepends=True) or [text]:
         value = raw.strip()
-        if value and _DATE_METADATA.fullmatch(value):
+        if value and (_DATE_METADATA.fullmatch(value) or _RELATIVE_TIME_METADATA.fullmatch(value)):
             start = offset + raw.find(value)
             ranges.append((start, start + len(value)))
         offset += len(raw)
@@ -166,18 +172,25 @@ def derive_structural_features(repository: Repository, structural_feature_run_id
     return len(rows)
 
 
-def _pattern_signature(feature: Dict[str, Any], pattern_kind: str) -> Dict[str, Any]:
-    if pattern_kind == "FIRST_LINE":
-        return {"component_sequence": feature["first_line_component_sequence"]}
-    if pattern_kind == "POST":
-        return {"component_sequence": feature["post_component_sequence"]}
+def _candidate_signatures(feature: Dict[str, Any], pattern_kind: str) -> List[Dict[str, Any]]:
+    """Produce local atomic and adjacent-component structures, never text signatures."""
     if pattern_kind == "THREAD":
-        return {
-            "observed_self_reply_transition": feature["thread_structure"][
-                "observed_self_reply_transition"
-            ]
-        }
-    raise ValueError("unsupported structural pattern kind")
+        return ([{"component_sequence": ["OBSERVED_SELF_REPLY_TRANSITION"]}]
+                if feature["thread_structure"]["observed_self_reply_transition"] else [])
+    sequence_key = (
+        "first_line_component_sequence"
+        if pattern_kind == "FIRST_LINE" else "post_component_sequence"
+    )
+    sequence = [item for item in feature[sequence_key] if item != "ASSERTION"]
+    result: List[Dict[str, Any]] = []
+    seen = set()
+    for width in (1, 2):
+        for start in range(len(sequence) - width + 1):
+            candidate = tuple(sequence[start:start + width])
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                result.append({"component_sequence": list(candidate)})
+    return result
 
 
 def materialize_structural_patterns(repository: Repository, structural_feature_run_id: int) -> int:
@@ -199,13 +212,8 @@ def materialize_structural_patterns(repository: Repository, structural_feature_r
         groups: Dict[str, List[Any]] = defaultdict(list)
         for row in rows:
             feature = json.loads(str(row["feature_json"]))
-            signature = _pattern_signature(feature, kind)
-            sequence = signature.get("component_sequence", [])
-            if kind != "THREAD" and (not sequence or set(sequence) == {"ASSERTION"}):
-                continue
-            if kind == "THREAD" and not signature["observed_self_reply_transition"]:
-                continue
-            groups[_canonical_json(signature)].append(row)
+            for signature in _candidate_signatures(feature, kind):
+                groups[_canonical_json(signature)].append(row)
         for signature_json, members in sorted(groups.items()):
             sources = {int(member["normalized_post_id"]) for member in members}
             if len(members) < 2 or len(sources) < 2:

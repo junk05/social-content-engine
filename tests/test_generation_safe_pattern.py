@@ -11,7 +11,7 @@ class GenerationSafePatternTest(unittest.TestCase):
             "pattern_kind": "FIRST_LINE", "component_sequence": ["TARGET_READER", "QUESTION"],
             "abstract_formula": "TARGET_READER -> QUESTION", "support_count": 2,
             "confidence": "LOW", "taxonomy_version": "M4_STRUCTURAL_TAXONOMY_V1",
-            "extractor_version": "m4-structural-extractor-v1",
+            "extractor_version": "m4-structural-extractor-v2",
             "performance_statistics": {"view_count_observed": 0},
         })
         self.assertNotIn("source_post_id", pattern.as_dict())
@@ -22,7 +22,7 @@ class GenerationSafePatternTest(unittest.TestCase):
             "pattern_kind": "FIRST_LINE", "component_sequence": ["QUESTION"],
             "abstract_formula": "QUESTION", "support_count": 2, "confidence": "LOW",
             "taxonomy_version": "M4_STRUCTURAL_TAXONOMY_V1",
-            "extractor_version": "m4-structural-extractor-v1", "performance_statistics": {},
+            "extractor_version": "m4-structural-extractor-v2", "performance_statistics": {},
             "source_post_id": "forbidden",
         }
         with self.assertRaisesRegex(ValueError, "source"):

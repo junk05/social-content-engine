@@ -55,6 +55,18 @@ class StructuralExtractionTest(unittest.TestCase):
         self.assertEqual("UNAVAILABLE", feature["first_line_availability"])
         self.assertEqual([], feature["components"])
 
+    def test_relative_browser_timestamp_is_unavailable_not_a_time_reference(self) -> None:
+        feature = extract_structural_feature("3日")
+        self.assertEqual("UNAVAILABLE", feature["first_line_availability"])
+        self.assertEqual([], feature["components"])
+
+    def test_first_sentence_is_the_first_line_fallback_when_text_has_no_newlines(self) -> None:
+        feature = extract_structural_feature("あなたへ、なぜ？次に理由を説明する")
+        first_line = feature["first_line_component_sequence"]
+        self.assertIn("DIRECT_ADDRESS", first_line)
+        self.assertIn("QUESTION", first_line)
+        self.assertNotIn("TRANSITION", first_line)
+
     def test_promotes_only_repeated_non_generic_text_free_patterns(self) -> None:
         repository = _PatternRepository()
         first = extract_structural_feature("女性へ、なぜ？")

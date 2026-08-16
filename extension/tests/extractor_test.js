@@ -63,7 +63,7 @@ function fixtureCard(name) {
 
 async function main() {
   const extractor = globalThis.SCE_THREADS_SEARCH_CARD_EXTRACTOR;
-  assert.equal(extractor.version, "threads_search_card_extractor_v1");
+  assert.equal(extractor.version, "threads_search_card_extractor_v2");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/search?q=sanitized",
@@ -79,6 +79,7 @@ async function main() {
   assert.equal(extractor.isBrowserDateMetadata("2026/08/16"), true);
   assert.equal(extractor.isBrowserDateMetadata("2026-08-16"), true);
   assert.equal(extractor.isBrowserDateMetadata("2026年8月16日"), false);
+  assert.equal(extractor.isBrowserDateMetadata("3日"), true);
   assert.deepEqual(complete.public_counters, {
     view_count: null, like_count: 1234, reply_count: 0,
     repost_count: 7, quote_count: null, share_count: null,

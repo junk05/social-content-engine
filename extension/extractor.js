@@ -3,7 +3,7 @@
 // Versioned extraction only. Button injection, DOM observation, and transport
 // intentionally belong to M3-006 and are not performed by this module.
 (function exposeThreadsSearchCardExtractor(scope) {
-  const VERSION = "threads_search_card_extractor_v1";
+  const VERSION = "threads_search_card_extractor_v2";
   const SURFACE = "threads_search_card";
   const COUNTERS = Object.freeze({
     view_count: ["表示", "view"],
@@ -44,7 +44,10 @@
   }
 
   function isBrowserDateMetadata(value) {
-    return typeof value === "string" && /^\d{4}\s*[/-]\s*\d{1,2}\s*[/-]\s*\d{1,2}$/.test(value);
+    return typeof value === "string" && (
+      /^\d{4}\s*[/-]\s*\d{1,2}\s*[/-]\s*\d{1,2}$/.test(value) ||
+      /^(?:\d+\s*(?:分|時間|日|週|ヶ月|か月|月|年|m|min|h|d|w|mo|y)|昨日|一昨日)$/i.test(value)
+    );
   }
 
   function findPostLink(card, pageUrl) {
