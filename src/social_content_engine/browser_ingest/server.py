@@ -21,6 +21,7 @@ MAX_BODY_BYTES = 65_536
 INGEST_PATH = "/browser-ingest/threads"
 PENDING_DETAILS_PATH = INGEST_PATH + "/pending-details"
 DETAIL_FAILURE_PATH = INGEST_PATH + "/detail-failures"
+THREAD_SEQUENCE_PATH = INGEST_PATH + "/thread-sequences"
 DEFAULT_PENDING_LIMIT = 50
 MAX_PENDING_LIMIT = 100
 
@@ -75,6 +76,12 @@ def load_schema(path: Optional[Path] = None) -> Dict[str, Any]:
     return value
 
 
+def load_thread_sequence_schema() -> Dict[str, Any]:
+    path = Path(__file__).parents[3] / "spec/contracts/browser-thread-sequence.schema.json"
+    value: Dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return value
+
+
 class BrowserIngestService:
     def __init__(
         self,
@@ -89,13 +96,17 @@ class BrowserIngestService:
         self.validator = jsonschema.Draft202012Validator(
             schema, format_checker=jsonschema.FormatChecker()
         )
+        self.thread_sequence_validator = jsonschema.Draft202012Validator(
+            load_thread_sequence_schema(), format_checker=jsonschema.FormatChecker()
+        )
 
     def handle_options(
         self, path: str, origin: Optional[str], extension_origin: Optional[str] = None
     ) -> IngestResponse:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
-            path, request_origin, {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH}
+            path, request_origin,
+            {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH},
         )
         return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
 
@@ -142,7 +153,7 @@ class BrowserIngestService:
     ) -> IngestResponse:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
-            path, request_origin, {INGEST_PATH, DETAIL_FAILURE_PATH}
+            path, request_origin, {INGEST_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH}
         )
         if error:
             return error
@@ -158,6 +169,8 @@ class BrowserIngestService:
             return IngestResponse(422, {"error": "invalid_payload"}, request_origin)
         if path == DETAIL_FAILURE_PATH:
             return self._handle_detail_failure(decoded, request_origin)
+        if path == THREAD_SEQUENCE_PATH:
+            return self._handle_thread_sequence(decoded, request_origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
             return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         try:
@@ -187,6 +200,45 @@ class BrowserIngestService:
             },
             request_origin,
         )
+
+    def _handle_thread_sequence(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if next(self.thread_sequence_validator.iter_errors(decoded), None) is not None:
+            return IngestResponse(422, {"error": "invalid_thread_sequence"}, origin)
+        try:
+            root = self.repository.connection.execute(
+                "SELECT id FROM browser_post_identities WHERE post_url = ?",
+                (decoded["root_post_url"],),
+            ).fetchone()
+            if root is None:
+                raise ValueError("unknown root")
+            count = 0
+            for node in decoded["nodes"]:
+                identity = self.repository.connection.execute(
+                    "SELECT id FROM browser_post_identities WHERE post_url = ?", (node["post_url"],)
+                ).fetchone()
+                parent = None
+                if node["reply_to_post_url"] is not None:
+                    parent = self.repository.connection.execute(
+                        "SELECT id FROM browser_post_identities WHERE post_url = ?",
+                        (node["reply_to_post_url"],),
+                    ).fetchone()
+                if identity is None or (node["reply_to_post_url"] is not None and parent is None):
+                    raise ValueError("unknown node")
+                self.repository.record_browser_thread_sequence_observation(
+                    root_identity_id=int(root["id"]), node_identity_id=int(identity["id"]),
+                    reply_to_identity_id=None if parent is None else int(parent["id"]),
+                    sequence_position=int(node["sequence_position"]),
+                    same_author_as_root=node["same_author_as_root"],
+                    detail_observation_id=int(decoded["detail_observation_id"]),
+                    extractor_version=str(decoded["extractor_version"]),
+                    observed_at=str(decoded["observed_at"]),
+                )
+                count += 1
+        except (TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_thread_sequence"}, origin)
+        return IngestResponse(201, {"status": "accepted", "node_count": count}, origin)
 
     def _handle_detail_failure(
         self, decoded: Dict[str, Any], origin: Optional[str]
