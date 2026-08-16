@@ -1,6 +1,10 @@
 import unittest
 
-from social_content_engine.intelligence.m4_v2_report import _aggregate, metric_coverage
+from social_content_engine.intelligence.m4_v2_report import (
+    REPORT_VERSION,
+    _aggregate,
+    metric_coverage,
+)
 
 
 class M4V2ReportTest(unittest.TestCase):
@@ -23,6 +27,9 @@ class M4V2ReportTest(unittest.TestCase):
             [{"labels": ["STANDALONE_SHORT"]}] * 2, "labels"
         )
         self.assertEqual("STANDALONE_SHORT", patterns[0]["mechanism"][0])
+
+    def test_report_version_is_revised(self) -> None:
+        self.assertEqual("M4_V2_VIRAL_PATTERN_REPORT_V2", REPORT_VERSION)
 
     def test_first_line_aggregation_keeps_multilabel_dimensions(
         self,

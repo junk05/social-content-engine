@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Tuple
 
 from social_content_engine.data.repository import Repository
 
-DERIVATION_VERSION = "m4-intelligence-v2"
+DERIVATION_VERSION = "m4-intelligence-v2.1"
 FEATURE_CONTRACT_VERSION = "M4_INTELLIGENCE_FEATURE_V2"
 SHORT_FORM_MAX_CHARS = 100
 _NUMBER_LIST = re.compile(

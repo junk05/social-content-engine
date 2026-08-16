@@ -11,6 +11,7 @@ METRIC_FIELDS = (
     "public_counters.reply_count", "public_counters.repost_count",
     "public_counters.quote_count", "public_counters.share_count",
 )
+REPORT_VERSION = "M4_V2_VIRAL_PATTERN_REPORT_V2"
 
 
 def _key(value: Any) -> str:
@@ -114,7 +115,7 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
         (run["dataset_snapshot_id"],),
     ).fetchall()
     return {
-        "report_version": "M4_V2_VIRAL_PATTERN_REPORT_V1",
+        "report_version": REPORT_VERSION,
         "run_id": run_id,
         "top_first_line_patterns": _aggregate(first_lines, "signature"),
         "top_body_patterns": _aggregate(bodies, "roles"),

@@ -1,6 +1,7 @@
 import unittest
 
 from social_content_engine.intelligence.m4_v2 import (
+    DERIVATION_VERSION,
     SHORT_FORM_MAX_CHARS,
     build_v2_feature,
     classify_thread_form,
@@ -8,6 +9,9 @@ from social_content_engine.intelligence.m4_v2 import (
 
 
 class M4V2Test(unittest.TestCase):
+    def test_derivation_version_tracks_taxonomy_revision(self) -> None:
+        self.assertEqual("m4-intelligence-v2.1", DERIVATION_VERSION)
+
     def test_multi_label_first_line_and_text_free_evidence(self) -> None:
         feature = build_v2_feature(
             "恋愛で後悔したくない女性へ。実は、今すぐ知るべき3つの理由",
