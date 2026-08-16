@@ -97,6 +97,9 @@ async function main() {
   assert.deepEqual(await transport.fetchPendingDetails(1, {
     fetch: async () => response(200, { status: "ok", urls: ["javascript:alert(1)"] }),
   }), { accepted: false, reason: "invalid_receiver_response", urls: [] });
+  assert.deepEqual(await transport.fetchPendingDetails(1, {
+    fetch: async () => response(403, { error: "origin_not_allowed" }),
+  }), { accepted: false, reason: "receiver_rejected", status: 403, urls: [] });
 
   const detailFailure = {
     post_url: "https://www.threads.net/@fixture/post/Pending1",

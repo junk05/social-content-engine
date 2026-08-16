@@ -88,7 +88,7 @@
         method: "GET", cache: "no-store", credentials: "omit",
       });
       if (response.status !== 200) {
-        return { accepted: false, reason: "receiver_rejected", urls: [] };
+        return { accepted: false, reason: "receiver_rejected", status: response.status, urls: [] };
       }
       const payload = await response.json();
       if (!payload || payload.status !== "ok" || !Array.isArray(payload.urls)

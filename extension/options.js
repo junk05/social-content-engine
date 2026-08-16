@@ -27,7 +27,9 @@ loadPending.addEventListener("click", () => {
       if (chrome.runtime.lastError || !response || !response.accepted) {
         const reason = response && SAFE_PENDING_FAILURES.has(response.reason)
           ? ` (${response.reason})` : "";
-        pendingStatus.textContent = "詳細待ちを読み込めませんでした。" + reason;
+        const statusCode = response && response.reason === "receiver_rejected"
+          && Number.isInteger(response.status) ? ` [HTTP ${response.status}]` : "";
+        pendingStatus.textContent = "詳細待ちを読み込めませんでした。" + reason + statusCode;
         return;
       }
       pendingStatus.textContent = response.urls.length + "件の詳細待ちがあります。";

@@ -61,3 +61,7 @@ pendingResponse = { accepted: false, reason: "network_error", detail: "must-not-
 nodes["#load-pending"].listeners.click();
 assert.equal(nodes["#pending-status"].textContent, "詳細待ちを読み込めませんでした。 (network_error)");
 assert.equal(nodes["#pending-status"].textContent.includes("must-not-display"), false);
+
+pendingResponse = { accepted: false, reason: "receiver_rejected", status: 403 };
+nodes["#load-pending"].listeners.click();
+assert.equal(nodes["#pending-status"].textContent, "詳細待ちを読み込めませんでした。 (receiver_rejected) [HTTP 403]");
