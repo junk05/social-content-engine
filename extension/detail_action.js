@@ -61,6 +61,24 @@
         }
         const result = await sendMessage({ type: "SCE_OBSERVATION_READY", observation });
         if (result.accepted) {
+          const nodes = extractor.extractVisibleThreadNodes(root, location.href);
+          if (Number.isInteger(result.observationId) && nodes.length > 0) {
+            await sendMessage({
+              type: "SCE_THREAD_SEQUENCE_READY",
+              sequence: {
+                root_post_url: observation.post_url,
+                nodes: nodes.map((node) => ({
+                  post_url: node.post_url,
+                  sequence_position: node.sequence_position,
+                  reply_to_post_url: node.reply_to_post_url,
+                  same_author_as_root: node.same_author_as_root,
+                })),
+                detail_observation_id: result.observationId,
+                observed_at: attemptedAt,
+                extractor_version: extractor.version,
+              },
+            });
+          }
           button.textContent = "✓ 詳細収集済み";
           return;
         }

@@ -100,6 +100,7 @@
       return {
         accepted: true,
         retryable: false,
+        observationId: Number.isInteger(payload.observation_id) ? payload.observation_id : null,
         observationStatus: typeof payload.observation_status === "string"
           ? payload.observation_status : null,
       };
@@ -183,7 +184,12 @@
         method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin },
         body: JSON.stringify(sequence), cache: "no-store", credentials: "omit",
       });
-      return response.status === 201 ? { accepted: true } : { accepted: false, reason: "receiver_rejected" };
+      if (response.status !== 201) return { accepted: false, reason: "receiver_rejected" };
+      let payload;
+      try { payload = await response.json(); } catch (_error) { return { accepted: false, reason: "invalid_receiver_response" }; }
+      return payload && payload.status === "accepted"
+        ? { accepted: true }
+        : { accepted: false, reason: "invalid_receiver_response" };
     } catch (_error) { return { accepted: false, reason: "network_error" }; }
   }
 

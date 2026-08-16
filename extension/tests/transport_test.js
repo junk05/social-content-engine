@@ -34,7 +34,7 @@ async function main() {
     },
   });
   assert.deepEqual(accepted, {
-    accepted: true, retryable: false, observationStatus: "DETAIL_PENDING",
+    accepted: true, retryable: false, observationId: null, observationStatus: "DETAIL_PENDING",
   });
   assert.equal(request.url, transport.receiverUrl);
   assert.equal(request.options.method, "POST");
@@ -167,6 +167,9 @@ async function main() {
   assert.deepEqual(await transport.sendThreadSequence(threadSequence, {
     fetch: async () => response(422, { error: "invalid_thread_sequence" }),
   }), { accepted: false, reason: "receiver_rejected" });
+  assert.deepEqual(await transport.sendThreadSequence(threadSequence, {
+    fetch: async () => response(201, { status: "other" }),
+  }), { accepted: false, reason: "invalid_receiver_response" });
 
   let messageResponse;
   globalThis.fetch = async () => { throw new Error("receiver unavailable fixture"); };

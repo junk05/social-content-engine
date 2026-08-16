@@ -67,6 +67,14 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   recognizePostDetail() { return true; },
   canonicalPostUrl() { return "https://www.threads.net/@fixture/post/Detail1"; },
   activityViewCount(root) { return root.activityViews ?? null; },
+  extractVisibleThreadNodes() {
+    return [{
+      post_url: "https://www.threads.net/@fixture/post/Detail1",
+      sequence_position: 0,
+      reply_to_post_url: null,
+      same_author_as_root: null,
+    }];
+  },
   async extractPostDetail() { return observation; },
 };
 globalThis.location = { href: "https://www.threads.net/@fixture/post/Detail1" };
@@ -77,7 +85,7 @@ globalThis.chrome = {
     lastError: null,
     sendMessage(message, callback) {
       messages.push(message);
-      callback(responses.shift() || { accepted: true });
+      callback(responses.shift() || { accepted: true, observationId: 1 });
     },
   },
 };
@@ -99,27 +107,29 @@ async function main() {
   assert.equal(successRoot.card.children[0], successButton, "DIV-only detail card is a valid anchor");
   assert.equal(messages.length, 0, "installation must not collect or fetch");
   await successButton.listeners.click();
-  assert.equal(messages.length, 1);
+  assert.equal(messages.length, 2);
   assert.equal(messages[0].type, "SCE_OBSERVATION_READY");
   assert.equal(messages[0].observation, observation);
+  assert.equal(messages[1].type, "SCE_THREAD_SEQUENCE_READY");
+  assert.equal(messages[1].sequence.detail_observation_id, 1);
   assert.equal(successButton.textContent, "✓ 詳細収集済み");
 
   responses.push({ accepted: false, reason: "receiver_rejected" }, { accepted: true });
   const failedRoot = rootFixture();
   const failedButton = globalThis.SCE_DETAIL_ACTION.install(failedRoot, location.href);
   await failedButton.listeners.click();
-  assert.equal(messages[1].type, "SCE_OBSERVATION_READY");
-  assert.equal(messages[2].type, "SCE_DETAIL_FAILURE");
-  assert.equal(messages[2].failure.failure_type, "VALIDATION_FAILED");
-  assert.equal(messages[2].failure.failure_reason, "INVALID_OBSERVATION");
+  assert.equal(messages[2].type, "SCE_OBSERVATION_READY");
+  assert.equal(messages[3].type, "SCE_DETAIL_FAILURE");
+  assert.equal(messages[3].failure.failure_type, "VALIDATION_FAILED");
+  assert.equal(messages[3].failure.failure_reason, "INVALID_OBSERVATION");
   assert.equal(failedButton.disabled, false, "one failed URL remains independently retryable");
 
   responses.push({ accepted: false, reason: "network_error" }, { accepted: true });
   const networkRoot = rootFixture();
   const networkButton = globalThis.SCE_DETAIL_ACTION.install(networkRoot, location.href);
   await networkButton.listeners.click();
-  assert.equal(messages[4].failure.failure_type, "NAVIGATION_FAILED");
-  assert.equal(messages[4].failure.failure_reason, "NETWORK_ERROR");
+  assert.equal(messages[5].failure.failure_type, "NAVIGATION_FAILED");
+  assert.equal(messages[5].failure.failure_reason, "NETWORK_ERROR");
 
   const observedRoot = rootFixture();
   let ready = false;
@@ -147,12 +157,13 @@ async function main() {
   assert.ok(activityButton, "an already opened Activity dialog gets an explicit action");
   assert.equal(dialog.children[0], activityButton);
   assert.equal(activityButton.textContent, "詳細収集");
-  assert.equal(messages.length, 5, "insertion into Activity never collects automatically");
+  assert.equal(messages.length, 6, "insertion into Activity never collects automatically");
   globalThis.SCE_DETAIL_ACTION.install(activityRoot, location.href);
   assert.equal(dialog.children.length, 1, "Activity action is idempotent across observer passes");
   await activityButton.listeners.click();
-  assert.equal(messages.length, 6);
-  assert.equal(messages[5].type, "SCE_OBSERVATION_READY");
+  assert.equal(messages.length, 8);
+  assert.equal(messages[6].type, "SCE_OBSERVATION_READY");
+  assert.equal(messages[7].type, "SCE_THREAD_SEQUENCE_READY");
 }
 
 main().catch((error) => {
