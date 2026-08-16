@@ -1,0 +1,21 @@
+{
+  "id": "CR-0002",
+  "status": "IMPLEMENTED",
+  "motivation": "Approve M3 human-selected Threads browser collection and detail enrichment after M2 public keyword search was blocked by Meta Advanced Access requirements.",
+  "affected_paths": [
+    "AGENTS.md",
+    "spec/M3_BROWSER_COLLECTOR.md",
+    "spec/MILESTONES.md",
+    "spec/TASKS.json",
+    "spec/AGENT_REGISTRY.json",
+    "spec/HUMAN_GATES.md",
+    "spec/README.md"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "M3 forbids automated browsing and credential extraction",
+    "browser observations are additive and preserve M0-M2 semantics",
+    "live extension use remains an explicit human gate",
+    "repository validation and regression tests pass"
+  ]
+}

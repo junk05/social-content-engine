@@ -5,12 +5,11 @@ active milestone, and the applicable contract.
 
 ## Current scope
 
-- Active milestone: M2 (`spec/MILESTONES.md`)
-- Priority: expand versioned public evidence while collection and deterministic
-  Pattern Mining proceed independently.
-- Forbidden in M2: content generation, auto-posting, virality prediction,
-  creator profiling, Fortune Engine integration, dashboards, and production
-  deployment.
+- Active milestone: M3 (`spec/MILESTONES.md`)
+- Priority: human-selected browser observations, localhost ingestion, and
+  explicit detail enrichment while reusing M1/M2 analysis semantics.
+- Forbidden in M3: automated search, scrolling or selection; anti-detection;
+  credential extraction; content generation; auto-posting; production crawling.
 
 ## Working rules
 

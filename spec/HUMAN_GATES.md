@@ -16,3 +16,10 @@ access, destructive operation, external publication, deployment, or push.
 
 Uncertainty alone is not a gate: record it as `UNKNOWN` and continue with work
 that does not depend on it.
+
+## HG-03 Interactive browser verification
+
+Required before loading the unpacked extension into the user's browser, reading
+the user's signed-in Threads page, or performing live human-selected collection
+and detail enrichment. The user performs login and selection. The implementation
+must never request, inspect or persist browser credentials, cookies or tokens.

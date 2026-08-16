@@ -61,6 +61,22 @@ API constraints.
 
 Definition of Done is authoritative in `spec/M2_PATTERN_MINING.md` section 14.
 
+M2's API-wide public collection remains blocked by Meta approval requirements.
+Evidence: `evidence/M2_DOD_AUDIT.json`. M3 does not rewrite this result.
+
+## M3 — Threads Browser Collector & Detail Enricher
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M3_BROWSER_COLLECTOR.md`
+(`M3-BROWSER-COLLECTOR-V1`).
+
+Goal: let a person select public Threads posts during ordinary browsing, ingest
+only those visible observations through a localhost receiver, and explicitly
+enrich saved detail pages without automated search or crawling.
+
+Definition of Done is authoritative in `spec/M3_BROWSER_COLLECTOR.md` section 10.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

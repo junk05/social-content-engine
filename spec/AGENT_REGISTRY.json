@@ -13,13 +13,13 @@
     },
     {
       "id": "COLLECTOR",
-      "responsibilities": ["official API spike", "bounded batch collection", "pagination", "retry", "raw capture"],
-      "allowed_paths": ["src/social_content_engine/collector/**", "tests/**", "spec/THREADS_API_CAPABILITIES.json"],
-      "forbidden_paths": ["content generation", "automatic publishing"],
-      "input_artifacts": ["official Meta documentation", "credentials via environment"],
-      "output_artifacts": ["raw responses", "collection run provenance"],
+      "responsibilities": ["browser observation contracts", "localhost receiver", "Chrome extension", "detail enrichment"],
+      "allowed_paths": ["src/social_content_engine/collector/**", "extension/**", "tests/**", "spec/contracts/**"],
+      "forbidden_paths": ["automated browsing", "credential extraction", "content generation", "automatic publishing"],
+      "input_artifacts": ["visible public browser fields", "approved browser contracts"],
+      "output_artifacts": ["browser observations", "detail observations", "collection provenance"],
       "reviewers": ["QA_REVIEWER"],
-      "dependencies": ["HG-01 for live calls"]
+      "dependencies": ["HG-03 for live browser verification"]
     },
     {
       "id": "DATA",
