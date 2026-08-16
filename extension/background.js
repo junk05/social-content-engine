@@ -4,6 +4,7 @@
   const RECEIVER_URL = "http://127.0.0.1:8765/browser-ingest/threads";
   const PENDING_DETAILS_URL = RECEIVER_URL + "/pending-details";
   const DETAIL_FAILURE_URL = RECEIVER_URL + "/detail-failures";
+  const THREAD_SEQUENCE_URL = RECEIVER_URL + "/thread-sequences";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -34,6 +35,30 @@
     const id = chrome.runtime && chrome.runtime.id;
     return typeof id === "string" && /^[a-p]{32}$/.test(id)
       ? "chrome-extension://" + id : null;
+  }
+
+  function isSafeThreadSequence(sequence) {
+    const required = [
+      "root_post_url", "nodes", "detail_observation_id", "observed_at", "extractor_version",
+    ];
+    if (!sequence || typeof sequence !== "object" || containsForbiddenKey(sequence)
+        || Object.keys(sequence).length !== required.length
+        || required.some((key) => !(key in sequence))
+        || !isCanonicalThreadsPostUrl(sequence.root_post_url)
+        || !Array.isArray(sequence.nodes) || sequence.nodes.length < 1
+        || !Number.isInteger(sequence.detail_observation_id) || sequence.detail_observation_id < 1
+        || typeof sequence.observed_at !== "string" || typeof sequence.extractor_version !== "string") {
+      return false;
+    }
+    return sequence.nodes.every((node) => {
+      const nodeKeys = ["post_url", "sequence_position", "reply_to_post_url", "same_author_as_root"];
+      return node && typeof node === "object" && Object.keys(node).length === nodeKeys.length
+        && nodeKeys.every((key) => key in node)
+        && isCanonicalThreadsPostUrl(node.post_url)
+        && Number.isInteger(node.sequence_position) && node.sequence_position >= 0
+        && (node.reply_to_post_url === null || isCanonicalThreadsPostUrl(node.reply_to_post_url))
+        && (node.same_author_as_root === null || typeof node.same_author_as_root === "boolean");
+    });
   }
 
   async function sendObservation(observation, options = {}) {
@@ -147,12 +172,27 @@
     }
   }
 
+  async function sendThreadSequence(sequence, options = {}) {
+    if (!isSafeThreadSequence(sequence)) {
+      return { accepted: false, reason: "unsafe_thread_sequence" };
+    }
+    const origin = extensionOrigin();
+    if (!origin) return { accepted: false, reason: "extension_origin_unavailable" };
+    try {
+      const response = await (options.fetch || fetch)(THREAD_SEQUENCE_URL, {
+        method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin },
+        body: JSON.stringify(sequence), cache: "no-store", credentials: "omit",
+      });
+      return response.status === 201 ? { accepted: true } : { accepted: false, reason: "receiver_rejected" };
+    } catch (_error) { return { accepted: false, reason: "network_error" }; }
+  }
+
   scope.SCE_BACKGROUND_TRANSPORT = Object.freeze({
     receiverUrl: RECEIVER_URL,
     timeoutMilliseconds: TIMEOUT_MILLISECONDS,
     pendingDetailsUrl: PENDING_DETAILS_URL,
-    detailFailureUrl: DETAIL_FAILURE_URL,
-    sendObservation, fetchPendingDetails, sendDetailFailure, extensionOrigin,
+    detailFailureUrl: DETAIL_FAILURE_URL, threadSequenceUrl: THREAD_SEQUENCE_URL,
+    sendObservation, fetchPendingDetails, sendDetailFailure, sendThreadSequence, extensionOrigin,
   });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -170,6 +210,10 @@
     }
     if (message && message.type === "SCE_DETAIL_FAILURE") {
       sendDetailFailure(message.failure).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_THREAD_SEQUENCE_READY") {
+      sendThreadSequence(message.sequence).then(sendResponse);
       return true;
     }
     return false;

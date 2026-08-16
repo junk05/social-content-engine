@@ -131,6 +131,43 @@ async function main() {
     ...detailFailure, cookie: "never-send",
   }), { accepted: false, reason: "unsafe_failure" });
 
+  const threadSequence = {
+    root_post_url: "https://www.threads.net/@fixture/post/Root1",
+    nodes: [{
+      post_url: "https://www.threads.net/@fixture/post/Root1",
+      sequence_position: 0,
+      reply_to_post_url: null,
+      same_author_as_root: true,
+    }],
+    detail_observation_id: 42,
+    observed_at: "2026-08-16T04:00:00Z",
+    extractor_version: "threads_detail_sequence_extractor_v1",
+  };
+  let sequenceRequest;
+  assert.deepEqual(await transport.sendThreadSequence(threadSequence, {
+    fetch: async (url, options) => {
+      sequenceRequest = { url, options };
+      return response(201, { status: "accepted", node_count: 1 });
+    },
+  }), { accepted: true });
+  assert.equal(sequenceRequest.url, transport.threadSequenceUrl);
+  assert.equal(sequenceRequest.options.credentials, "omit");
+  assert.equal(
+    sequenceRequest.options.headers["X-SCE-Extension-Origin"],
+    "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  );
+  assert.deepEqual(JSON.parse(sequenceRequest.options.body), threadSequence);
+  let unsafeSequenceFetches = 0;
+  assert.deepEqual(await transport.sendThreadSequence({
+    ...threadSequence, nodes: [{ ...threadSequence.nodes[0], token: "never-send" }],
+  }, {
+    fetch: async () => { unsafeSequenceFetches += 1; return response(201, {}); },
+  }), { accepted: false, reason: "unsafe_thread_sequence" });
+  assert.equal(unsafeSequenceFetches, 0);
+  assert.deepEqual(await transport.sendThreadSequence(threadSequence, {
+    fetch: async () => response(422, { error: "invalid_thread_sequence" }),
+  }), { accepted: false, reason: "receiver_rejected" });
+
   let messageResponse;
   globalThis.fetch = async () => { throw new Error("receiver unavailable fixture"); };
   const asyncResult = chrome.runtime.onMessage.listener(
@@ -140,6 +177,15 @@ async function main() {
   assert.equal(asyncResult, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(messageResponse.accepted, false, "unavailable live receiver remains a safe failure");
+
+  messageResponse = undefined;
+  const sequenceResult = chrome.runtime.onMessage.listener(
+    { type: "SCE_THREAD_SEQUENCE_READY", sequence: threadSequence }, {},
+    (value) => { messageResponse = value; },
+  );
+  assert.equal(sequenceResult, true);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(messageResponse, { accepted: false, reason: "network_error" });
 }
 
 main().catch((error) => {
