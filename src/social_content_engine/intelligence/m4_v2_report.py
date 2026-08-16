@@ -2,6 +2,7 @@
 
 import json
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List
 
 from social_content_engine.data.repository import Repository
@@ -125,3 +126,51 @@ def build_v2_pattern_report(repository: Repository, run_id: int) -> Dict[str, An
         "metric_coverage": metric_coverage(metric_rows),
         "coverage_diagnostic": {"instances": len(features), "source_text_stored": False},
     }
+
+
+def render_v2_pattern_report(report: Dict[str, Any]) -> str:
+    """Render closed Pattern intelligence without source-post content or identifiers."""
+    lines = [
+        "# VIRAL PATTERN REPORT",
+        "",
+        "- Report version: " + str(report["report_version"]),
+        "- M4 run: " + str(report["run_id"]),
+        "- Source text stored in report: false",
+        "",
+    ]
+    sections = (
+        ("Top First-Line Patterns", "top_first_line_patterns"),
+        ("Top Body Patterns", "top_body_patterns"),
+        ("Top Open-Loop Patterns", "top_open_loop_patterns"),
+        ("Top Action Patterns", "top_action_patterns"),
+        ("Thread Form Patterns", "top_thread_form_patterns"),
+    )
+    for title, key in sections:
+        lines.extend(["## " + title, ""])
+        items = report[key]
+        if not items:
+            lines.extend(["No actionable pattern with two or more evidence items.", ""])
+            continue
+        for item in items:
+            lines.extend([
+                "- Formula: `" + str(item["abstract_formula"]) + "`",
+                "  - Support / evidence: {0} / {1}".format(
+                    item["support_count"], item["evidence_count"]
+                ),
+                "  - Confidence: " + str(item["confidence"]),
+                "  - Expected psychological effect: "
+                + str(item["expected_psychological_effect"]),
+            ])
+        lines.append("")
+    lines.extend(["## Metric coverage", ""])
+    for field, value in sorted(report["metric_coverage"].items()):
+        lines.append("- {0}: {1} observed ({2})".format(
+            field, value["observed_count"], value["status"]
+        ))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_v2_pattern_report(report: Dict[str, Any], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_v2_pattern_report(report), encoding="utf-8")

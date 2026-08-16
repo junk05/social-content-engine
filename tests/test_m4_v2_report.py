@@ -4,6 +4,7 @@ from social_content_engine.intelligence.m4_v2_report import (
     REPORT_VERSION,
     _aggregate,
     metric_coverage,
+    render_v2_pattern_report,
 )
 
 
@@ -47,6 +48,27 @@ class M4V2ReportTest(unittest.TestCase):
         self.assertEqual(2, result[0]["support_count"])
         self.assertEqual("CONTINUE_READING_HYPOTHESIS", result[0]["expected_psychological_effect"])
         self.assertIn("READER_TARGETING", result[0]["abstract_formula"])
+
+    def test_markdown_report_is_human_readable_and_has_no_source_identifiers(self) -> None:
+        report = {
+            "report_version": REPORT_VERSION,
+            "run_id": 1,
+            "top_first_line_patterns": [{
+                "abstract_formula": "RHETORICAL:[\"QUESTION\"]",
+                "support_count": 2, "evidence_count": 2, "confidence": "LOW",
+                "expected_psychological_effect": "CONTINUE_READING_HYPOTHESIS",
+            }],
+            "top_body_patterns": [], "top_open_loop_patterns": [],
+            "top_action_patterns": [], "top_thread_form_patterns": [],
+            "metric_coverage": {"public_counters.view_count": {
+                "observed_count": 1, "status": "INSUFFICIENT_COVERAGE",
+            }},
+        }
+        rendered = render_v2_pattern_report(report)
+        self.assertIn("# VIRAL PATTERN REPORT", rendered)
+        self.assertIn("Support / evidence: 2 / 2", rendered)
+        self.assertNotIn("https://", rendered)
+        self.assertNotIn("username", rendered.lower())
 
 
 if __name__ == "__main__":
