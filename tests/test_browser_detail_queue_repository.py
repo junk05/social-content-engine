@@ -71,6 +71,14 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     detail_observation_id=detail["browser_observation_id"],
                     completed_at="2026-08-16T01:03:00Z",
                 )
+                repository.complete_browser_detail_queue(
+                    queue_id,
+                    batch_id=batch_id,
+                    attempt=claimed["attempt"],
+                    lease_version=claimed["lease_version"],
+                    detail_observation_id=detail["browser_observation_id"],
+                    completed_at="2026-08-16T01:03:01Z",
+                )
                 row = repository.connection.execute(
                     "SELECT * FROM browser_detail_enrichment_queue WHERE id = ?", (queue_id,)
                 ).fetchone()

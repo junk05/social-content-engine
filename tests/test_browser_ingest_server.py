@@ -8,7 +8,12 @@ from http.server import HTTPServer
 from pathlib import Path
 
 from social_content_engine.browser_ingest.server import (
+    DETAIL_BATCHES_PATH,
     DETAIL_FAILURE_PATH,
+    DETAIL_QUEUE_CLAIM_PATH,
+    DETAIL_QUEUE_COMPLETE_PATH,
+    DETAIL_QUEUE_FAIL_PATH,
+    DETAIL_QUEUE_SUMMARY_PATH,
     INGEST_PATH,
     MAX_BODY_BYTES,
     PENDING_DETAILS_PATH,
@@ -216,6 +221,100 @@ class BrowserIngestServerTest(unittest.TestCase):
                 ("https://www.threads.net/@fixture/post/DetailMissingView",),
             ).fetchone()[0],
         )
+
+    def test_durable_queue_batch_claim_complete_and_summary(self) -> None:
+        search = self.post(self.observed_url("QueueSuccess"))
+        summary = self.service.handle_get(
+            DETAIL_QUEUE_SUMMARY_PATH, "", ALLOWED_ORIGIN
+        )
+        self.assertEqual(200, summary.status)
+        self.assertEqual(1, summary.payload["collected_count"])
+        self.assertEqual(1, summary.payload["counts"]["DETAIL_PENDING"])
+        started = self.service.handle_post(
+            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({
+                "action": "start", "requested_items": 1,
+                "max_items": 1, "retry_failed": False,
+            }).encode("utf-8"),
+        )
+        self.assertEqual(200, started.status)
+        batch_id = started.payload["batch_id"]
+        claimed = self.service.handle_post(
+            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"batch_id": batch_id}).encode("utf-8"),
+        )
+        self.assertEqual("claimed", claimed.payload["status"])
+        self.assertEqual(self.observed_url("QueueSuccess")["post_url"], claimed.payload["post_url"])
+        detail = self.post(self.observed_url(
+            "QueueSuccess", observation_type="POST_DETAIL", view_count=0
+        ))
+        completion = {
+            "queue_item_id": claimed.payload["queue_item_id"],
+            "batch_id": batch_id,
+            "attempt": claimed.payload["attempt"],
+            "lease_version": claimed.payload["lease_version"],
+            "detail_observation_id": detail.payload["observation_id"],
+        }
+        completed = self.service.handle_post(
+            DETAIL_QUEUE_COMPLETE_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(completion).encode("utf-8"),
+        )
+        self.assertEqual(200, completed.status)
+        empty = self.service.handle_post(
+            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"batch_id": batch_id}).encode("utf-8"),
+        )
+        self.assertEqual("empty", empty.payload["status"])
+        finished = self.service.handle_post(
+            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({
+                "action": "finish", "batch_id": batch_id, "stopped": False,
+            }).encode("utf-8"),
+        )
+        self.assertEqual("COMPLETED", finished.payload["batch_status"])
+        self.assertEqual(search.payload["identity_id"], detail.payload["identity_id"])
+
+    def test_queue_failure_is_correlated_and_next_item_remains_claimable(self) -> None:
+        self.post(self.observed_url("QueueFailure"))
+        self.post(self.observed_url("QueueNext"))
+        started = self.service.handle_post(
+            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({
+                "action": "start", "requested_items": 2,
+                "max_items": 2, "retry_failed": False,
+            }).encode("utf-8"),
+        )
+        batch_id = started.payload["batch_id"]
+        first = self.service.handle_post(
+            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"batch_id": batch_id}).encode("utf-8"),
+        ).payload
+        failure = {
+            "queue_item_id": first["queue_item_id"], "batch_id": batch_id,
+            "attempt": first["attempt"], "lease_version": first["lease_version"],
+            "attempted_at": "2026-08-16T05:00:00Z",
+            "extractor_version": "threads-post-detail-extractor-v2",
+            "contract_version": "M3_BROWSER_DETAIL_ATTEMPT_V1",
+            "failure_type": "TIMEOUT", "failure_reason": "TIME_LIMIT_EXCEEDED",
+            "error_code": "ACTIVITY_DIALOG_TIMEOUT",
+        }
+        failed = self.service.handle_post(
+            DETAIL_QUEUE_FAIL_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(failure).encode("utf-8"),
+        )
+        self.assertEqual(201, failed.status)
+        stale = dict(failure)
+        stale["attempted_at"] = "2026-08-16T05:01:00Z"
+        self.assertEqual(422, self.service.handle_post(
+            DETAIL_QUEUE_FAIL_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(stale).encode("utf-8"),
+        ).status)
+        second = self.service.handle_post(
+            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"batch_id": batch_id}).encode("utf-8"),
+        )
+        self.assertEqual("claimed", second.payload["status"])
+        self.assertNotEqual(first["queue_item_id"], second.payload["queue_item_id"])
 
     def test_post_detail_observation_and_success_attempt_are_atomic(self) -> None:
         self.repository.connection.execute(

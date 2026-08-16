@@ -2389,6 +2389,22 @@ class Repository:
             (detail_observation_id, queue_id, batch_id, attempt, lease_version),
         ).fetchone()
         if valid is None:
+            replay = self.connection.execute(
+                """SELECT browser_detail_attempts.detail_observation_id
+                FROM browser_detail_enrichment_queue
+                JOIN browser_detail_attempts
+                  ON browser_detail_attempts.id =
+                     browser_detail_enrichment_queue.last_attempt_id
+                WHERE browser_detail_enrichment_queue.id = ?
+                  AND browser_detail_enrichment_queue.status = 'DETAIL_ENRICHED'
+                  AND browser_detail_enrichment_queue.active_batch_id = ?
+                  AND browser_detail_enrichment_queue.attempt_count = ?
+                  AND browser_detail_enrichment_queue.lease_version = ?
+                  AND browser_detail_attempts.detail_observation_id = ?""",
+                (queue_id, batch_id, attempt, lease_version, detail_observation_id),
+            ).fetchone()
+            if replay is not None:
+                return
             raise ValueError("detail completion evidence does not match claimed work")
         with self.connection:
             self.connection.execute(

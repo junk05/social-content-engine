@@ -22,6 +22,11 @@ INGEST_PATH = "/browser-ingest/threads"
 PENDING_DETAILS_PATH = INGEST_PATH + "/pending-details"
 DETAIL_FAILURE_PATH = INGEST_PATH + "/detail-failures"
 THREAD_SEQUENCE_PATH = INGEST_PATH + "/thread-sequences"
+DETAIL_QUEUE_SUMMARY_PATH = INGEST_PATH + "/detail-queue/summary"
+DETAIL_BATCHES_PATH = INGEST_PATH + "/detail-batches"
+DETAIL_QUEUE_CLAIM_PATH = INGEST_PATH + "/detail-queue/claim"
+DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
+DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
 DEFAULT_PENDING_LIMIT = 50
 MAX_PENDING_LIMIT = 100
 
@@ -106,7 +111,12 @@ class BrowserIngestService:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
             path, request_origin,
-            {INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH},
+            {
+                INGEST_PATH, PENDING_DETAILS_PATH, DETAIL_FAILURE_PATH,
+                THREAD_SEQUENCE_PATH, DETAIL_QUEUE_SUMMARY_PATH, DETAIL_BATCHES_PATH,
+                DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
+                DETAIL_QUEUE_FAIL_PATH,
+            },
         )
         return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
 
@@ -114,9 +124,15 @@ class BrowserIngestService:
         self, path: str, query: str, origin: Optional[str], extension_origin: Optional[str] = None
     ) -> IngestResponse:
         request_origin = self._effective_origin(origin, extension_origin)
-        error = self._request_error(path, request_origin, {PENDING_DETAILS_PATH})
+        error = self._request_error(
+            path, request_origin, {PENDING_DETAILS_PATH, DETAIL_QUEUE_SUMMARY_PATH}
+        )
         if error:
             return error
+        if path == DETAIL_QUEUE_SUMMARY_PATH:
+            if query:
+                return IngestResponse(400, {"error": "invalid_query"}, request_origin)
+            return self._detail_queue_summary(request_origin)
         values = parse_qs(query, keep_blank_values=True)
         if set(values) - {"limit"} or len(values.get("limit", [])) > 1:
             return IngestResponse(400, {"error": "invalid_query"}, request_origin)
@@ -153,7 +169,13 @@ class BrowserIngestService:
     ) -> IngestResponse:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
-            path, request_origin, {INGEST_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH}
+            path,
+            request_origin,
+            {
+                INGEST_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH,
+                DETAIL_BATCHES_PATH, DETAIL_QUEUE_CLAIM_PATH,
+                DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
+            },
         )
         if error:
             return error
@@ -167,6 +189,14 @@ class BrowserIngestService:
             return IngestResponse(400, {"error": "invalid_json"}, request_origin)
         if not isinstance(decoded, dict):
             return IngestResponse(422, {"error": "invalid_payload"}, request_origin)
+        if path == DETAIL_BATCHES_PATH:
+            return self._handle_detail_batch(decoded, request_origin)
+        if path == DETAIL_QUEUE_CLAIM_PATH:
+            return self._handle_detail_queue_claim(decoded, request_origin)
+        if path == DETAIL_QUEUE_COMPLETE_PATH:
+            return self._handle_detail_queue_complete(decoded, request_origin)
+        if path == DETAIL_QUEUE_FAIL_PATH:
+            return self._handle_detail_queue_fail(decoded, request_origin)
         if path == DETAIL_FAILURE_PATH:
             return self._handle_detail_failure(decoded, request_origin)
         if path == THREAD_SEQUENCE_PATH:
@@ -200,6 +230,182 @@ class BrowserIngestService:
             },
             request_origin,
         )
+
+    def _detail_queue_summary(self, origin: Optional[str]) -> IngestResponse:
+        counts = {
+            "DETAIL_PENDING": 0,
+            "DETAIL_PROCESSING": 0,
+            "DETAIL_ENRICHED": 0,
+            "DETAIL_FAILED": 0,
+        }
+        for row in self.repository.connection.execute(
+            "SELECT status, COUNT(*) AS count FROM browser_detail_enrichment_queue "
+            "GROUP BY status"
+        ).fetchall():
+            counts[str(row["status"])] = int(row["count"])
+        total = self.repository.connection.execute(
+            "SELECT COUNT(*) AS count FROM browser_post_identities"
+        ).fetchone()
+        running = self.repository.connection.execute(
+            """SELECT id FROM browser_detail_enrichment_batches
+            WHERE status = 'RUNNING' ORDER BY id DESC LIMIT 1"""
+        ).fetchone()
+        return IngestResponse(
+            200,
+            {
+                "status": "ok",
+                "collected_count": int(total["count"]) if total else 0,
+                "counts": counts,
+                "running_batch_id": None if running is None else int(running["id"]),
+            },
+            origin,
+        )
+
+    def _handle_detail_batch(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        action = decoded.get("action")
+        try:
+            if action == "start" and set(decoded) == {
+                "action", "requested_items", "max_items", "retry_failed",
+            }:
+                requested = decoded["requested_items"]
+                maximum = decoded["max_items"]
+                retry_failed = decoded["retry_failed"]
+                if (
+                    isinstance(requested, bool) or not isinstance(requested, int)
+                    or isinstance(maximum, bool) or not isinstance(maximum, int)
+                    or not 1 <= requested <= maximum <= MAX_PENDING_LIMIT
+                    or not isinstance(retry_failed, bool)
+                ):
+                    raise ValueError("invalid batch bounds")
+                if retry_failed:
+                    failed = self.repository.connection.execute(
+                        """SELECT browser_post_identities.post_url
+                        FROM browser_detail_enrichment_queue
+                        JOIN browser_post_identities ON browser_post_identities.id =
+                          browser_detail_enrichment_queue.browser_post_identity_id
+                        WHERE browser_detail_enrichment_queue.status = 'DETAIL_FAILED'
+                        ORDER BY browser_detail_enrichment_queue.id LIMIT ?""",
+                        (requested,),
+                    ).fetchall()
+                    for row in failed:
+                        self.repository.enqueue_browser_detail(str(row["post_url"]))
+                batch_id = self.repository.start_browser_detail_batch(
+                    requested_items=requested, max_items=maximum
+                )
+                summary = self.repository.browser_detail_batch_summary(batch_id)
+            elif action == "resume" and set(decoded) == {"action", "batch_id"}:
+                batch_id = self._positive_int(decoded["batch_id"])
+                summary = self.repository.resume_browser_detail_batch(batch_id)
+            elif action == "finish" and set(decoded) == {"action", "batch_id", "stopped"}:
+                batch_id = self._positive_int(decoded["batch_id"])
+                if not isinstance(decoded["stopped"], bool):
+                    raise ValueError("invalid stopped flag")
+                summary = self.repository.finish_browser_detail_batch(
+                    batch_id, stopped=decoded["stopped"]
+                )
+            else:
+                raise ValueError("invalid batch action")
+        except (KeyError, TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_detail_batch"}, origin)
+        return IngestResponse(
+            200,
+            {
+                "status": "accepted",
+                "batch_id": int(summary["id"]),
+                "batch_status": str(summary["status"]),
+                "assigned_items": int(summary["assigned_items"]),
+                "counts": summary["counts"],
+            },
+            origin,
+        )
+
+    def _handle_detail_queue_claim(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if set(decoded) != {"batch_id"}:
+            return IngestResponse(422, {"error": "invalid_detail_claim"}, origin)
+        try:
+            batch_id = self._positive_int(decoded["batch_id"])
+            claim = self.repository.claim_browser_detail(batch_id)
+        except (KeyError, TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_detail_claim"}, origin)
+        if claim is None:
+            return IngestResponse(200, {"status": "empty", "batch_id": batch_id}, origin)
+        return IngestResponse(
+            200,
+            {
+                "status": "claimed",
+                "queue_item_id": int(claim["queue_item_id"]),
+                "batch_id": int(claim["batch_id"]),
+                "attempt": int(claim["attempt"]),
+                "lease_version": int(claim["lease_version"]),
+                "post_url": str(claim["post_url"]),
+            },
+            origin,
+        )
+
+    def _handle_detail_queue_complete(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        required = {
+            "queue_item_id", "batch_id", "attempt", "lease_version",
+            "detail_observation_id",
+        }
+        if set(decoded) != required:
+            return IngestResponse(422, {"error": "invalid_detail_completion"}, origin)
+        try:
+            values = {key: self._positive_int(decoded[key]) for key in required}
+            self.repository.complete_browser_detail_queue(
+                values["queue_item_id"], batch_id=values["batch_id"],
+                attempt=values["attempt"], lease_version=values["lease_version"],
+                detail_observation_id=values["detail_observation_id"],
+            )
+        except (KeyError, TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_detail_completion"}, origin)
+        return IngestResponse(200, {"status": "completed"}, origin)
+
+    def _handle_detail_queue_fail(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        required = {
+            "queue_item_id", "batch_id", "attempt", "lease_version",
+            "attempted_at", "extractor_version", "contract_version",
+            "failure_type", "failure_reason", "error_code",
+        }
+        if set(decoded) != required:
+            return IngestResponse(422, {"error": "invalid_detail_queue_failure"}, origin)
+        try:
+            attempt_id = self.repository.fail_browser_detail_queue(
+                self._positive_int(decoded["queue_item_id"]),
+                batch_id=self._positive_int(decoded["batch_id"]),
+                attempt=self._positive_int(decoded["attempt"]),
+                lease_version=self._positive_int(decoded["lease_version"]),
+                attempted_at=self._string(decoded["attempted_at"]),
+                extractor_version=self._string(decoded["extractor_version"]),
+                contract_version=self._string(decoded["contract_version"]),
+                failure_type=self._string(decoded["failure_type"]),
+                failure_reason=self._string(decoded["failure_reason"]),
+                error_code=self._string(decoded["error_code"]),
+            )
+        except (KeyError, TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_detail_queue_failure"}, origin)
+        return IngestResponse(
+            201, {"status": "failure_recorded", "attempt_id": attempt_id}, origin
+        )
+
+    @staticmethod
+    def _positive_int(value: Any) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("value must be a positive integer")
+        return int(value)
+
+    @staticmethod
+    def _string(value: Any) -> str:
+        if not isinstance(value, str):
+            raise ValueError("value must be a string")
+        return value
 
     def _handle_thread_sequence(
         self, decoded: Dict[str, Any], origin: Optional[str]
