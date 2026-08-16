@@ -2,6 +2,7 @@
 
 import json
 from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List
 
 from social_content_engine.data.repository import Repository
@@ -66,3 +67,27 @@ def build_viral_pattern_report(repository: Repository, m4_run_id: int) -> Dict[s
             "note": "No causal or virality claim is made.",
         },
     }
+
+
+def write_viral_pattern_report(
+    report: Dict[str, Any], json_path: Path, markdown_path: Path
+) -> None:
+    """Write local review artifacts; callers use ignored data/reports paths."""
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    lines = ["# VIRAL_PATTERN_REPORT", "", "Descriptive evidence only; no causal claim.", ""]
+    lines.append("Performance: " + str(report["performance_association"]["status"]))
+    lines.append(
+        "Observed metric snapshots: "
+        + str(report["performance_association"]["observed_metric_snapshot_count"])
+    )
+    for item in report["top_first_line_patterns"]:
+        lines.extend(["", "## " + item["status"], "- Support: " + str(item["support_count"])])
+        lines.append(
+            "- Signature: `"
+            + json.dumps(item["signature"], ensure_ascii=False, sort_keys=True)
+            + "`"
+        )
+    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
