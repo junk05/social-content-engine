@@ -1,6 +1,8 @@
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Any, Dict
 
@@ -13,6 +15,7 @@ from social_content_engine.data.repository import Repository
 from social_content_engine.intelligence.clean_dataset import (
     prepare_detail_batch_analysis,
 )
+from social_content_engine.intelligence.detail_batch import main as detail_batch_main
 from social_content_engine.intelligence.structural import (
     EXTRACTOR_VERSION,
     TAXONOMY_VERSION,
@@ -79,6 +82,35 @@ def complete_item(repository: Repository, batch_id: int, post_code: str, text: s
 
 
 class DetailBatchAnalysisTest(unittest.TestCase):
+    def test_cli_emits_only_aggregate_clean_snapshot_result(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cli.sqlite3"
+            with Repository(path) as repository:
+                repository.add_browser_observation(
+                    browser_observation("Cli", "まず理由を説明します。", "SEARCH_CARD")
+                )
+                batch_id = repository.start_browser_detail_batch(
+                    requested_items=1, max_items=1
+                )
+                complete_item(repository, batch_id, "Cli", "まず理由を説明します。")
+                repository.finish_browser_detail_batch(batch_id)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                exit_code = detail_batch_main(
+                    [
+                        "--database", str(path),
+                        "--batch-id", str(batch_id),
+                        "--dataset-key", "detail-cli",
+                        "--dataset-version", "1",
+                    ]
+                )
+            self.assertEqual(0, exit_code)
+            result = json.loads(output.getvalue())
+            self.assertEqual(1, result["valid_member_count"])
+            serialized = json.dumps(result)
+            for forbidden in ("threads.net", "fixture", "author", "text", "url"):
+                self.assertNotIn(forbidden, serialized.lower())
+
     def test_completed_batch_builds_clean_delta_for_existing_analysis_and_structure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "analysis.sqlite3") as repository:
