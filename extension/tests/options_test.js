@@ -25,6 +25,10 @@ globalThis.document = {
   createElement(tag) { return new Node(tag); },
 };
 const messages = [];
+let pendingResponse = {
+  accepted: true,
+  urls: ["https://www.threads.net/@fixture/post/Pending1"],
+};
 globalThis.chrome = {
   runtime: {
     lastError: null,
@@ -33,10 +37,7 @@ globalThis.chrome = {
       if (message.type === "SCE_SCAFFOLD_STATUS") {
         callback({ ready: true, stage: "M3-010" });
       } else {
-        callback({
-          accepted: true,
-          urls: ["https://www.threads.net/@fixture/post/Pending1"],
-        });
+        callback(pendingResponse);
       }
     },
   },
@@ -55,3 +56,8 @@ assert.equal(link.tag, "a");
 assert.equal(link.href, "https://www.threads.net/@fixture/post/Pending1");
 assert.equal(link.target, "_blank");
 assert.equal(link.rel, "noopener noreferrer");
+
+pendingResponse = { accepted: false, reason: "network_error", detail: "must-not-display" };
+nodes["#load-pending"].listeners.click();
+assert.equal(nodes["#pending-status"].textContent, "詳細待ちを読み込めませんでした。 (network_error)");
+assert.equal(nodes["#pending-status"].textContent.includes("must-not-display"), false);

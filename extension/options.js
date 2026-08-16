@@ -4,6 +4,9 @@ const status = document.querySelector("#status");
 const loadPending = document.querySelector("#load-pending");
 const pendingStatus = document.querySelector("#pending-status");
 const pendingDetails = document.querySelector("#pending-details");
+const SAFE_PENDING_FAILURES = new Set([
+  "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
+]);
 
 chrome.runtime.sendMessage({ type: "SCE_SCAFFOLD_STATUS" }, (response) => {
   if (chrome.runtime.lastError || !response) {
@@ -22,7 +25,9 @@ loadPending.addEventListener("click", () => {
       loadPending.disabled = false;
       pendingDetails.replaceChildren();
       if (chrome.runtime.lastError || !response || !response.accepted) {
-        pendingStatus.textContent = "詳細待ちを読み込めませんでした。";
+        const reason = response && SAFE_PENDING_FAILURES.has(response.reason)
+          ? ` (${response.reason})` : "";
+        pendingStatus.textContent = "詳細待ちを読み込めませんでした。" + reason;
         return;
       }
       pendingStatus.textContent = response.urls.length + "件の詳細待ちがあります。";
