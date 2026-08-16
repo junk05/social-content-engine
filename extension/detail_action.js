@@ -3,6 +3,7 @@
 (function exposeDetailAction(scope) {
   const BUTTON_ATTRIBUTE = "data-sce-detail-action";
   const CONTRACT_VERSION = "M3_BROWSER_DETAIL_ATTEMPT_V1";
+  const MAX_CONTAINER_ASCENT = 12;
 
   function sendMessage(message) {
     return new Promise((resolve) => {
@@ -21,6 +22,19 @@
     };
   }
 
+  function resolveDetailContainer(permalink) {
+    let candidate = permalink.parentElement;
+    let resolved = null;
+    for (let depth = 0; candidate && depth < MAX_CONTAINER_ASCENT; depth += 1) {
+      const postLinks = candidate.querySelectorAll('a[href*="/post/"]');
+      const times = candidate.querySelectorAll("time[datetime]");
+      if (postLinks.length > 2 || times.length > 1) break;
+      if (postLinks.length >= 1 && times.length === 1) resolved = candidate;
+      candidate = candidate.parentElement;
+    }
+    return resolved;
+  }
+
   function install(root = document, pageUrl = location.href) {
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
     if (!extractor.recognizePostDetail(root, pageUrl)) return null;
@@ -29,7 +43,7 @@
     const permalink = Array.from(root.querySelectorAll('a[href*="/post/"]')).find(
       (link) => extractor.canonicalPostUrl(link.getAttribute("href"), pageUrl) === canonicalPage,
     );
-    const anchor = permalink && permalink.closest("article");
+    const anchor = permalink && resolveDetailContainer(permalink);
     if (!anchor) return null;
     const button = root.createElement("button");
     button.type = "button";
@@ -84,5 +98,5 @@
     return button;
   }
 
-  scope.SCE_DETAIL_ACTION = Object.freeze({ install });
+  scope.SCE_DETAIL_ACTION = Object.freeze({ install, resolveDetailContainer });
 })(globalThis);

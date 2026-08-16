@@ -65,6 +65,7 @@
     {"id":"M3-025","owner":"COLLECTOR","title":"Expose safe pending-detail receiver failure codes for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-014"]},
     {"id":"M3-026","owner":"COLLECTOR","title":"Expose safe pending-detail HTTP status for HG-03 diagnosis","status":"COMPLETE","depends_on":["M3-025"]},
     {"id":"M3-027","owner":"COLLECTOR","title":"Authorize null-origin detail lookup with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-026"]},
-    {"id":"M3-028","owner":"COLLECTOR","title":"Authorize null-origin detail POST with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-027"]}
+    {"id":"M3-028","owner":"COLLECTOR","title":"Authorize null-origin detail POST with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-027"]},
+    {"id":"M3-029","owner":"COLLECTOR","title":"Resolve DIV-only Threads detail container for explicit collection action","status":"COMPLETE","depends_on":["M3-028"]}
   ]
 }

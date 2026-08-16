@@ -10,13 +10,25 @@ class Button {
 }
 
 function rootFixture() {
-  const article = { children: [], append(child) { this.children.push(child); } };
+  const card = {
+    children: [], parentElement: null,
+    append(child) { this.children.push(child); },
+    querySelectorAll(selector) {
+      if (selector === 'a[href*="/post/"]') return [permalink];
+      if (selector === "time[datetime]") return [{}];
+      return [];
+    },
+  };
+  const inner = {
+    parentElement: card,
+    querySelectorAll(selector) { return card.querySelectorAll(selector); },
+  };
   const permalink = {
+    parentElement: inner,
     getAttribute() { return "/@fixture/post/Detail1"; },
-    closest(selector) { return selector === "article" ? article : null; },
   };
   return {
-    article,
+    card,
     querySelector() { return null; },
     querySelectorAll() { return [permalink]; },
     createElement() { return new Button(); },
@@ -48,6 +60,7 @@ async function main() {
   const successRoot = rootFixture();
   const successButton = globalThis.SCE_DETAIL_ACTION.install(successRoot, location.href);
   assert.ok(successButton);
+  assert.equal(successRoot.card.children[0], successButton, "DIV-only detail card is a valid anchor");
   assert.equal(messages.length, 0, "installation must not collect or fetch");
   await successButton.listeners.click();
   assert.equal(messages.length, 1);
