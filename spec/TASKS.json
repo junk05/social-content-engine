@@ -67,6 +67,7 @@
     {"id":"M3-027","owner":"COLLECTOR","title":"Authorize null-origin detail lookup with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-026"]},
     {"id":"M3-028","owner":"COLLECTOR","title":"Authorize null-origin detail POST with exact extension runtime identity","status":"COMPLETE","depends_on":["M3-027"]},
     {"id":"M3-029","owner":"COLLECTOR","title":"Resolve DIV-only Threads detail container for explicit collection action","status":"COMPLETE","depends_on":["M3-028"]},
-    {"id":"M3-030","owner":"COLLECTOR","title":"Inject explicit detail action after Threads SPA detail rendering","status":"COMPLETE","depends_on":["M3-029"]}
+    {"id":"M3-030","owner":"COLLECTOR","title":"Inject explicit detail action after Threads SPA detail rendering","status":"COMPLETE","depends_on":["M3-029"]},
+    {"id":"M3-031","owner":"COLLECTOR","title":"Select resolvable duplicate detail permalink before injecting action","status":"COMPLETE","depends_on":["M3-030"]}
   ]
 }

@@ -40,10 +40,12 @@
     if (!extractor.recognizePostDetail(root, pageUrl)) return null;
     if (root.querySelector("[" + BUTTON_ATTRIBUTE + "]")) return null;
     const canonicalPage = extractor.canonicalPostUrl(pageUrl, pageUrl);
-    const permalink = Array.from(root.querySelectorAll('a[href*="/post/"]')).find(
-      (link) => extractor.canonicalPostUrl(link.getAttribute("href"), pageUrl) === canonicalPage,
-    );
-    const anchor = permalink && resolveDetailContainer(permalink);
+    const anchor = Array.from(root.querySelectorAll('a[href*="/post/"]'))
+      .filter(
+        (link) => extractor.canonicalPostUrl(link.getAttribute("href"), pageUrl) === canonicalPage,
+      )
+      .map((link) => resolveDetailContainer(link))
+      .find((candidate) => candidate !== null);
     if (!anchor) return null;
     const button = root.createElement("button");
     button.type = "button";

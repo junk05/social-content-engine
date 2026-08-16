@@ -34,11 +34,22 @@ function rootFixture() {
     parentElement: inner,
     getAttribute() { return "/@fixture/post/Detail1"; },
   };
+  const headerLink = {
+    parentElement: {
+      parentElement: null,
+      querySelectorAll(selector) {
+        if (selector === 'a[href*="/post/"]') return [headerLink];
+        if (selector === "time[datetime]") return [];
+        return [];
+      },
+    },
+    getAttribute() { return "/@fixture/post/Detail1"; },
+  };
   return {
     card,
     documentElement: {},
     querySelector() { return null; },
-    querySelectorAll() { return [permalink]; },
+    querySelectorAll() { return [headerLink, permalink]; },
     createElement() { return new Button(); },
   };
 }
