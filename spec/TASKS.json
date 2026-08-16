@@ -95,10 +95,10 @@
     ,{"id":"M4-021","owner":"INTELLIGENCE","title":"Repair browser metadata-aware First-Line selection and audit semantic residual","status":"COMPLETE","depends_on":["M4-020"]}
     ,{"id":"M4-022","owner":"INTELLIGENCE","title":"Define validated LLM semantic-classifier escalation boundary when deterministic coverage is insufficient","status":"COMPLETE","depends_on":["M4-021"]}
     ,{"id":"M4-023","owner":"ORCHESTRATOR","title":"Replay same snapshot and repeat HG-04 after semantic coverage revision","status":"SUPERSEDED","depends_on":["M4-021","M4-022"]}
-    ,{"id":"M4-024","owner":"DATA","title":"Add immutable deterministic structural feature and Pattern provenance storage","status":"IN_PROGRESS","depends_on":["M4-021"]}
-    ,{"id":"M4-025","owner":"INTELLIGENCE","title":"Extract closed First-Line and Post Structural Components with ordered span/hash evidence","status":"PENDING","depends_on":["M4-024"]}
-    ,{"id":"M4-026","owner":"INTELLIGENCE","title":"Mine text-free Local/Post/observed-Thread Structural Patterns and generation-safe DTOs","status":"PENDING","depends_on":["M4-025"]}
-    ,{"id":"M4-027","owner":"QA_REVIEWER","title":"Verify structural provenance, generation isolation, no leakage, and regression","status":"PENDING","depends_on":["M4-026"]}
-    ,{"id":"M4-028","owner":"ORCHESTRATOR","title":"Generate Structural Pattern Report and repeat HG-04","status":"PENDING","depends_on":["M4-027"]}
+    ,{"id":"M4-024","owner":"DATA","title":"Add immutable deterministic structural feature and Pattern provenance storage","status":"COMPLETE","depends_on":["M4-021"]}
+    ,{"id":"M4-025","owner":"INTELLIGENCE","title":"Extract closed First-Line and Post Structural Components with ordered span/hash evidence","status":"COMPLETE","depends_on":["M4-024"]}
+    ,{"id":"M4-026","owner":"INTELLIGENCE","title":"Mine text-free Local/Post/observed-Thread Structural Patterns and generation-safe DTOs","status":"COMPLETE","depends_on":["M4-025"]}
+    ,{"id":"M4-027","owner":"QA_REVIEWER","title":"Verify structural provenance, generation isolation, no leakage, and regression","status":"COMPLETE","depends_on":["M4-026"]}
+    ,{"id":"M4-028","owner":"ORCHESTRATOR","title":"Generate Structural Pattern Report and repeat HG-04","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-027"]}
   ]
 }

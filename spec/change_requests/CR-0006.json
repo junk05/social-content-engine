@@ -1,6 +1,6 @@
 {
   "id": "CR-0006",
-  "status": "IMPLEMENTING",
+  "status": "IMPLEMENTED",
   "motivation": "M4 pivots from LLM semantic classification to deterministic, genre-independent Structural Pattern Extraction so source evidence remains reusable for future analyzers without making generation depend on source wording.",
   "affected_paths": [
     "spec/M4_STRUCTURAL_PATTERN_EXTRACTION.md",
