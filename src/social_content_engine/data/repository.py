@@ -969,6 +969,34 @@ def _migration_12_m4_sequence_patterns(connection: sqlite3.Connection) -> None:
         )
 
 
+def _migration_13_browser_thread_sequences(connection: sqlite3.Connection) -> None:
+    """Append-only browser-detail sequence edges; no inferred relationships."""
+    connection.execute(
+        """CREATE TABLE browser_thread_sequence_observations (
+          id INTEGER PRIMARY KEY,
+          root_browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          node_browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          reply_to_browser_post_identity_id INTEGER REFERENCES browser_post_identities(id),
+          sequence_position INTEGER NOT NULL CHECK(sequence_position >= 0),
+          same_author_as_root INTEGER CHECK(same_author_as_root IN (0, 1)),
+          detail_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          UNIQUE(detail_observation_id, node_browser_post_identity_id)
+        )"""
+    )
+    connection.execute(
+        """CREATE TRIGGER immutable_browser_thread_sequence_observations_update
+        BEFORE UPDATE ON browser_thread_sequence_observations
+        BEGIN SELECT RAISE(ABORT, 'browser thread sequence evidence is immutable'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER immutable_browser_thread_sequence_observations_delete
+        BEFORE DELETE ON browser_thread_sequence_observations
+        BEGIN SELECT RAISE(ABORT, 'browser thread sequence evidence is immutable'); END"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -982,6 +1010,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (10, "browser-normalized-processing-bridge-v1", _migration_10_browser_normalized_bridge),
     (11, "m4-pattern-intelligence-provenance-v1", _migration_11_m4_pattern_intelligence),
     (12, "m4-sequence-pattern-members-v1", _migration_12_m4_sequence_patterns),
+    (13, "browser-thread-sequence-observations-v1", _migration_13_browser_thread_sequences),
 )
 
 
