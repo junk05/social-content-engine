@@ -32,6 +32,23 @@ databaseはgit ignoredの`data/`配下へ保存してください。このreceiv
 cookie、passwordなどのsecretは不要です。localhost専用なので、外部tunnelは不要であり、
 使用しないでください。
 
+`Pattern収集`した投稿は永続的なdetail queueへ追加されます。拡張機能のオプションで
+「詳細をまとめて補完」を1回押すと、専用の非activeタブ1枚が選択済みURLだけを直列に
+補完します。Chrome等で中断した場合は「中断した詳細補完を再開」を押してください。
+検索、scroll、投稿選別、通常タブの遷移は自動化しません。
+
+完了したbatchを既存Analyzer向けのclean delta snapshotへ明示的に接続する場合は、
+receiverのqueue summaryにあるbatch IDを指定します。出力は集計値とsnapshot IDだけで、
+source本文・URL・authorを含みません。
+
+```bash
+.venv/bin/sce-prepare-detail-batch \
+  --database data/browser-ingest.sqlite3 \
+  --batch-id '<completed-batch-id>' \
+  --dataset-key 'detail-batch-clean' \
+  --dataset-version 1
+```
+
 受信済みpostをM1/M2の既存normalized処理へ明示的に接続する場合は、同じdatabaseと
 canonical Threads URLを指定します。この操作はanalysisやcollectionを自動実行しません。
 

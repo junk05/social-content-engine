@@ -104,13 +104,13 @@
     ,{"id":"M4-030","owner":"INTELLIGENCE","title":"Replay structural extraction and report from valid browser source text only","status":"COMPLETE","depends_on":["M4-029"]}
     ,{"id":"M4-031","owner":"QA_REVIEWER","title":"Audit clean-snapshot exclusion, generation isolation, and M4 completion evidence","status":"COMPLETE","depends_on":["M4-029","M4-030"]}
     ,{"id":"M4-FU01-001","owner":"ORCHESTRATOR","title":"Approve automated detail enrichment contract and bounded security model","status":"COMPLETE","depends_on":["M4-031"]}
-    ,{"id":"M4-FU01-002","owner":"DATA","title":"Persist resumable detail queue, batches, attempts, and closed failure evidence","status":"IN_PROGRESS","depends_on":["M4-FU01-001"]}
-    ,{"id":"M4-FU01-003","owner":"COLLECTOR","title":"Implement explicit-start extension batch controller and queue summary","status":"IN_PROGRESS","depends_on":["M4-FU01-001"]}
-    ,{"id":"M4-FU01-004","owner":"COLLECTOR","title":"Reuse one dedicated detail tab with bounded DOM-ready worker","status":"PENDING","depends_on":["M4-FU01-003"]}
-    ,{"id":"M4-FU01-005","owner":"COLLECTOR","title":"Automate visible activity dialog and observed metrics extraction","status":"PENDING","depends_on":["M4-FU01-004"]}
-    ,{"id":"M4-FU01-006","owner":"COLLECTOR","title":"Append full-text and observed thread-sequence detail evidence","status":"PENDING","depends_on":["M4-FU01-004"]}
-    ,{"id":"M4-FU01-007","owner":"DATA","title":"Connect batch completion to bridge and clean analysis refresh boundary","status":"PENDING","depends_on":["M4-FU01-002","M4-FU01-006"]}
-    ,{"id":"M4-FU01-008","owner":"QA_REVIEWER","title":"Verify retry, resume, failure isolation, security, extension, and M0-M4 regression","status":"PENDING","depends_on":["M4-FU01-002","M4-FU01-005","M4-FU01-006","M4-FU01-007"]}
+    ,{"id":"M4-FU01-002","owner":"DATA","title":"Persist resumable detail queue, batches, attempts, and closed failure evidence","status":"COMPLETE","depends_on":["M4-FU01-001"]}
+    ,{"id":"M4-FU01-003","owner":"COLLECTOR","title":"Implement explicit-start extension batch controller and queue summary","status":"COMPLETE","depends_on":["M4-FU01-001"]}
+    ,{"id":"M4-FU01-004","owner":"COLLECTOR","title":"Reuse one dedicated detail tab with bounded DOM-ready worker","status":"COMPLETE","depends_on":["M4-FU01-003"]}
+    ,{"id":"M4-FU01-005","owner":"COLLECTOR","title":"Automate visible activity dialog and observed metrics extraction","status":"COMPLETE","depends_on":["M4-FU01-004"]}
+    ,{"id":"M4-FU01-006","owner":"COLLECTOR","title":"Append full-text and observed thread-sequence detail evidence","status":"COMPLETE","depends_on":["M4-FU01-004"]}
+    ,{"id":"M4-FU01-007","owner":"DATA","title":"Connect batch completion to bridge and clean analysis refresh boundary","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-006"]}
+    ,{"id":"M4-FU01-008","owner":"QA_REVIEWER","title":"Verify retry, resume, failure isolation, security, extension, and M0-M4 regression","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-005","M4-FU01-006","M4-FU01-007"]}
     ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-008"]}
   ]
 }

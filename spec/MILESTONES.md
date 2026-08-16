@@ -98,7 +98,7 @@ requires separate approval and its applicable Human Gate.
 
 ### M4-FU01 — Automated Detail Enrichment
 
-Status: `IN_PROGRESS`
+Status: `IMPLEMENTED / HG-03 LIVE E2E REQUIRED`
 
 Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 (`CR-0008`). This follow-up automates detail enrichment only after one explicit

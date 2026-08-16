@@ -1,6 +1,6 @@
 # M4-FU01 — Automated Detail Enrichment
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `IMPLEMENTED / HG-03 LIVE E2E REQUIRED`
 
 Contract version: `M4-FU01-AUTOMATED-DETAIL-ENRICHMENT-V1`
 
@@ -85,3 +85,15 @@ access remains limited to `GENERATION_SAFE_PATTERN`.
 
 Items 1–11 proceed autonomously. Item 12 is the only Human Gate and does not
 authorize M5.
+
+## Implementation evidence
+
+- migrations 16–17 persist the queue, batch, lease, retry, and single-running-batch rules;
+- the extension processes one item at a time in one dedicated inactive tab;
+- the loopback receiver exposes the closed batch/claim/complete/fail protocol;
+- completed batches can create a clean finalized delta snapshot through
+  `sce-prepare-detail-batch` without exposing source text, URL, or author;
+- local regression passes with 170 Python tests and 8 JavaScript suites.
+
+Live Threads data, credentials, and browser state are intentionally absent from
+repository evidence. GitHub Actions must pass at the current commit before HG-03.
