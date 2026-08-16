@@ -17,6 +17,12 @@ class FakeElement {
   setAttribute(name, value) { this.attributes[name] = value; }
   getAttribute(name) { return this.attributes[name] ?? null; }
   appendChild(child) { child.parentElement = this; this.children.push(child); }
+  querySelectorAll(selector) {
+    const descendants = this.children.flatMap((child) => [child, ...child.querySelectorAll(selector)]);
+    if (selector === "svg") return descendants.filter((child) => child instanceof FakeSvg);
+    if (selector === 'a[href*="/post/"]' || selector === "time[datetime]") return [];
+    return [];
+  }
 }
 
 class FakeButton extends FakeElement {
@@ -51,9 +57,7 @@ class FakeActionRow extends FakeElement {
     for (let index = 0; index < count; index += 1) this.appendChild(new FakeSvg());
   }
   querySelectorAll(selector) {
-    if (selector === "svg") return this.children.filter((child) => child instanceof FakeSvg);
-    if (selector === 'a[href*="/post/"]' || selector === "time[datetime]") return [];
-    return [];
+    return super.querySelectorAll(selector);
   }
 }
 
@@ -202,6 +206,19 @@ async function main() {
   assert.equal(styled.style.flexShrink, "0");
   assert.equal(styled.style.alignSelf, "center");
   assert.equal(controller.resolveCardContainer(cards[0].link), cards[0]);
+
+  const nestedActions = new FakeCard("nested-actions", true, { svgCount: 0 });
+  let nestedParent = nestedActions.actionRow;
+  for (let depth = 0; depth < 4; depth += 1) {
+    const wrapper = new FakeElement();
+    nestedParent.appendChild(wrapper);
+    nestedParent = wrapper;
+  }
+  for (let index = 0; index < 4; index += 1) nestedParent.appendChild(new FakeSvg());
+  assert.equal(
+    controller.findActionRow(nestedActions), nestedActions.actionRow,
+    "a nested Threads icon must still resolve to its flex reaction row",
+  );
   const fallback = actionButton(cards[1]);
   assert.equal(fallback.parentElement, cards[1]);
   assert.equal(fallback.style.position, "absolute");

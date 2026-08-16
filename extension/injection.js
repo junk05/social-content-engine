@@ -4,7 +4,7 @@
   const ACTION_ATTRIBUTE = "data-sce-pattern-action";
   const ACTION_VERSION = "v1";
   const MAX_CONTAINER_ASCENT = 12;
-  const MAX_ACTION_ROW_ASCENT = 3;
+  const MAX_ACTION_ROW_ASCENT = 8;
 
   function defaultObservationBoundary(observation) {
     return new Promise((resolve) => {
