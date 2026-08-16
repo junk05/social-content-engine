@@ -96,6 +96,15 @@ from clean structural snapshots. Observed metric coverage remains insufficient
 for performance-superiority or causal claims. Any M5 Content Generation scope
 requires separate approval and its applicable Human Gate.
 
+### M4-FU01 — Automated Detail Enrichment
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
+(`CR-0008`). This follow-up automates detail enrichment only after one explicit
+user start and only for posts already selected through `Pattern収集`. It does
+not reopen M4 quality approval and does not authorize M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

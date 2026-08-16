@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0008",
+  "status": "APPROVED",
+  "title": "Allow explicit-start automated detail enrichment for selected posts",
+  "risk": "MEDIUM",
+  "affected_components": [
+    "M3 browser collector",
+    "Chrome extension background worker",
+    "localhost receiver",
+    "detail queue persistence",
+    "M4 source and analysis integration"
+  ],
+  "approved_decision": "After one explicit batch action, a single dedicated extension tab may sequentially navigate only saved DETAIL_PENDING Threads post URLs selected through Pattern collection.",
+  "unchanged_boundaries": [
+    "no automated search, scrolling, or post selection",
+    "no normal user-tab navigation",
+    "no credential, cookie, or token extraction",
+    "no anti-detection behavior",
+    "no M5 content generation",
+    "HG-03 required for live verification"
+  ]
+}
