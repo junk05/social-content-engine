@@ -80,6 +80,29 @@ def downgrade_before_migration_9(path: Path) -> None:
 
 
 class BrowserDetailRepositoryTest(unittest.TestCase):
+    def test_thread_sequence_observation_is_append_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "sequence.sqlite3") as repository:
+                root = repository.add_browser_observation(observation())
+                sequence_id = repository.record_browser_thread_sequence_observation(
+                    root_identity_id=root["browser_post_identity_id"],
+                    node_identity_id=root["browser_post_identity_id"],
+                    reply_to_identity_id=None, sequence_position=0,
+                    same_author_as_root=None,
+                    detail_observation_id=root["browser_observation_id"],
+                    extractor_version="fixture-sequence-v1",
+                )
+                row = repository.connection.execute(
+                    "SELECT * FROM browser_thread_sequence_observations WHERE id = ?",
+                    (sequence_id,),
+                ).fetchone()
+                self.assertIsNone(row["same_author_as_root"])
+                with self.assertRaises(sqlite3.IntegrityError):
+                    repository.connection.execute(
+                        "UPDATE browser_thread_sequence_observations "
+                        "SET sequence_position = 1 WHERE id = ?",
+                        (sequence_id,),
+                    )
     def test_success_and_failure_history_is_append_only_and_fk_valid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "detail.sqlite3") as repository:

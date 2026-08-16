@@ -1730,6 +1730,30 @@ class Repository:
             self.bridge_browser_post(str(row["post_url"]))
         return len(rows)
 
+    def record_browser_thread_sequence_observation(
+        self, *, root_identity_id: int, node_identity_id: int,
+        reply_to_identity_id: Optional[int], sequence_position: int,
+        same_author_as_root: Optional[bool], detail_observation_id: int,
+        extractor_version: str, observed_at: Optional[str] = None,
+    ) -> int:
+        """Append one visible thread node without inferring an edge or author match."""
+        if sequence_position < 0 or not _is_contract_identifier(extractor_version):
+            raise ValueError("invalid browser thread sequence observation")
+        cursor = self.connection.execute(
+            """INSERT INTO browser_thread_sequence_observations
+            (root_browser_post_identity_id, node_browser_post_identity_id,
+             reply_to_browser_post_identity_id, sequence_position, same_author_as_root,
+             detail_observation_id, observed_at, extractor_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (root_identity_id, node_identity_id, reply_to_identity_id, sequence_position,
+             None if same_author_as_root is None else int(same_author_as_root),
+             detail_observation_id, observed_at or _utc_now(), extractor_version),
+        )
+        self.connection.commit()
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a thread sequence observation id")
+        return int(cursor.lastrowid)
+
     def add_browser_dataset_member(
         self,
         snapshot_id: int,
