@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "milestone": "M4",
+  "event": "HG-04_REJECTED_REVISION_REQUIRED",
+  "verification_scope": "Aggregate-only audit of ignored local browser-ingest.sqlite3. No post text, URL, username, DOM, cookie, token, raw browser evidence, or credential is committed.",
+  "dataset_snapshot_id": 2,
+  "observed_coverage": {
+    "canonical_posts": 92,
+    "nonempty_normalized_text": 92,
+    "multiline_normalized_text": 0,
+    "normalized_text_length_1_to_80": 92,
+    "hook_family_STATEMENT": 92,
+    "hook_subtype_PLAIN_STATEMENT": 92,
+    "body_roles_UNKNOWN": 91,
+    "expected_reader_actions_NONE": 91,
+    "parent_ending_NO_PARENT": 92,
+    "browser_counter_coverage": {
+      "view_count": 1,
+      "like_count": 0,
+      "reply_count": 0,
+      "repost_count": 0,
+      "quote_count": 0,
+      "share_count": 0
+    }
+  },
+  "root_causes": [
+    "The M3 search-card observations in the frozen dataset contain short single-line rendered text, so body structure is not available for most posts.",
+    "The M2 first-line classifier is exclusive and marker-limited; absent markers collapse into STATEMENT/PLAIN_STATEMENT.",
+    "The M1 deterministic mock emits structure and action labels only for a narrow marker set. It reads normalized text but is not a semantic body/action taxonomy.",
+    "Browser counter extraction persisted only one exact visible Views observation; absent fields remain UNKNOWN and cannot support metric association.",
+    "No browser thread relationships were observed, so Parent Ending can only be NO_PARENT for this snapshot."
+  ],
+  "decision": "M4 remains IN_PROGRESS. M5 is forbidden. Implement M4 V2 revision and repeat HG-04 after deterministic replay and any explicitly human-selected M3 recapture required to improve evidence coverage."
+}

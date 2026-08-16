@@ -82,15 +82,16 @@ Verification: `spec/evidence/M3_DOD_AUDIT.json`.
 
 Status: `IN_PROGRESS`
 
-Approved specification: `spec/M4_VIRAL_PATTERN_INTELLIGENCE.md`
-(`M4-VIRAL-PATTERN-INTELLIGENCE-V1`).
+Approved specifications: `spec/M4_VIRAL_PATTERN_INTELLIGENCE.md` and
+`spec/M4_VIRAL_PATTERN_INTELLIGENCE_V2.md` (`CR-0003`).
 
 Goal: derive evidence-backed, reusable rhetorical Pattern Intelligence from
 human-selected browser observations, without claiming causal performance or
 implementing content generation.
 
-The first local report over M3 dataset snapshot 2 requires HG-04 human quality
-review before any M5 Content Generation scope can begin.
+The initial HG-04 report was rejected for revision. M4 V2 must produce a
+revised local report and repeat HG-04 before any M5 Content Generation scope
+can begin.
 
 ## Deferred until later milestones
 

@@ -1,0 +1,23 @@
+{
+  "id": "CR-0003",
+  "status": "IMPLEMENTED",
+  "motivation": "HG-04 rejected the initial M4 report because exclusive marker-based hook labels, missing body/action coverage, collapsed UNKNOWN clusters, and metric undercoverage made the result not human-useful. M4 is revised to derive multi-label rhetorical mechanisms from normalized text at analysis time, decompose Pattern families, and keep missing browser evidence explicit.",
+  "affected_paths": [
+    "spec/M4_VIRAL_PATTERN_INTELLIGENCE_V2.md",
+    "spec/M4_VIRAL_PATTERN_INTELLIGENCE.md",
+    "spec/MILESTONES.md",
+    "spec/TASKS.json",
+    "spec/evidence/M4_HG04_REJECTION_AUDIT.json",
+    "src/social_content_engine/intelligence/**",
+    "extension/**",
+    "tests/**"
+  ],
+  "risk": "MEDIUM",
+  "verification": [
+    "Aggregate-only audit establishes coverage and root causes without committing live text or URLs",
+    "New taxonomy is closed, multi-label, deterministic, and text-free in persisted artifacts",
+    "Unknown and NONE-dominant clusters cannot rank as actionable Patterns",
+    "M3 browser observation changes remain human-selected and require HG-03 before live recapture",
+    "The same frozen snapshot is replayed where evidence exists and HG-04 is repeated before M4 completion"
+  ]
+}

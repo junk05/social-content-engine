@@ -79,7 +79,13 @@
     {"id":"M4-005","owner":"INTELLIGENCE","title":"Generate text-safe VIRAL_PATTERN_REPORT with runtime review evidence","status":"COMPLETE","depends_on":["M4-004"]},
     {"id":"M4-009","owner":"INTELLIGENCE","title":"Persist supported M4 sequence patterns and member provenance","status":"COMPLETE","depends_on":["M4-004"]},
     {"id":"M4-006","owner":"QA_REVIEWER","title":"Add M4 deterministic, provenance, leakage, and M0-M3 regression gates","status":"COMPLETE","depends_on":["M4-005","M4-009"]},
-    {"id":"M4-007","owner":"ORCHESTRATOR","title":"Generate the initial M3 snapshot 2 report and request HG-04 quality review","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-006"]},
+    {"id":"M4-007","owner":"ORCHESTRATOR","title":"Generate the initial M3 snapshot 2 report and request HG-04 quality review","status":"REJECTED_REVISION_REQUIRED","depends_on":["M4-006"]},
     {"id":"M4-008","owner":"ORCHESTRATOR","title":"Record HG-04 decision and mark M4 complete only when all DoD items pass","status":"BLOCKED","depends_on":["M4-007"]}
+    ,{"id":"M4-010","owner":"ORCHESTRATOR","title":"Record HG-04 rejection, root-cause audit, and M4 V2 revision contract","status":"COMPLETE","depends_on":["M4-007"]}
+    ,{"id":"M4-011","owner":"INTELLIGENCE","title":"Implement deterministic multi-label First-Line, Body, Ending, and Action taxonomy V2","status":"IN_PROGRESS","depends_on":["M4-010"]}
+    ,{"id":"M4-012","owner":"INTELLIGENCE","title":"Decompose actionable Pattern families and exclude UNKNOWN/NONE-only clusters","status":"PENDING","depends_on":["M4-011"]}
+    ,{"id":"M4-013","owner":"QA_REVIEWER","title":"Audit metric coverage and validate M4 V2 deterministic replay and leakage boundaries","status":"PENDING","depends_on":["M4-011","M4-012"]}
+    ,{"id":"M4-014","owner":"COLLECTOR","title":"Prepare tested human-selected M3 recapture only if V2 evidence remains insufficient","status":"PENDING","depends_on":["M4-013"]}
+    ,{"id":"M4-015","owner":"ORCHESTRATOR","title":"Generate revised report and repeat HG-04","status":"PENDING","depends_on":["M4-013","M4-014"]}
   ]
 }
