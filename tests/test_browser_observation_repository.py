@@ -223,8 +223,8 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 pass
             downgrade_before_migration_8(path)
             with Repository(path) as repository:
-                self.assertEqual(8, repository.connection.execute(
-                    "SELECT MAX(version) FROM schema_migrations"
+                self.assertEqual(1, repository.connection.execute(
+                    "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
                 ).fetchone()[0])
             with Repository(path) as repository:
                 self.assertEqual(1, repository.connection.execute(

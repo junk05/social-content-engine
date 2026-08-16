@@ -7,11 +7,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence, Tuple
 
+from .browser_detail import (
+    DETAIL_ATTEMPT_CONTRACT_VERSION,
+    validate_detail_attempt_provenance,
+    validate_detail_failure,
+)
 from .browser_observation import (
     BROWSER_NORMALIZER_VERSION,
     browser_normalized_payload,
     browser_observation_status,
     canonical_browser_normalized_payload,
+    canonical_threads_post_url,
     validate_browser_observation,
 )
 
@@ -731,6 +737,77 @@ def _migration_8_browser_observations(connection: sqlite3.Connection) -> None:
         )
 
 
+def _migration_9_browser_detail_attempts(connection: sqlite3.Connection) -> None:
+    connection.execute(
+        """CREATE TABLE browser_detail_attempts (
+          id INTEGER PRIMARY KEY,
+          browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          post_url TEXT NOT NULL,
+          attempted_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          contract_version TEXT NOT NULL,
+          outcome TEXT NOT NULL CHECK(outcome IN ('SUCCEEDED', 'FAILED')),
+          detail_observation_id INTEGER REFERENCES browser_observations(id),
+          CHECK(
+            (outcome = 'SUCCEEDED' AND detail_observation_id IS NOT NULL)
+            OR (outcome = 'FAILED' AND detail_observation_id IS NULL)
+          )
+        )"""
+    )
+    connection.execute(
+        """CREATE TABLE browser_detail_failures (
+          id INTEGER PRIMARY KEY,
+          browser_detail_attempt_id INTEGER NOT NULL UNIQUE
+            REFERENCES browser_detail_attempts(id),
+          failure_type TEXT NOT NULL CHECK(failure_type IN (
+            'NAVIGATION_FAILED', 'PAGE_UNAVAILABLE', 'EXTRACTION_FAILED',
+            'VALIDATION_FAILED', 'TIMEOUT'
+          )),
+          failure_reason TEXT NOT NULL CHECK(failure_reason IN (
+            'NETWORK_ERROR', 'POST_NOT_FOUND', 'LOGIN_REQUIRED',
+            'EXPECTED_FIELD_MISSING', 'UNRECOGNIZED_PAGE',
+            'INVALID_OBSERVATION', 'TIME_LIMIT_EXCEEDED'
+          ))
+        )"""
+    )
+    connection.execute(
+        """CREATE TRIGGER validate_browser_detail_attempt_insert
+        BEFORE INSERT ON browser_detail_attempts
+        WHEN NEW.outcome = 'SUCCEEDED' AND NOT EXISTS (
+          SELECT 1 FROM browser_observations
+          WHERE id = NEW.detail_observation_id
+            AND observation_type = 'POST_DETAIL'
+            AND browser_post_identity_id = NEW.browser_post_identity_id
+            AND post_url = NEW.post_url
+        )
+        BEGIN SELECT RAISE(ABORT, 'detail success must match POST_DETAIL evidence'); END"""
+    )
+    connection.execute(
+        """CREATE TRIGGER validate_browser_detail_failure_insert
+        BEFORE INSERT ON browser_detail_failures
+        WHEN NOT EXISTS (
+          SELECT 1 FROM browser_detail_attempts
+          WHERE id = NEW.browser_detail_attempt_id AND outcome = 'FAILED'
+        )
+        BEGIN SELECT RAISE(ABORT, 'detail failure must match a failed attempt'); END"""
+    )
+    for table in ("browser_detail_attempts", "browser_detail_failures"):
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_update
+            BEFORE UPDATE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(
+                table
+            )
+        )
+        connection.execute(
+            """CREATE TRIGGER immutable_{0}_delete
+            BEFORE DELETE ON {0}
+            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(
+                table
+            )
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -740,6 +817,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (6, "parent-ending-features-thread-relationships-v1", _migration_6_parent_ending_features),
     (7, "closed-pattern-evidence-contract-v1", _migration_7_pattern_evidence_contract),
     (8, "browser-observations-url-identity-v1", _migration_8_browser_observations),
+    (9, "browser-detail-attempt-failure-history-v1", _migration_9_browser_detail_attempts),
 )
 
 
@@ -1208,6 +1286,12 @@ class Repository:
             identity_status = status
             if identity is not None and identity["status"] == "DETAIL_ENRICHED":
                 identity_status = "DETAIL_ENRICHED"
+            elif (
+                identity is not None
+                and identity["status"] == "DETAIL_FAILED"
+                and observation["observation_type"] == "SEARCH_CARD"
+            ):
+                identity_status = "DETAIL_FAILED"
             cursor = self.connection.execute(
                 """INSERT INTO browser_observations
                 (browser_post_identity_id, observation_type, source, post_url, source_post_id,
@@ -1314,6 +1398,108 @@ class Repository:
             "post_url": canonical_url,
         }
 
+    def record_browser_detail_success(
+        self,
+        *,
+        browser_observation_id: int,
+        attempted_at: str,
+        extractor_version: str,
+        contract_version: str = DETAIL_ATTEMPT_CONTRACT_VERSION,
+    ) -> int:
+        """Append attempt provenance for an accepted POST_DETAIL observation."""
+        validate_detail_attempt_provenance(
+            attempted_at=attempted_at,
+            extractor_version=extractor_version,
+            contract_version=contract_version,
+        )
+        observation = self.connection.execute(
+            """SELECT browser_observations.*, browser_post_identities.status AS identity_status
+            FROM browser_observations
+            JOIN browser_post_identities
+              ON browser_post_identities.id = browser_observations.browser_post_identity_id
+            WHERE browser_observations.id = ?""",
+            (browser_observation_id,),
+        ).fetchone()
+        if observation is None:
+            raise KeyError("browser observation not found: " + str(browser_observation_id))
+        if observation["observation_type"] != "POST_DETAIL":
+            raise ValueError("detail success must reference a POST_DETAIL observation")
+        with self.connection:
+            cursor = self.connection.execute(
+                """INSERT INTO browser_detail_attempts
+                (browser_post_identity_id, post_url, attempted_at, extractor_version,
+                 contract_version, outcome, detail_observation_id)
+                VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', ?)""",
+                (
+                    observation["browser_post_identity_id"],
+                    observation["post_url"],
+                    attempted_at,
+                    extractor_version,
+                    contract_version,
+                    browser_observation_id,
+                ),
+            )
+        if cursor.lastrowid is None:
+            raise RuntimeError("SQLite did not return a browser detail attempt id")
+        return int(cursor.lastrowid)
+
+    def record_browser_detail_failure(
+        self,
+        *,
+        post_url: str,
+        attempted_at: str,
+        extractor_version: str,
+        failure_type: str,
+        failure_reason: str,
+        contract_version: str = DETAIL_ATTEMPT_CONTRACT_VERSION,
+    ) -> int:
+        """Append a bounded failure without storing DOM, credentials, or free-form detail."""
+        canonical_url = canonical_threads_post_url(post_url)
+        if canonical_url != post_url:
+            raise ValueError("post_url must already be canonical")
+        validate_detail_attempt_provenance(
+            attempted_at=attempted_at,
+            extractor_version=extractor_version,
+            contract_version=contract_version,
+        )
+        validate_detail_failure(failure_type, failure_reason)
+        identity = self.connection.execute(
+            "SELECT id, status FROM browser_post_identities WHERE post_url = ?",
+            (canonical_url,),
+        ).fetchone()
+        if identity is None:
+            raise KeyError("browser post identity not found: " + canonical_url)
+        with self.connection:
+            cursor = self.connection.execute(
+                """INSERT INTO browser_detail_attempts
+                (browser_post_identity_id, post_url, attempted_at, extractor_version,
+                 contract_version, outcome, detail_observation_id)
+                VALUES (?, ?, ?, ?, ?, 'FAILED', NULL)""",
+                (
+                    identity["id"],
+                    canonical_url,
+                    attempted_at,
+                    extractor_version,
+                    contract_version,
+                ),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return a browser detail attempt id")
+            attempt_id = int(cursor.lastrowid)
+            self.connection.execute(
+                """INSERT INTO browser_detail_failures
+                (browser_detail_attempt_id, failure_type, failure_reason)
+                VALUES (?, ?, ?)""",
+                (attempt_id, failure_type, failure_reason),
+            )
+            if identity["status"] != "DETAIL_ENRICHED":
+                self.connection.execute(
+                    """UPDATE browser_post_identities
+                    SET status = 'DETAIL_FAILED', updated_at = ? WHERE id = ?""",
+                    (attempted_at, identity["id"]),
+                )
+        return attempt_id
+
     def count(self, table: str) -> int:
         allowed = {
             "collection_runs",
@@ -1340,6 +1526,8 @@ class Repository:
             "browser_observations",
             "browser_observed_fields",
             "browser_normalized_versions",
+            "browser_detail_attempts",
+            "browser_detail_failures",
         }
         if table not in allowed:
             raise ValueError("Unsupported table")
