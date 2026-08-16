@@ -207,6 +207,11 @@ async function main() {
   assert.equal(styled.style.alignSelf, "center");
   assert.equal(controller.resolveCardContainer(cards[0].link), cards[0]);
 
+  const removedByRerender = actionButton(cards[0]);
+  cards[0].actionRow.children = cards[0].actionRow.children.filter((child) => child !== removedByRerender);
+  controller.scan();
+  assert.equal(actionCounts(cards)[0], 1, "a Threads rerender must allow safe reinjection when the button is gone");
+
   const nestedActions = new FakeCard("nested-actions", true, { svgCount: 0 });
   let nestedParent = nestedActions.actionRow;
   for (let depth = 0; depth < 4; depth += 1) {

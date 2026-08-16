@@ -28,7 +28,6 @@
     const maximumCards = options.maximumCards ?? 100;
     const setTimer = options.setTimeout || setTimeout;
     const clearTimer = options.clearTimeout || clearTimeout;
-    const pendingCards = new WeakSet();
     const collectingCards = new WeakSet();
     let timer = null;
     let lastUrl = windowObject.location.href;
@@ -163,9 +162,8 @@
     }
 
     function inject(card, position) {
-      if (pendingCards.has(card) || card.querySelector(`[${ACTION_ATTRIBUTE}="${ACTION_VERSION}"]`)) return;
+      if (card.querySelector(`[${ACTION_ATTRIBUTE}="${ACTION_VERSION}"]`)) return;
       if (!extractor.recognizeSearchCard(card, windowObject.location.href)) return;
-      pendingCards.add(card);
       const button = documentObject.createElement("button");
       button.type = "button";
       button.textContent = "Pattern収集";

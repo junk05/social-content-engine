@@ -59,6 +59,7 @@
     {"id":"M3-019","owner":"COLLECTOR","title":"Place Pattern collection action at card bottom-right from HG-03 evidence","status":"COMPLETE","depends_on":["M3-018"]},
     {"id":"M3-020","owner":"COLLECTOR","title":"Place Pattern collection action on observed reaction toolbar from HG-03 evidence","status":"COMPLETE","depends_on":["M3-019"]},
     {"id":"M3-021","owner":"COLLECTOR","title":"Permit duplicate permalink card evidence for reaction-toolbar placement","status":"COMPLETE","depends_on":["M3-020"]},
-    {"id":"M3-022","owner":"COLLECTOR","title":"Resolve deeply nested Threads reaction toolbar from HG-03 evidence","status":"COMPLETE","depends_on":["M3-021"]}
+    {"id":"M3-022","owner":"COLLECTOR","title":"Resolve deeply nested Threads reaction toolbar from HG-03 evidence","status":"COMPLETE","depends_on":["M3-021"]},
+    {"id":"M3-023","owner":"COLLECTOR","title":"Reinject Pattern action after Threads card rerender from HG-03 evidence","status":"COMPLETE","depends_on":["M3-022"]}
   ]
 }
