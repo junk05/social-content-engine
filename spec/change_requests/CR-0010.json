@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0010",
+  "status": "APPROVED",
+  "title": "Add one foreground-focused debugger Input spike",
+  "risk": "HIGH",
+  "affected_components": [
+    "Chrome extension worker-tab lifecycle",
+    "M4-FU01 live verification"
+  ],
+  "approved_decision": "For exactly one existing human-selected pending post, foreground the dedicated worker tab and focus its Chrome window before the already-approved Activity-control CDP press/release pair.",
+  "unchanged_boundaries": [
+    "one post, one worker tab, one press/release pair, immediate detach",
+    "no CDP Network, Storage, Cookies, DOMSnapshot, screenshots, or arbitrary Runtime evaluation",
+    "no source text, metrics, credentials, cookie, storage, or DOM persistence",
+    "no batch integration, retry, or automatic alternative interaction method",
+    "HG-03 required for live execution",
+    "no M5 content generation"
+  ]
+}
