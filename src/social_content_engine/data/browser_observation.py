@@ -139,7 +139,10 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "extractor_version",
         "payload_sha256",
     }
-    if set(observation) != required_keys:
+    optional_keys = {"metric_observation_statuses"}
+    if not required_keys.issubset(observation) or not set(observation).issubset(
+        required_keys | optional_keys
+    ):
         raise ValueError("browser observation does not match the closed contract")
     if observation.get("schema_version") != 1 or observation.get("source") != "threads":
         raise ValueError("browser observation version or source is invalid")
@@ -183,6 +186,25 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         for value in counters.values()
     ):
         raise ValueError("public counters must be nonnegative integers or null")
+    metric_statuses = observation.get("metric_observation_statuses")
+    if metric_statuses is not None:
+        allowed_statuses = {
+            "OBSERVED",
+            "NOT_PRESENT",
+            "NOT_OBSERVED",
+            "EXTRACTION_FAILED",
+        }
+        if (
+            observation_type != "POST_DETAIL"
+            or not isinstance(metric_statuses, dict)
+            or set(metric_statuses) != counter_names
+            or any(value not in allowed_statuses for value in metric_statuses.values())
+        ):
+            raise ValueError("metric observation statuses do not match the contract")
+        for name, value in counters.items():
+            status_value = metric_statuses[name]
+            if (value is not None) != (status_value == "OBSERVED"):
+                raise ValueError("metric value and observation status disagree")
     canonical_url = canonical_threads_post_url(str(observation.get("post_url", "")))
     if observation.get("post_url") != canonical_url:
         raise ValueError("post_url must already be canonical")

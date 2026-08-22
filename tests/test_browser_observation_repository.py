@@ -21,6 +21,7 @@ def observation(
     text: str = "synthetic browser post",
     view_count: int = None,
     source_post_id: str = None,
+    metric_statuses: bool = False,
 ) -> dict:
     surface = (
         "threads_search_card"
@@ -93,6 +94,13 @@ def observation(
                 "extractor_version": "fixture-extractor-v1",
             }
         )
+    if metric_statuses:
+        if observation_type != "POST_DETAIL":
+            raise ValueError("metric statuses require a detail fixture")
+        values["metric_observation_statuses"] = {
+            name: "OBSERVED" if value is not None else "NOT_PRESENT"
+            for name, value in values["public_counters"].items()
+        }
     values["payload_sha256"] = browser_observation_payload_sha256(values)
     return values
 
@@ -182,6 +190,57 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                     ("public_counters.view_count", "12"),
                     [(row["field_name"], row["observed_value_json"]) for row in fields],
                 )
+
+    def test_nullable_detail_metric_statuses_are_validated_and_append_only(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "metric-status.sqlite3") as repository:
+                detail = observation(
+                    observation_type="POST_DETAIL", view_count=None, metric_statuses=True
+                )
+                result = repository.add_browser_observation(detail)
+                self.assertEqual("DETAIL_ENRICHED", result["status"])
+                rows = repository.connection.execute(
+                    """SELECT field_name, observation_status
+                    FROM browser_metric_observation_statuses
+                    WHERE browser_observation_id = ? ORDER BY field_name""",
+                    (result["browser_observation_id"],),
+                ).fetchall()
+                self.assertEqual(6, len(rows))
+                self.assertIn(
+                    ("public_counters.view_count", "NOT_PRESENT"),
+                    [tuple(row) for row in rows],
+                )
+                self.assertIn(
+                    ("public_counters.like_count", "OBSERVED"),
+                    [tuple(row) for row in rows],
+                )
+                self.assertEqual(6, repository.count("browser_metric_observation_statuses"))
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                    repository.connection.execute(
+                        """UPDATE browser_metric_observation_statuses
+                        SET observation_status = 'NOT_OBSERVED' WHERE field_name = ?""",
+                        ("public_counters.view_count",),
+                    )
+                repository.connection.rollback()
+
+    def test_metric_status_must_agree_with_nullable_counter(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "metric-validation.sqlite3") as repository:
+                invalid = observation(
+                    observation_type="POST_DETAIL", view_count=None, metric_statuses=True
+                )
+                invalid["metric_observation_statuses"]["view_count"] = "OBSERVED"
+                invalid["payload_sha256"] = browser_observation_payload_sha256(invalid)
+                with self.assertRaisesRegex(ValueError, "value and observation status disagree"):
+                    repository.add_browser_observation(invalid)
+
+                invalid = observation(
+                    observation_type="POST_DETAIL", view_count=0, metric_statuses=True
+                )
+                invalid["metric_observation_statuses"]["view_count"] = "NOT_PRESENT"
+                invalid["payload_sha256"] = browser_observation_payload_sha256(invalid)
+                with self.assertRaisesRegex(ValueError, "value and observation status disagree"):
+                    repository.add_browser_observation(invalid)
 
     def test_hash_mismatch_and_browser_or_credential_leakage_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

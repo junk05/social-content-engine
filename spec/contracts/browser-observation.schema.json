@@ -38,6 +38,21 @@
         "share_count": {"type": ["integer", "null"], "minimum": 0}
       }
     },
+    "metric_observation_statuses": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "view_count", "like_count", "reply_count", "repost_count", "quote_count", "share_count"
+      ],
+      "properties": {
+        "view_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]},
+        "like_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]},
+        "reply_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]},
+        "repost_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]},
+        "quote_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]},
+        "share_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]}
+      }
+    },
     "media_type": {"type": ["string", "null"], "minLength": 1},
     "has_image": {"type": ["boolean", "null"]},
     "has_video": {"type": ["boolean", "null"]},

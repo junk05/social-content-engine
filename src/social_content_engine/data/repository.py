@@ -1194,6 +1194,38 @@ def _migration_18_backfill_selected_detail_queue(connection: sqlite3.Connection)
     )
 
 
+def _migration_19_browser_metric_observation_statuses(
+    connection: sqlite3.Connection,
+) -> None:
+    """Persist field-specific metric availability independently from detail success."""
+    connection.execute(
+        """CREATE TABLE browser_metric_observation_statuses (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          field_name TEXT NOT NULL CHECK(field_name IN (
+            'public_counters.view_count', 'public_counters.like_count',
+            'public_counters.reply_count', 'public_counters.repost_count',
+            'public_counters.quote_count', 'public_counters.share_count'
+          )),
+          observation_status TEXT NOT NULL CHECK(observation_status IN (
+            'OBSERVED', 'NOT_PRESENT', 'NOT_OBSERVED', 'EXTRACTION_FAILED'
+          )),
+          surface TEXT NOT NULL CHECK(surface = 'threads_post_detail'),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          UNIQUE(browser_observation_id, field_name)
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_metric_observation_statuses_{0}
+            BEFORE {0} ON browser_metric_observation_statuses
+            BEGIN SELECT RAISE(ABORT, 'browser metric status evidence is immutable'); END""".format(
+                operation.lower()
+            )
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1213,6 +1245,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (16, "durable-browser-detail-enrichment-queue-v1", _migration_16_detail_enrichment_queue),
     (17, "one-running-browser-detail-batch-v1", _migration_17_one_running_detail_batch),
     (18, "backfill-selected-browser-detail-queue-v1", _migration_18_backfill_selected_detail_queue),
+    (19, "browser-metric-observation-statuses-v1", _migration_19_browser_metric_observation_statuses),
 )
 
 
@@ -1783,6 +1816,22 @@ class Repository:
                         field["extractor_version"],
                     ),
                 )
+            metric_statuses = observation.get("metric_observation_statuses")
+            if metric_statuses is not None:
+                for metric_name, metric_status in metric_statuses.items():
+                    self.connection.execute(
+                        """INSERT INTO browser_metric_observation_statuses
+                        (browser_observation_id, field_name, observation_status, surface,
+                         observed_at, extractor_version)
+                        VALUES (?, ?, ?, 'threads_post_detail', ?, ?)""",
+                        (
+                            observation_id,
+                            "public_counters." + metric_name,
+                            metric_status,
+                            observation["collected_at"],
+                            observation["extractor_version"],
+                        ),
+                    )
             version = self.connection.execute(
                 """SELECT id, version FROM browser_normalized_versions
                 WHERE browser_post_identity_id = ? AND payload_sha256 = ?""",
@@ -2612,6 +2661,7 @@ class Repository:
             "browser_post_identities",
             "browser_observations",
             "browser_observed_fields",
+            "browser_metric_observation_statuses",
             "browser_normalized_versions",
             "browser_detail_attempts",
             "browser_detail_failures",
