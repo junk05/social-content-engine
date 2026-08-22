@@ -33,6 +33,15 @@ Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索�
 左クリック1回だけを送信し、キー入力、clipboard、Chrome UI検索、cookie、
 credentialを扱いません。許可を外せばOS入力は直ちに使えなくなります。
 
+### M4-FU01-S4: クリックなしの座標校正
+
+オプションの「1件だけカーソル位置を校正」は、既知の詳細待ち投稿を専用タブで
+前面表示し、`アクティビティを見る`の中心として計算したmacOS screen座標へ
+カーソルだけを一度移動します。この段階ではクリックしません。専用タブは目視確認の
+ため開いたままになります。receiverプロセスごとに一度だけ実行でき、再実行には
+receiverの再起動が必要です。画面座標やDOM geometryはGitにもChrome storageにも
+保存しません。
+
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 
 ## セキュリティ境界
@@ -59,6 +68,7 @@ node extension/tests/transport_test.js
 node extension/tests/detail_extractor_test.js
 node extension/tests/detail_action_test.js
 node extension/tests/options_test.js
+node extension/tests/native_input_probe_test.js
 node extension/tests/detail_batch_worker_test.js
 node extension/tests/batch_controller_test.js
 ```

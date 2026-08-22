@@ -31,6 +31,7 @@ DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
 NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
 NATIVE_INPUT_DIAGNOSTIC_PATH = INGEST_PATH + "/native-input-diagnostic"
+NATIVE_INPUT_MOVE_PATH = INGEST_PATH + "/native-input-move"
 DEFAULT_PENDING_LIMIT = 50
 MAX_PENDING_LIMIT = 100
 
@@ -98,6 +99,7 @@ class BrowserIngestService:
         allowed_origins: Set[str],
         schema: Mapping[str, Any],
         native_click_runner: Optional[Any] = None,
+        native_move_runner: Optional[Any] = None,
     ) -> None:
         if not allowed_origins:
             raise ValueError("at least one extension origin is required")
@@ -110,7 +112,9 @@ class BrowserIngestService:
             load_thread_sequence_schema(), format_checker=jsonschema.FormatChecker()
         )
         self.native_click_runner = native_click_runner or self._run_native_click
+        self.native_move_runner = native_move_runner or self._run_native_move
         self.native_click_consumed = False
+        self.native_move_consumed = False
 
     def handle_options(
         self, path: str, origin: Optional[str], extension_origin: Optional[str] = None
@@ -125,6 +129,7 @@ class BrowserIngestService:
                 DETAIL_QUEUE_FAIL_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
+                NATIVE_INPUT_MOVE_PATH,
             },
         )
         return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
@@ -186,6 +191,7 @@ class BrowserIngestService:
                 DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
+                NATIVE_INPUT_MOVE_PATH,
             },
         )
         if error:
@@ -216,6 +222,8 @@ class BrowserIngestService:
             return self._handle_native_input_spike(decoded, request_origin)
         if path == NATIVE_INPUT_DIAGNOSTIC_PATH:
             return self._handle_native_input_diagnostic(decoded, request_origin)
+        if path == NATIVE_INPUT_MOVE_PATH:
+            return self._handle_native_input_move(decoded, request_origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
             return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         try:
@@ -281,7 +289,7 @@ class BrowserIngestService:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise ValueError("invalid coordinate")
         coordinate = float(value)
-        if not 0 <= coordinate <= 10000:
+        if not -10000 <= coordinate <= 10000:
             raise ValueError("invalid coordinate")
         return coordinate
 
@@ -294,8 +302,50 @@ class BrowserIngestService:
             ["/usr/bin/swift", str(helper), str(x), str(y)],
             capture_output=True, text=True, timeout=10, check=False,
         )
-        codes = {0: "clicked", 64: "coordinate_out_of_bounds", 70: "cgevent_create_failed", 77: "accessibility_permission_required"}
+        codes = {
+            0: "clicked",
+            64: "coordinate_out_of_bounds",
+            70: "cgevent_create_failed",
+            77: "accessibility_permission_required",
+        }
         return codes.get(completed.returncode, "helper_runtime_error")
+
+    @staticmethod
+    def _run_native_move(x: float, y: float) -> str:
+        helper = Path(__file__).parents[3] / "scripts" / "macos_native_click.swift"
+        if sys.platform != "darwin" or not helper.is_file():
+            return "unavailable"
+        completed = subprocess.run(
+            ["/usr/bin/swift", str(helper), "--move", str(x), str(y)],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        codes = {
+            0: "cursor_moved", 64: "coordinate_out_of_bounds",
+            65: "coordinate_out_of_display_bounds", 71: "cursor_move_failed",
+            72: "cursor_position_mismatch", 77: "accessibility_permission_required",
+        }
+        return codes.get(completed.returncode, "helper_runtime_error")
+
+    def _handle_native_input_move(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if (
+            self.native_move_consumed
+            or set(decoded) != {"action", "x", "y"}
+            or decoded.get("action") != "move_cursor"
+        ):
+            return IngestResponse(422, {"status": "unavailable"}, origin)
+        try:
+            x = self._native_coordinate(decoded["x"])
+            y = self._native_coordinate(decoded["y"])
+        except (KeyError, TypeError, ValueError):
+            return IngestResponse(422, {"status": "unavailable"}, origin)
+        self.native_move_consumed = True
+        try:
+            status = self.native_move_runner(x, y)
+        except (OSError, subprocess.SubprocessError):
+            status = "helper_runtime_error"
+        return IngestResponse(200, {"status": status}, origin)
 
     def _handle_native_input_spike(
         self, decoded: Dict[str, Any], origin: Optional[str]
@@ -312,7 +362,15 @@ class BrowserIngestService:
             status = self.native_click_runner(x, y)
         except (OSError, subprocess.SubprocessError):
             status = "failed"
-        if status not in {"clicked", "accessibility_permission_required", "unavailable", "coordinate_out_of_bounds", "cgevent_create_failed", "helper_runtime_error"}:
+        allowed_statuses = {
+            "clicked",
+            "accessibility_permission_required",
+            "unavailable",
+            "coordinate_out_of_bounds",
+            "cgevent_create_failed",
+            "helper_runtime_error",
+        }
+        if status not in allowed_statuses:
             status = "helper_runtime_error"
         return IngestResponse(200, {"status": status}, origin)
 
@@ -321,10 +379,22 @@ class BrowserIngestService:
         helper = Path(__file__).parents[3] / "scripts" / "macos_native_click.swift"
         if sys.platform != "darwin" or not helper.is_file():
             return "helper_unavailable"
-        completed = subprocess.run(["/usr/bin/swift", str(helper), "--diagnose"], capture_output=True, text=True, timeout=20, check=False)
-        return "accessibility_allowed" if completed.returncode == 0 else ("accessibility_permission_required" if completed.returncode == 77 else "helper_launch_failed")
+        completed = subprocess.run(
+            ["/usr/bin/swift", str(helper), "--diagnose"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+        if completed.returncode == 0:
+            return "accessibility_allowed"
+        if completed.returncode == 77:
+            return "accessibility_permission_required"
+        return "helper_launch_failed"
 
-    def _handle_native_input_diagnostic(self, decoded: Dict[str, Any], origin: Optional[str]) -> IngestResponse:
+    def _handle_native_input_diagnostic(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
         if decoded != {"action": "diagnose"}:
             return IngestResponse(422, {"status": "invalid_diagnostic"}, origin)
         try:

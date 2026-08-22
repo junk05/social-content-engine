@@ -24,6 +24,8 @@ const nodes = {
   "#run-debugger-foreground-spike": new Node("button"), "#debugger-foreground-spike-status": new Node(),
   "#run-native-input-spike": new Node("button"), "#native-input-spike-status": new Node(),
   "#run-native-input-diagnostic": new Node("button"), "#native-input-diagnostic-status": new Node(),
+  "#run-native-cursor-calibration": new Node("button"),
+  "#native-cursor-calibration-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
 };
@@ -109,3 +111,11 @@ pendingResponse = { accepted: true, outcome: "accessibility_allowed" };
 nodes["#run-native-input-diagnostic"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });
 assert.equal(nodes["#native-input-diagnostic-status"].textContent, "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK");
+
+pendingResponse = { accepted: true, outcome: "CURSOR_MOVE_SENT" };
+nodes["#run-native-cursor-calibration"].listeners.click();
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_CURSOR_CALIBRATION" });
+assert.equal(
+  nodes["#native-cursor-calibration-status"].textContent,
+  "カーソル位置を画面で確認してください。クリックは実行していません。",
+);

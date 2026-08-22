@@ -16,6 +16,7 @@ from social_content_engine.browser_ingest.server import (
     DETAIL_QUEUE_SUMMARY_PATH,
     INGEST_PATH,
     MAX_BODY_BYTES,
+    NATIVE_INPUT_MOVE_PATH,
     NATIVE_INPUT_SPIKE_PATH,
     PENDING_DETAILS_PATH,
     THREAD_SEQUENCE_PATH,
@@ -107,6 +108,38 @@ class BrowserIngestServerTest(unittest.TestCase):
         )
         self.assertEqual(422, second.status)
         self.assertEqual([], clicks[1:])
+
+    def test_native_input_move_is_shape_closed_and_one_shot(self) -> None:
+        moves = []
+        self.service.native_move_runner = (
+            lambda x, y: moves.append((x, y)) or "cursor_moved"
+        )
+        first = self.service.handle_post(
+            NATIVE_INPUT_MOVE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            b'{"action":"move_cursor","x":-120.5,"y":30}',
+        )
+        self.assertEqual(200, first.status)
+        self.assertEqual({"status": "cursor_moved"}, first.payload)
+        self.assertEqual([(-120.5, 30.0)], moves)
+        second = self.service.handle_post(
+            NATIVE_INPUT_MOVE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            b'{"action":"move_cursor","x":13,"y":31}',
+        )
+        self.assertEqual(422, second.status)
+        rejected = BrowserIngestService(
+            self.repository, {ALLOWED_ORIGIN}, load_schema()
+        ).handle_post(
+            NATIVE_INPUT_MOVE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            b'{"action":"click","x":13,"y":31}',
+        )
+        self.assertEqual(422, rejected.status)
+        self.assertEqual({"status": "unavailable"}, rejected.payload)
 
     def test_actual_http_options_and_post_include_allowlisted_cors_headers(self) -> None:
         class StubRepository:

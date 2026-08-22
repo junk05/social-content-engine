@@ -14,6 +14,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
   const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
   const NATIVE_INPUT_SPIKE_URL = RECEIVER_URL + "/native-input-spike";
   const NATIVE_INPUT_DIAGNOSTIC_URL = RECEIVER_URL + "/native-input-diagnostic";
+  const NATIVE_INPUT_MOVE_URL = RECEIVER_URL + "/native-input-move";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -477,6 +478,65 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     } catch (_error) { return { accepted: false, outcome: "bridge_failed" }; }
   }
 
+  async function runNativeCursorCalibration() {
+    const pending = await fetchPendingDetails(1);
+    if (!pending.accepted || pending.urls.length !== 1) {
+      return { accepted: false, outcome: "TAB_UNAVAILABLE" };
+    }
+    const tab = await chrome.tabs.create({ url: pending.urls[0], active: true });
+    if (!tab || !Number.isInteger(tab.id)) {
+      return { accepted: false, outcome: "TAB_UNAVAILABLE" };
+    }
+    let keepOpen = false;
+    try {
+      if (tab.status !== "complete") await waitForTabComplete(tab.id);
+      if (Number.isInteger(tab.windowId)) {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
+      await chrome.tabs.update(tab.id, { active: true });
+      const geometry = await chrome.tabs.sendMessage(
+        tab.id, { type: "SCE_NATIVE_INPUT_SCREEN_POINT" },
+      );
+      const point = geometry && geometry.point;
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+        return { accepted: false, outcome: "TARGET_NOT_FOUND" };
+      }
+      const response = await fetch(NATIVE_INPUT_MOVE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-SCE-Extension-Origin": extensionOrigin(),
+        },
+        body: JSON.stringify({ action: "move_cursor", x: point.x, y: point.y }),
+        credentials: "omit",
+        cache: "no-store",
+      });
+      const result = await response.json();
+      if (!result || result.status !== "cursor_moved") {
+        const outcomes = {
+          accessibility_permission_required: "ACCESSIBILITY_PERMISSION_REQUIRED",
+          coordinate_out_of_bounds: "COORDINATE_OUT_OF_BOUNDS",
+          coordinate_out_of_display_bounds: "COORDINATE_OUT_OF_DISPLAY_BOUNDS",
+          cursor_move_failed: "CURSOR_MOVE_FAILED",
+          cursor_position_mismatch: "CURSOR_POSITION_MISMATCH",
+          already_consumed: "CALIBRATION_ALREADY_CONSUMED",
+        };
+        return {
+          accepted: false,
+          outcome: outcomes[result && result.status] || "NATIVE_INPUT_FAILED",
+        };
+      }
+      keepOpen = true;
+      return { accepted: true, outcome: "CURSOR_MOVE_SENT" };
+    } catch (_error) {
+      return { accepted: false, outcome: "NATIVE_INPUT_FAILED" };
+    } finally {
+      if (!keepOpen) {
+        try { await chrome.tabs.remove(tab.id); } catch (_error) {}
+      }
+    }
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === "SCE_BATCH_WORKER_RESULT" && workerResultBroker) {
       sendResponse({
@@ -529,6 +589,10 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     }
     if (message && message.type === "SCE_START_NATIVE_INPUT_SPIKE") { runNativeInputSpike().then(sendResponse); return true; }
     if (message && message.type === "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC") { runNativeInputDiagnostic().then(sendResponse); return true; }
+    if (message && message.type === "SCE_START_NATIVE_CURSOR_CALIBRATION") {
+      runNativeCursorCalibration().then(sendResponse);
+      return true;
+    }
     return false;
   });
 })(globalThis);

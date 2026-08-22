@@ -16,6 +16,8 @@ const runNativeInputSpike = document.querySelector("#run-native-input-spike");
 const nativeInputSpikeStatus = document.querySelector("#native-input-spike-status");
 const runNativeInputDiagnostic = document.querySelector("#run-native-input-diagnostic");
 const nativeInputDiagnosticStatus = document.querySelector("#native-input-diagnostic-status");
+const runNativeCursorCalibration = document.querySelector("#run-native-cursor-calibration");
+const nativeCursorCalibrationStatus = document.querySelector("#native-cursor-calibration-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -152,5 +154,22 @@ runNativeInputSpike.addEventListener("click", () => {
 runNativeInputDiagnostic.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" }, (response) => {
     nativeInputDiagnosticStatus.textContent = response && response.outcome === "accessibility_allowed" ? "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK" : "helper診断に失敗しました。";
+  });
+});
+runNativeCursorCalibration.addEventListener("click", () => {
+  runNativeCursorCalibration.disabled = true;
+  nativeCursorCalibrationStatus.textContent = "対象位置へカーソルだけを移動しています。";
+  chrome.runtime.sendMessage({ type: "SCE_START_NATIVE_CURSOR_CALIBRATION" }, (response) => {
+    runNativeCursorCalibration.disabled = false;
+    const labels = {
+      CURSOR_MOVE_SENT: "カーソル位置を画面で確認してください。クリックは実行していません。",
+      TARGET_NOT_FOUND: "Activityボタンの位置を確認できませんでした。",
+      ACCESSIBILITY_PERMISSION_REQUIRED: "macOSのアクセシビリティ許可が必要です。",
+      COORDINATE_OUT_OF_DISPLAY_BOUNDS: "計算した位置が画面範囲外でした。",
+      CURSOR_POSITION_MISMATCH: "計算位置へカーソルを移動できませんでした。",
+      CALIBRATION_ALREADY_CONSUMED: "このreceiverでは校正を実行済みです。",
+    };
+    nativeCursorCalibrationStatus.textContent = labels[response && response.outcome]
+      || "カーソル位置を検証できませんでした。";
   });
 });
