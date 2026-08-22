@@ -155,7 +155,7 @@ unavailable. Native input stays viable but is not yet adopted for batch use.
 
 ### M4-FU01-S6 — Nullable Metric Observation Model
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU01_METRIC_OBSERVATION_MODEL.md`
 (`CR-0014`). `DETAIL_ENRICHED` no longer requires Views. Per-metric observed,
@@ -164,13 +164,19 @@ provenance-backed. Exact Views capability still requires separate live proof.
 
 ### M4-FU01-S7 — Approximate Detail-Page Views
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU01_APPROXIMATE_VIEWS.md` (`CR-0015`).
 Rounded Views visible on the selected detail page are stored as a separate
 descriptive signal and never as exact `view_count`. Activity-sheet enrichment
 is optional; exact ranking, inferred Views, causal claims, and M5 remain out of
 scope.
+
+One selected-post Live E2E passed without opening Activity: the immutable
+detail observation retained non-empty source text, exact `view_count=null`, and
+separate rounded Views normalization/provenance. No live value, text, URL, or
+author identity is committed. Evidence:
+`spec/evidence/M4_FU01_S7_LIVE_VERIFICATION.json`.
 
 ## Deferred until later milestones
 
