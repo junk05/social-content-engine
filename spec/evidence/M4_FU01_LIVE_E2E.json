@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU01-LIVE-E2E-V1",
+  "result": "PASS",
+  "live_values_committed": false,
+  "explicit_user_start": true,
+  "batch": {
+    "requested_items": 50,
+    "detail_enriched": 48,
+    "detail_failed": 2,
+    "isolated_failure_code_counts": {"PAGE_TIMEOUT": 2},
+    "single_sequential_worker": true,
+    "deterministic_pacing_enabled": true
+  },
+  "clean_analysis_bridge": {
+    "enriched_count": 48,
+    "valid_text_count": 48,
+    "excluded_count": 0,
+    "clean_snapshot_finalized": true
+  },
+  "observable_evidence": {
+    "rounded_views_observed_count": 42,
+    "exact_views_observed_count": 0,
+    "thread_sequence_observation_count": 48,
+    "missing_metrics_treated_as_zero": false
+  },
+  "provenance": {
+    "batch_assignment_count": 50,
+    "immutable_observations_preserved": true,
+    "database_integrity": "PASS",
+    "foreign_key_integrity": "PASS"
+  },
+  "sensitive_source_data_committed": false
+}

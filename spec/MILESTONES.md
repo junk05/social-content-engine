@@ -98,12 +98,16 @@ requires separate approval and its applicable Human Gate.
 
 ### M4-FU01 — Automated Detail Enrichment
 
-Status: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 (`CR-0008`). This follow-up automates detail enrichment only after one explicit
 user start and only for posts already selected through `Pattern収集`. It does
 not reopen M4 quality approval and does not authorize M5.
+
+HG-03 passed with a paced 50-item batch: 48 items enriched successfully, two
+page timeouts were isolated, and all successful observations entered the clean
+snapshot as valid text. Evidence: `spec/evidence/M4_FU01_LIVE_E2E.json`.
 
 ### M4-FU01-S1 — Debugger Input Live Spike
 
@@ -155,7 +159,7 @@ unavailable. Native input stays viable but is not yet adopted for batch use.
 
 ### M4-FU01-S6 — Nullable Metric Observation Model
 
-Status: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU01_METRIC_OBSERVATION_MODEL.md`
 (`CR-0014`). `DETAIL_ENRICHED` no longer requires Views. Per-metric observed,
@@ -178,12 +182,11 @@ separate rounded Views normalization/provenance. No live value, text, URL, or
 author identity is committed. Evidence:
 `spec/evidence/M4_FU01_S7_LIVE_VERIFICATION.json`.
 
-A subsequent 50-item bounded batch completed 48 items with two isolated page
-timeouts. Clean-dataset preparation found that 42 of the 48 completed items had
-legacy date metadata in place of source text. Those immutable observations stay
-available for audit, while `detail-extractor-v4` excludes date/time metadata
-from candidate post text. A provenance-preserving refresh queue is active until
-the repaired collector is verified on the affected selected identities.
+A repaired paced 50-item batch completed 48 items with two isolated page
+timeouts. All 48 enriched observations were valid clean source text; 42 retained
+rounded Views evidence and none inferred unavailable exact Views. Legacy invalid
+observations remain immutable audit evidence. Aggregate verification is in
+`spec/evidence/M4_FU01_LIVE_E2E.json`.
 
 ## Deferred until later milestones
 

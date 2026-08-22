@@ -111,7 +111,7 @@
     ,{"id":"M4-FU01-006","owner":"COLLECTOR","title":"Append full-text and observed thread-sequence detail evidence","status":"COMPLETE","depends_on":["M4-FU01-004"]}
     ,{"id":"M4-FU01-007","owner":"DATA","title":"Connect batch completion to bridge and clean analysis refresh boundary","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-006"]}
     ,{"id":"M4-FU01-008","owner":"QA_REVIEWER","title":"Verify retry, resume, failure isolation, security, extension, and M0-M4 regression","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-005","M4-FU01-006","M4-FU01-007"]}
-    ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-008"]}
+    ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"COMPLETE","depends_on":["M4-FU01-008"]}
     ,{"id":"M4-FU01-S1-001","owner":"ORCHESTRATOR","title":"Approve one-post debugger Input spike contract and material permission boundary","status":"COMPLETE","depends_on":["M4-FU01-008"]}
     ,{"id":"M4-FU01-S1-002","owner":"COLLECTOR","title":"Implement closed one-tab debugger Input spike without batch integration","status":"COMPLETE","depends_on":["M4-FU01-S1-001"]}
     ,{"id":"M4-FU01-S1-003","owner":"QA_REVIEWER","title":"Verify debugger command allowlist, detach, leakage boundary, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S1-002"]}
@@ -148,6 +148,6 @@
     ,{"id":"M4-FU01-S7-007","owner":"COLLECTOR","title":"Exclude date and relative-time metadata from detail text candidates","status":"COMPLETE","depends_on":["M4-FU01-S7-006"]}
     ,{"id":"M4-FU01-S7-008","owner":"DATA","title":"Requeue only affected invalid detail identities without deleting evidence","status":"COMPLETE","depends_on":["M4-FU01-S7-007"]}
     ,{"id":"M4-FU01-010","owner":"COLLECTOR","title":"Add deterministic inter-item pacing and batch progress without anti-detection timing","status":"COMPLETE","depends_on":["M4-FU01-008"]}
-    ,{"id":"M4-FU01-S7-009","owner":"ORCHESTRATOR","title":"Run repaired bounded batch and verify clean detail snapshot","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S7-008","M4-FU01-010"]}
+    ,{"id":"M4-FU01-S7-009","owner":"ORCHESTRATOR","title":"Run repaired bounded batch and verify clean detail snapshot","status":"COMPLETE","depends_on":["M4-FU01-S7-008","M4-FU01-010"]}
   ]
 }

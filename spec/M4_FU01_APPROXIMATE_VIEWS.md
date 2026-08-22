@@ -1,6 +1,6 @@
 # M4-FU01-S7 — Approximate Detail-Page Views
 
-STATUS: `APPROVED / LIVE DATA QUALITY REPAIR`
+STATUS: `COMPLETE`
 
 Contract version: `M4-FU01-APPROXIMATE-VIEWS-V1`
 
@@ -50,3 +50,8 @@ and relative-time metadata as text candidates. Refreshing an affected identity
 changes only durable workflow state: old observations and assessments remain
 immutable, and queue-to-batch assignment history remains append-only. Completion
 requires a repaired bounded batch whose clean snapshot uses valid source text.
+
+The repaired bounded batch passed: all 48 enriched observations were
+`VALID_TEXT`, 42 contained provenance-backed rounded Views, and no unavailable
+exact Views were inferred. Aggregate evidence is recorded in
+`spec/evidence/M4_FU01_LIVE_E2E.json`.

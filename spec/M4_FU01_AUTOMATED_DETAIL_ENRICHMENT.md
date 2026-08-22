@@ -1,6 +1,6 @@
 # M4-FU01 — Automated Detail Enrichment
 
-STATUS: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
+STATUS: `COMPLETE`
 
 Contract version: `M4-FU01-AUTOMATED-DETAIL-ENRICHMENT-V1`
 
@@ -116,3 +116,10 @@ authorize M5.
 
 Live Threads data, credentials, and browser state are intentionally absent from
 repository evidence. GitHub Actions must pass at the current commit before HG-03.
+
+HG-03 passed with a bounded 50-item live batch: 48 items reached
+`DETAIL_ENRICHED`, two page timeouts remained isolated, and all 48 successful
+detail observations entered the clean snapshot as `VALID_TEXT`. Rounded Views
+were observed independently from exact Views, missing metrics remained missing,
+and observed Thread Sequence evidence was retained. Only aggregate sanitized
+evidence is committed in `spec/evidence/M4_FU01_LIVE_E2E.json`.
