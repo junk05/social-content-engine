@@ -1,6 +1,6 @@
 # M4-FU01-S4 — Native Coordinate Calibration
 
-STATUS: `CLOSED / NATIVE INPUT NOT ADOPTED`
+STATUS: `CLICK PATH VERIFIED / EXTRACTION FOLLOW-UP ACTIVE`
 
 Contract version: `M4-FU01-NATIVE-COORDINATE-CALIBRATION-V1`
 
@@ -75,5 +75,6 @@ closed helper error. Any Stage 2 failure ends native-input experimentation.
   sheet, but exact view-count confirmation still timed out after the bounded
   probe repair. The sheet then closed with its dedicated worker tab. Result:
   `NATIVE_INPUT_SHEET_OBSERVED_VIEW_NOT_CAPTURED`. Per the approved boundary,
-  no additional click mechanism or native-input retry is authorized, and this
-  approach is not adopted for batch detail enrichment.
+  no additional click mechanism is authorized. `CR-0013` supersedes the prior
+  non-adoption decision only for read-only Activity DOM diagnosis and one
+  same-click extraction verification.

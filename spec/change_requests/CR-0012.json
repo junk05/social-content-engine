@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "change_request_id": "CR-0012",
-  "status": "CLOSED_NOT_ADOPTED",
+  "status": "SUPERSEDED_BY_CR_0013",
   "title": "Calibrate DOM-to-Quartz screen coordinates",
   "risk": "HIGH",
   "affected_components": ["Chrome content geometry probe", "loopback receiver", "macOS Quartz helper"],

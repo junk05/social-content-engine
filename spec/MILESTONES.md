@@ -98,7 +98,7 @@ requires separate approval and its applicable Human Gate.
 
 ### M4-FU01 — Automated Detail Enrichment
 
-Status: `FAIL_AFTER_SELF_REPAIR / LIVE VIEW CAPTURE UNVERIFIED`
+Status: `IN_PROGRESS / ACTIVITY EXTRACTION FOLLOW-UP`
 
 Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 (`CR-0008`). This follow-up automates detail enrichment only after one explicit
@@ -134,13 +134,22 @@ batch automation or M5.
 
 ### M4-FU01-S4 — Native Coordinate Calibration
 
-Status: `CLOSED / NATIVE INPUT NOT ADOPTED`
+Status: `CLICK PATH VERIFIED / EXTRACTION FOLLOW-UP ACTIVE`
 
 Approved specification: `spec/M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`
 (`CR-0012`). Stage 1 is move-only; the existing Quartz click remains gated on
 human confirmation of exact cursor alignment. Alignment and native clicking
 succeeded, but the repaired bounded probe did not capture the exact view count,
-so the method is closed without batch adoption. It does not authorize M5.
+so batch adoption remains pending. The earlier non-adoption decision is
+superseded by the approved read-only S5 follow-up. It does not authorize M5.
+
+### M4-FU01-S5 — Activity Sheet DOM Diagnostic
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_ACTIVITY_DOM_DIAGNOSTIC.md`
+(`CR-0013`). It retains the calibrated Quartz click and adds only read-only
+sheet diagnosis, exact view extraction, and one-post ingest verification.
 
 ## Deferred until later milestones
 

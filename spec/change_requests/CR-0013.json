@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0013",
+  "status": "APPROVED",
+  "title": "Diagnose and repair Activity sheet view extraction after native click",
+  "risk": "HIGH",
+  "affected_components": ["Activity DOM probe", "POST_DETAIL ingest bridge", "HG-03 live spike"],
+  "approved_decision": "Keep the proven Quartz click and add read-only structural DOM diagnosis plus exact view extraction for one selected post.",
+  "unchanged_boundaries": ["one selected post", "existing Quartz click only", "no network or browser storage inspection", "no live content in Git", "no batch before PASS", "no M5"]
+}

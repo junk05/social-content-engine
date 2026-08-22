@@ -111,7 +111,7 @@
     ,{"id":"M4-FU01-006","owner":"COLLECTOR","title":"Append full-text and observed thread-sequence detail evidence","status":"COMPLETE","depends_on":["M4-FU01-004"]}
     ,{"id":"M4-FU01-007","owner":"DATA","title":"Connect batch completion to bridge and clean analysis refresh boundary","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-006"]}
     ,{"id":"M4-FU01-008","owner":"QA_REVIEWER","title":"Verify retry, resume, failure isolation, security, extension, and M0-M4 regression","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-005","M4-FU01-006","M4-FU01-007"]}
-    ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"FAIL_AFTER_SELF_REPAIR","depends_on":["M4-FU01-008"]}
+    ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-008"]}
     ,{"id":"M4-FU01-S1-001","owner":"ORCHESTRATOR","title":"Approve one-post debugger Input spike contract and material permission boundary","status":"COMPLETE","depends_on":["M4-FU01-008"]}
     ,{"id":"M4-FU01-S1-002","owner":"COLLECTOR","title":"Implement closed one-tab debugger Input spike without batch integration","status":"COMPLETE","depends_on":["M4-FU01-S1-001"]}
     ,{"id":"M4-FU01-S1-003","owner":"QA_REVIEWER","title":"Verify debugger command allowlist, detach, leakage boundary, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S1-002"]}
@@ -129,5 +129,10 @@
     ,{"id":"M4-FU01-S4-003","owner":"QA_REVIEWER","title":"Verify no-click Stage 1, display bounds, geometry contract, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S4-002"]}
     ,{"id":"M4-FU01-S4-004","owner":"ORCHESTRATOR","title":"Run move-only HG-03 and record aligned or misaligned result","status":"COMPLETE","depends_on":["M4-FU01-S4-003"]}
     ,{"id":"M4-FU01-S4-005","owner":"ORCHESTRATOR","title":"Run one existing Quartz click only after aligned HG-03","status":"FAILED_CLOSED","depends_on":["M4-FU01-S4-004"]}
+    ,{"id":"M4-FU01-S5-001","owner":"ORCHESTRATOR","title":"Approve read-only Activity DOM diagnostic boundary","status":"COMPLETE","depends_on":["M4-FU01-S4-005"]}
+    ,{"id":"M4-FU01-S5-002","owner":"COLLECTOR","title":"Diagnose same-node and split-node Activity metrics after Quartz click","status":"IN_PROGRESS","depends_on":["M4-FU01-S5-001"]}
+    ,{"id":"M4-FU01-S5-003","owner":"DATA","title":"Ingest extracted POST_DETAIL and verify DETAIL_ENRICHED","status":"PENDING","depends_on":["M4-FU01-S5-002"]}
+    ,{"id":"M4-FU01-S5-004","owner":"QA_REVIEWER","title":"Verify diagnostic privacy boundary and regression","status":"PENDING","depends_on":["M4-FU01-S5-003"]}
+    ,{"id":"M4-FU01-S5-005","owner":"ORCHESTRATOR","title":"Run one-post HG-03 Activity extraction spike","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S5-004"]}
   ]
 }
