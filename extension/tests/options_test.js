@@ -121,6 +121,18 @@ assert.equal(
     + "DOM診断: {\"visibleDialogs\":1,\"exactValueFound\":true}",
 );
 
+pendingResponse = {
+  accepted: false,
+  outcome: "NATIVE_INPUT_VIEW_NOT_EXTRACTED",
+  extractionFailure: "POST_DETAIL_NOT_EXTRACTED",
+};
+nodes["#run-native-input-spike"].listeners.click();
+assert.equal(
+  nodes["#native-input-spike-status"].textContent,
+  "Activity sheetは開きましたが閲覧数を抽出できませんでした。\n"
+    + "抽出段階: POST_DETAIL_NOT_EXTRACTED",
+);
+
 pendingResponse = { accepted: true, outcome: "accessibility_allowed" };
 nodes["#run-native-input-diagnostic"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });

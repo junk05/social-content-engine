@@ -166,6 +166,12 @@
     const result = await waitForActivityResult();
     if (!result.activitySurface) return result;
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    const pageRecognized = Boolean(extractor
+      && typeof extractor.recognizePostDetail === "function"
+      && extractor.recognizePostDetail(document, location.href));
+    if (!pageRecognized) {
+      return { ...result, observation: null, nodes: [], extractionFailure: "POST_DETAIL_NOT_RECOGNIZED" };
+    }
     const collectedAt = new Date().toISOString();
     const observation = await extractor.extractPostDetail(document, {
       pageUrl: location.href,
@@ -173,8 +179,17 @@
     });
     const viewStatus = observation && observation.metric_observation_statuses
       && observation.metric_observation_statuses.view_count;
+    if (!observation) {
+      return { ...result, observation: null, nodes: [], extractionFailure: "POST_DETAIL_NOT_EXTRACTED" };
+    }
     if (!metricObservationConsistent(result, observation)) {
-      return { ...result, observation: null, nodes: [] };
+      const hasStatuses = Boolean(observation.metric_observation_statuses);
+      return {
+        ...result, observation: null, nodes: [],
+        extractionFailure: hasStatuses ? "VIEW_STATUS_MISMATCH" : "METRIC_STATUSES_MISSING",
+        viewObservationStatus: hasStatuses
+          ? observation.metric_observation_statuses.view_count : null,
+      };
     }
     const nodes = extractor.extractVisibleThreadNodes(document, location.href).map((node) => ({
       post_url: node.post_url,

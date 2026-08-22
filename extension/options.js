@@ -159,6 +159,9 @@ runNativeInputSpike.addEventListener("click", () => {
     if (response && response.viewObservationStatus) {
       nativeInputSpikeStatus.textContent += "\nview_count: " + response.viewObservationStatus;
     }
+    if (response && response.extractionFailure) {
+      nativeInputSpikeStatus.textContent += "\n抽出段階: " + response.extractionFailure;
+    }
     if (response && response.diagnostics) {
       nativeInputSpikeStatus.textContent += "\nDOM診断: " + JSON.stringify(response.diagnostics);
     }
