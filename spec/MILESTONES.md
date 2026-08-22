@@ -117,7 +117,7 @@ authorize M5.
 
 ### M4-FU01-S2 — Debugger Foreground Input Live Spike
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
 
 Approved specification: `spec/M4_FU01_DEBUGGER_FOREGROUND_SPIKE.md`
 (`CR-0010`). It changes only worker-tab foreground and containing-window focus
