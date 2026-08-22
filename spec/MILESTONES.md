@@ -126,11 +126,11 @@ authorized. It does not authorize M5.
 
 ### M4-FU01-S3 — macOS Native Input Live Spike
 
-Status: `IMPLEMENTED / HG-03 ACCESSIBILITY REQUIRED`
+Status: `FAILED / RE-EVALUATION REQUIRED`
 
 Approved specification: `spec/M4_FU01_NATIVE_INPUT_SPIKE.md` (`CR-0011`).
-This is one standard Quartz OS-level mouse click for one selected post only;
-it does not authorize batch automation or M5.
+Its single HG-03 run returned `NATIVE_INPUT_FAILED`; it does not authorize
+batch automation or M5.
 
 ## Deferred until later milestones
 

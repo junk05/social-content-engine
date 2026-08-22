@@ -1,6 +1,6 @@
 # M4-FU01-S3 — macOS Native Input Live Spike
 
-STATUS: `IMPLEMENTED / HG-03 ACCESSIBILITY REQUIRED`
+STATUS: `FAILED / RE-EVALUATION REQUIRED`
 
 Contract version: `M4-FU01-NATIVE-INPUT-SPIKE-V1`
 
@@ -56,3 +56,11 @@ experimentation; no further click method is authorized.
 
 HG-03 is required only to grant Accessibility control to the terminal process
 running the local receiver. No login, credential, or browser setup is needed.
+
+## HG-03 result — 2026-08-22
+
+Closed outcome: `NATIVE_INPUT_FAILED`.
+
+The Options UI reported that the native-input helper did not complete the
+bounded action. No Activity-sheet or view-count observation was produced and
+no further native click attempt is authorized by this contract.
