@@ -21,7 +21,47 @@ def downgrade_before_migration_16(path: Path) -> None:
     connection.close()
 
 
+def prepare_before_assignment_reconciliation(path: Path) -> None:
+    connection = sqlite3.connect(path)
+    connection.execute("DROP TRIGGER immutable_browser_detail_batch_assignments_update")
+    connection.execute("DROP TRIGGER immutable_browser_detail_batch_assignments_delete")
+    connection.execute("DELETE FROM browser_detail_batch_assignments")
+    connection.execute("DELETE FROM schema_migrations WHERE version = 22")
+    connection.commit()
+    connection.close()
+
+
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_migration_22_reconciles_assignment_from_pre_migration_receiver(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "assignment-reconcile.sqlite3"
+            with Repository(path) as repository:
+                repository.add_browser_observation(observation())
+            prepare_before_assignment_reconciliation(path)
+            connection = sqlite3.connect(path)
+            batch = connection.execute(
+                """INSERT INTO browser_detail_enrichment_batches
+                (status, requested_items, max_items, started_at, completed_at)
+                VALUES ('COMPLETED', 1, 1, '2026-08-22T00:00:00Z',
+                        '2026-08-22T00:01:00Z')"""
+            ).lastrowid
+            connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                active_batch_id = ?, attempt_count = 1, lease_version = 1,
+                updated_at = '2026-08-22T00:00:30Z'""",
+                (batch,),
+            )
+            connection.commit()
+            connection.close()
+
+            with Repository(path) as repository:
+                assignment = repository.connection.execute(
+                    "SELECT * FROM browser_detail_batch_assignments"
+                ).fetchone()
+                self.assertEqual(batch, assignment["browser_detail_batch_id"])
+                self.assertEqual(1, assignment["attempt_count"])
+                self.assertEqual(1, assignment["lease_version"])
+
     def test_requeue_only_latest_enriched_invalid_date_text(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "requeue.sqlite3") as repository:

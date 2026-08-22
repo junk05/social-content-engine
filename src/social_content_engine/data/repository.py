@@ -1292,6 +1292,19 @@ def _migration_21_detail_batch_assignment_history(connection: sqlite3.Connection
         )
 
 
+def _migration_22_reconcile_detail_batch_assignments(connection: sqlite3.Connection) -> None:
+    """Backfill assignments produced by a pre-migration receiver still finishing work."""
+    connection.execute(
+        """INSERT OR IGNORE INTO browser_detail_batch_assignments
+        (browser_detail_batch_id, browser_detail_queue_id, attempt_count,
+         lease_version, assigned_at)
+        SELECT active_batch_id, id, attempt_count, lease_version,
+               COALESCE(claimed_at, updated_at)
+        FROM browser_detail_enrichment_queue
+        WHERE active_batch_id IS NOT NULL AND attempt_count >= 1"""
+    )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1325,6 +1338,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
         21,
         "browser-detail-batch-assignment-history-v1",
         _migration_21_detail_batch_assignment_history,
+    ),
+    (
+        22,
+        "reconcile-browser-detail-batch-assignments-v1",
+        _migration_22_reconcile_detail_batch_assignments,
     ),
 )
 
