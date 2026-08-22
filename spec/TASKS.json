@@ -163,5 +163,10 @@
     ,{"id":"M4-REFRESH-003","owner":"INTELLIGENCE","title":"Replay First-Line, Post, and clean Thread Structural Patterns","status":"COMPLETE","depends_on":["M4-REFRESH-002"]}
     ,{"id":"M4-REFRESH-004","owner":"INTELLIGENCE","title":"Associate descriptive rounded Views and render human review report","status":"COMPLETE","depends_on":["M4-REFRESH-003"]}
     ,{"id":"M4-REFRESH-005","owner":"QA_REVIEWER","title":"Run regressions, repository validation, CI, and issue readiness decision","status":"COMPLETE","depends_on":["M4-REFRESH-004"]}
+    ,{"id":"M4-FU02-001","owner":"ORCHESTRATOR","title":"Approve isolated cohort audit and read-only export contract","status":"COMPLETE","depends_on":["M4-REFRESH-005"]}
+    ,{"id":"M4-FU02-002","owner":"DATA","title":"Implement deterministic post-S8 root coverage audit","status":"IN_PROGRESS","depends_on":["M4-FU02-001"]}
+    ,{"id":"M4-FU02-003","owner":"DATA","title":"Implement read-only canonical root and Thread node CSV export","status":"PENDING","depends_on":["M4-FU02-001"]}
+    ,{"id":"M4-FU02-004","owner":"QA_REVIEWER","title":"Verify cohort isolation, CSV semantics, database immutability, regression, and CI","status":"PENDING","depends_on":["M4-FU02-002","M4-FU02-003"]}
+    ,{"id":"M4-FU02-005","owner":"ORCHESTRATOR","title":"Run live audit/export and record aggregate verification","status":"PENDING","depends_on":["M4-FU02-004"]}
   ]
 }

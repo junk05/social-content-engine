@@ -220,6 +220,15 @@ date-metadata observations. The report decision is `READY_WITH_LIMITATIONS`
 because rounded Views cover 79 roots (33.5%) and 60 First Lines retain no
 specific component beyond the generic assertion form. M5 remains unauthorized.
 
+### M4-FU02 — Post-S8 Coverage Audit and Human Review Export
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU02_COVERAGE_AUDIT_EXPORT.md` (`CR-0019`).
+This read-only follow-up audits the isolated post-S8 root cohort and exports
+local analysis-only CSV files for human review. It does not reopen Structural
+analysis or authorize M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

@@ -21,6 +21,7 @@ This directory is the project SSOT.
 - `M4_FU01_APPROXIMATE_VIEWS.md`: rounded detail-page Views evidence model
 - `M4_FU01_SELF_REPLY_COLLECTION.md`: same-author reply content on the shared detail path
 - `M4_STRUCTURAL_REFRESH.md`: latest clean browser snapshot replay and readiness review
+- `M4_FU02_COVERAGE_AUDIT_EXPORT.md`: post-S8 cohort audit and read-only human CSV export
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

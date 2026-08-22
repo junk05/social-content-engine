@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0019",
+  "status": "APPROVED",
+  "title": "Audit post-S8 coverage and export browser evidence for human review",
+  "risk": "LOW",
+  "affected_components": ["browser coverage audit", "read-only CSV export", "local audit artifacts"],
+  "approved_decision": "Keep the post-S8 root cohort separate from all-period totals and provide deterministic UTF-8 BOM CSV exports of canonical roots and thread nodes from a read-only database connection.",
+  "unchanged_boundaries": ["no database mutation", "exports ignored by Git", "analysis-only source data", "generation-safe isolation", "no Structural Analyzer changes", "no M5"]
+}
