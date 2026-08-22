@@ -22,6 +22,7 @@ This directory is the project SSOT.
 - `M4_FU01_SELF_REPLY_COLLECTION.md`: same-author reply content on the shared detail path
 - `M4_STRUCTURAL_REFRESH.md`: latest clean browser snapshot replay and readiness review
 - `M4_FU02_COVERAGE_AUDIT_EXPORT.md`: post-S8 cohort audit and read-only human CSV export
+- `M4_FU04_COLLECTED_POST_MANAGEMENT.md`: local collected-root list and non-destructive detail exclusion controls
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

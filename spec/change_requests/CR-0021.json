@@ -1,0 +1,23 @@
+{
+  "id": "CR-0021",
+  "title": "Add local collected-post review and detail-enrichment exclusion controls",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Add a minimal Extension list of human-collected root posts with non-destructive exclude, re-enable, and re-enrich controls backed by the loopback Source Store.",
+  "scope": [
+    "list collected canonical root posts from local Source Store data",
+    "filter by detail state including excluded",
+    "append an exclusion/re-enable audit trail without deleting source evidence",
+    "prevent excluded identities from pending-list and batch claims",
+    "allow explicit re-enrich to re-enable and queue an identity",
+    "render local post metadata and controls in the Extension options page"
+  ],
+  "forbidden": [
+    "physical deletion of source observations or identities",
+    "automatic exclusion after repeated failure",
+    "external publication of the list",
+    "exposure through Generation-facing DTOs",
+    "starting M5"
+  ]
+}

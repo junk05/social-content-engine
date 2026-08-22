@@ -244,6 +244,16 @@ post-S8 cohort is audited and one to three human-confirmed self-reply roots are
 diagnosed with branch evidence intact. First-Line and Post results remain
 unchanged. M5 remains unauthorized.
 
+### M4-FU04 — Collected Post Management
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU04_COLLECTED_POST_MANAGEMENT.md`
+(`CR-0021`). This independent M4-FU01 follow-up adds a local Extension list of
+collected roots plus audited exclude/re-enable/re-enrich controls. Source
+evidence is never deleted, excluded identities cannot be batch-claimed, and M5
+remains unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
