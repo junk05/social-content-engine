@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0018",
+  "status": "APPROVED",
+  "title": "Refresh M4 Structural Pattern Intelligence from the latest clean browser dataset",
+  "risk": "LOW",
+  "affected_components": ["clean dataset snapshot", "Structural Analyzer", "Pattern Report", "rounded Views association"],
+  "approved_decision": "Audit the latest browser Source Store, pin a root-only valid-text snapshot, replay deterministic First-Line, Post, and observed Thread analysis, and produce a human-reviewable descriptive report without authorizing M5.",
+  "unchanged_boundaries": ["invalid source evidence remains immutable", "false-positive relationship evidence remains excluded", "rounded Views are not exact", "no causal claims", "generation-safe isolation", "no M5"]
+}

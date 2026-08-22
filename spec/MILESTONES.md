@@ -205,6 +205,16 @@ The repeat HG-03 passed: extractor v6 stored one root plus three eligible
 root-author continuation nodes and excluded both conversation-branch replies.
 Historical v5 evidence remains immutable and ineligible for clean analysis.
 
+### M4 Structural Pattern Intelligence Refresh
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_STRUCTURAL_REFRESH.md` (`CR-0018`). The latest
+root-only valid-text browser snapshot is being replayed through deterministic
+First-Line, Post, and observed Thread Structure analysis with descriptive
+rounded Views associations. The resulting readiness decision does not authorize
+M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
