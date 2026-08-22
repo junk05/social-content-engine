@@ -1,6 +1,6 @@
 # M4-FU01-S1 — Debugger Input Live Spike
 
-STATUS: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
+STATUS: `FAILED / RE-EVALUATION REQUIRED`
 
 Contract version: `M4-FU01-DEBUGGER-INPUT-SPIKE-V1`
 
@@ -67,3 +67,18 @@ The spike passes only if one human-selected pending post produces
 approved implementation task for batch integration; it does not itself change
 the M4-FU01 batch contract. A FAIL records the closed outcome and requires
 re-evaluation before additional automation.
+
+## HG-03 result — 2026-08-22
+
+Closed outcome: `SHEET_NOT_OBSERVED`.
+
+The extension selected exactly one existing `DETAIL_PENDING` identity and
+completed the bounded command path without an attach, target, or command
+failure. The post-dispatch content-side confirmation did not observe the
+Activity sheet within its bounded timeout. No metric, source content, URL,
+identity, browser data, or queue state was persisted.
+
+The exact cause is `UNKNOWN`. The remaining candidates include an interaction
+requirement of the inactive tab, an unobserved UI timing/state requirement, or
+a narrow sheet-detector mismatch. This contract forbids another live attempt
+or a broader debugger action. Any follow-up must be separately approved.
