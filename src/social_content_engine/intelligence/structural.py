@@ -177,14 +177,13 @@ def derive_structural_features(repository: Repository, structural_feature_run_id
 
 def _candidate_signatures(feature: Dict[str, Any], pattern_kind: str) -> List[Dict[str, Any]]:
     """Produce local atomic and adjacent-component structures, never text signatures."""
-    if pattern_kind == "THREAD":
-        return ([{"component_sequence": ["OBSERVED_SELF_REPLY_TRANSITION"]}]
-                if feature["thread_structure"]["observed_self_reply_transition"] else [])
     sequence_key = (
         "first_line_component_sequence"
         if pattern_kind == "FIRST_LINE" else "post_component_sequence"
     )
     sequence = [item for item in feature[sequence_key] if item != "ASSERTION"]
+    sequence = [item for index, item in enumerate(sequence)
+                if index == 0 or item != sequence[index - 1]]
     result: List[Dict[str, Any]] = []
     seen = set()
     for width in (1, 2):
@@ -193,7 +192,91 @@ def _candidate_signatures(feature: Dict[str, Any], pattern_kind: str) -> List[Di
             if candidate and candidate not in seen:
                 seen.add(candidate)
                 result.append({"component_sequence": list(candidate)})
+    if 3 <= len(sequence) <= 12:
+        candidate = tuple(sequence)
+        if candidate not in seen:
+            result.append({"component_sequence": list(candidate)})
     return result
+
+
+def _thread_node_role(feature: Dict[str, Any], *, is_root: bool) -> str:
+    components = {str(item["component_id"]) for item in feature["components"]}
+    if is_root:
+        return "ROOT_OPEN_LOOP" if "INCOMPLETE_INFORMATION" in components else "ROOT_HOOK"
+    if "CTA" in components:
+        return "SELF_REPLY_CTA"
+    if components.intersection({"RESULT_STATEMENT", "CONCLUSION_PREVIEW"}):
+        return "SELF_REPLY_PAYOFF"
+    if "REASON_PREVIEW" in components:
+        return "SELF_REPLY_EXPLANATION"
+    if "CONTRAST" in components:
+        return "SELF_REPLY_CONTRAST"
+    if "INCOMPLETE_INFORMATION" in components:
+        return "SELF_REPLY_OPEN_LOOP"
+    return "SELF_REPLY_DEVELOPMENT"
+
+
+def _observed_thread_signature(
+    repository: Repository, normalized_post_version_id: int
+) -> List[Dict[str, Any]]:
+    required_tables = {
+        "browser_normalized_bridges",
+        "browser_thread_sequence_observations",
+        "browser_observations",
+    }
+    available_tables = {
+        str(row[0]) for row in repository.connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    if not required_tables.issubset(available_tables):
+        return []
+    root = repository.connection.execute(
+        """SELECT browser_post_identity_id
+        FROM browser_normalized_bridges
+        WHERE normalized_post_version_id = ?""",
+        (normalized_post_version_id,),
+    ).fetchone()
+    if root is None:
+        return []
+    detail = repository.connection.execute(
+        """SELECT MAX(detail_observation_id) AS detail_observation_id
+        FROM browser_thread_sequence_observations
+        WHERE root_browser_post_identity_id = ?
+          AND relationship_evidence = 'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'
+          AND sequence_position > 0""",
+        (int(root["browser_post_identity_id"]),),
+    ).fetchone()
+    if detail is None or detail["detail_observation_id"] is None:
+        return []
+    nodes = repository.connection.execute(
+        """SELECT sequence.node_browser_post_identity_id,
+                  sequence.sequence_position,
+                  observation.canonical_payload_json
+        FROM browser_thread_sequence_observations sequence
+        JOIN browser_observations observation
+          ON observation.id = (
+            SELECT MAX(candidate.id) FROM browser_observations candidate
+            WHERE candidate.browser_post_identity_id =
+                  sequence.node_browser_post_identity_id
+              AND candidate.observation_type = 'POST_DETAIL'
+          )
+        WHERE sequence.detail_observation_id = ?
+          AND sequence.relationship_evidence IN (
+            'ROOT_DETAIL_PAGE', 'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'
+          )
+        ORDER BY sequence.sequence_position""",
+        (int(detail["detail_observation_id"]),),
+    ).fetchall()
+    if len(nodes) < 2:
+        return []
+    roles = []
+    for node in nodes:
+        payload = json.loads(str(node["canonical_payload_json"]))
+        text = payload.get("text") if isinstance(payload, dict) else ""
+        feature = extract_structural_feature(text if isinstance(text, str) else "")
+        roles.append(_thread_node_role(feature, is_root=int(node["sequence_position"]) == 0))
+    return [{"component_sequence": roles}]
 
 
 def materialize_structural_patterns(repository: Repository, structural_feature_run_id: int) -> int:
@@ -201,7 +284,8 @@ def materialize_structural_patterns(repository: Repository, structural_feature_r
     rows = repository.connection.execute(
         """SELECT structural_feature_instances.id, structural_feature_instances.feature_json,
                   structural_feature_instances.input_sha256,
-                  normalized_post_versions.normalized_post_id
+                  normalized_post_versions.normalized_post_id,
+                  structural_feature_instances.normalized_post_version_id
            FROM structural_feature_instances
            JOIN normalized_post_versions
              ON normalized_post_versions.id =
@@ -215,7 +299,13 @@ def materialize_structural_patterns(repository: Repository, structural_feature_r
         groups: Dict[str, List[Any]] = defaultdict(list)
         for row in rows:
             feature = json.loads(str(row["feature_json"]))
-            for signature in _candidate_signatures(feature, kind):
+            signatures = (
+                _observed_thread_signature(
+                    repository, int(row["normalized_post_version_id"])
+                )
+                if kind == "THREAD" else _candidate_signatures(feature, kind)
+            )
+            for signature in signatures:
                 groups[_canonical_json(signature)].append(row)
         for signature_json, members in sorted(groups.items()):
             sources = {int(member["normalized_post_id"]) for member in members}
