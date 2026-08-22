@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "verification_id": "M4-STRUCTURAL-REFRESH-V1",
-  "result": "LOCAL_PASS_CI_PENDING",
+  "result": "PASS",
   "live_values_committed": false,
   "snapshot": {
     "dataset_key": "m4-clean-browser-root-text",
@@ -47,7 +47,8 @@
     "repository_validation": "PASS",
     "database_integrity": "PASS",
     "foreign_key_integrity": "PASS",
-    "ci": "PENDING"
+    "ci": "PASS",
+    "ci_run": "https://github.com/junk05/social-content-engine/actions/runs/32576545656"
   },
   "source_text_or_identity_committed": false
 }

@@ -1,6 +1,6 @@
 # M4 Structural Pattern Intelligence Refresh
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0018`.
 
@@ -45,3 +45,8 @@ The decision is a quality assessment only, not authorization to start M5.
 Generation-safe report data contains no source text, URL, author, or source ID.
 Optional source examples may exist only in an ignored local
 `ANALYSIS_ONLY_SOURCE` review artifact.
+
+The version 2 root-only snapshot finalized with 236 valid members. The refreshed
+report decision is `READY_WITH_LIMITATIONS`; this is not M5 authorization.
+Aggregate verification is recorded in
+`spec/evidence/M4_STRUCTURAL_REFRESH_VERIFICATION.json`.

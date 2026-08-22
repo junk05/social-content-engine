@@ -207,13 +207,18 @@ Historical v5 evidence remains immutable and ineligible for clean analysis.
 
 ### M4 Structural Pattern Intelligence Refresh
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_STRUCTURAL_REFRESH.md` (`CR-0018`). The latest
 root-only valid-text browser snapshot is being replayed through deterministic
 First-Line, Post, and observed Thread Structure analysis with descriptive
 rounded Views associations. The resulting readiness decision does not authorize
 M5.
+
+The clean snapshot contains 236 valid roots and excludes two legacy
+date-metadata observations. The report decision is `READY_WITH_LIMITATIONS`
+because rounded Views cover 79 roots (33.5%) and 60 First Lines retain no
+specific component beyond the generic assertion form. M5 remains unauthorized.
 
 ## Deferred until later milestones
 
