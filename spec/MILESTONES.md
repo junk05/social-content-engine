@@ -145,7 +145,7 @@ superseded by the approved read-only S5 follow-up. It does not authorize M5.
 
 ### M4-FU01-S5 — Activity Sheet DOM Diagnostic
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
 
 Approved specification: `spec/M4_FU01_ACTIVITY_DOM_DIAGNOSTIC.md`
 (`CR-0013`). It retains the calibrated Quartz click and adds only read-only
