@@ -20,6 +20,7 @@ const nodes = {
   "#status": new Node(), "#load-pending": new Node("button"),
   "#pending-status": new Node(), "#pending-details": new Node("ul"),
   "#start-detail-batch": new Node("button"), "#resume-detail-batch": new Node("button"),
+  "#run-debugger-spike": new Node("button"), "#debugger-spike-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
 };
@@ -85,3 +86,8 @@ pendingResponse = { accepted: false, reason: "network_error" };
 nodes["#resume-detail-batch"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RESUME_DETAIL_BATCH", limit: 50 });
 assert.equal(nodes["#batch-status"].textContent, "詳細バッチを完了できませんでした。再開できます。");
+
+pendingResponse = { accepted: true, outcome: "SHEET_OBSERVED" };
+nodes["#run-debugger-spike"].listeners.click();
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_DEBUGGER_ACTIVITY_SPIKE" });
+assert.equal(nodes["#debugger-spike-status"].textContent, "Activity sheetの表示を確認しました。");

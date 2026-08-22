@@ -12,7 +12,7 @@ class ManifestTest(unittest.TestCase):
 
     def test_manifest_v3_has_only_required_surfaces(self) -> None:
         self.assertEqual(3, self.manifest["manifest_version"])
-        self.assertEqual(["storage", "tabs"], self.manifest["permissions"])
+        self.assertEqual(["storage", "tabs", "debugger"], self.manifest["permissions"])
         self.assertEqual(["http://127.0.0.1:8765/*"], self.manifest["host_permissions"])
         self.assertEqual("background.js", self.manifest["background"]["service_worker"])
         self.assertEqual("options.html", self.manifest["options_ui"]["page"])
@@ -28,6 +28,7 @@ class ManifestTest(unittest.TestCase):
             [
                 "extractor.js",
                 "detail_extractor.js",
+                "debugger_spike_probe.js",
                 "detail_batch_worker.js",
                 "injection.js",
                 "detail_action.js",
@@ -52,7 +53,7 @@ class ManifestTest(unittest.TestCase):
         for permission in forbidden:
             with self.subTest(permission=permission):
                 self.assertNotIn(permission, serialized)
-        self.assertEqual(["storage", "tabs"], self.manifest["permissions"])
+        self.assertEqual(["storage", "tabs", "debugger"], self.manifest["permissions"])
 
     def test_content_has_no_direct_transport_or_dom_collection(self) -> None:
         background = (ROOT / "background.js").read_text(encoding="utf-8")

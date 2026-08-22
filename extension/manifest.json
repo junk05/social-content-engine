@@ -5,7 +5,8 @@
   "description": "Human-selected public Threads observation collector for a loopback receiver.",
   "permissions": [
     "storage",
-    "tabs"
+    "tabs",
+    "debugger"
   ],
   "host_permissions": [
     "http://127.0.0.1:8765/*"
@@ -22,6 +23,7 @@
       "js": [
         "extractor.js",
         "detail_extractor.js",
+        "debugger_spike_probe.js",
         "detail_batch_worker.js",
         "injection.js",
         "detail_action.js",

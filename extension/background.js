@@ -1,6 +1,6 @@
 "use strict";
 
-if (typeof importScripts === "function") importScripts("batch_controller.js");
+if (typeof importScripts === "function") importScripts("batch_controller.js", "debugger_spike.js");
 
 (function exposeBackgroundTransport(scope) {
   const RECEIVER_URL = "http://127.0.0.1:8765/browser-ingest/threads";
@@ -406,6 +406,25 @@ if (typeof importScripts === "function") importScripts("batch_controller.js");
     },
   });
 
+  const debuggerSpike = scope.SCE_DEBUGGER_SPIKE && scope.SCE_DEBUGGER_SPIKE.createRunner({
+    tabs: chrome.tabs,
+    debuggerApi: chrome.debugger,
+    waitForTabComplete,
+    async confirmActivity(tabId) {
+      return chrome.tabs.sendMessage(tabId, { type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" });
+    },
+  });
+
+  async function runDebuggerActivitySpike() {
+    // The candidate comes from the receiver's human-selected DETAIL_PENDING
+    // set.  This neither claims an item nor changes any durable queue state.
+    const pending = await fetchPendingDetails(1);
+    if (!pending.accepted || pending.urls.length !== 1) {
+      return { accepted: false, outcome: "TAB_UNAVAILABLE" };
+    }
+    return debuggerSpike.run(pending.urls[0]);
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === "SCE_BATCH_WORKER_RESULT" && workerResultBroker) {
       sendResponse({
@@ -444,6 +463,12 @@ if (typeof importScripts === "function") importScripts("batch_controller.js");
     }
     if (message && message.type === "SCE_RESUME_DETAIL_BATCH" && batchController) {
       batchController.resume().then(sendResponse);
+      return true;
+    }
+    // This is intentionally isolated from the batch controller.  It is a
+    // one-post live capability spike and never claims or mutates queue state.
+    if (message && message.type === "SCE_START_DEBUGGER_ACTIVITY_SPIKE" && debuggerSpike) {
+      runDebuggerActivitySpike().then(sendResponse);
       return true;
     }
     return false;

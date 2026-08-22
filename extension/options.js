@@ -8,6 +8,8 @@ const startDetailBatch = document.querySelector("#start-detail-batch");
 const resumeDetailBatch = document.querySelector("#resume-detail-batch");
 const batchStatus = document.querySelector("#batch-status");
 const queueSummary = document.querySelector("#queue-summary");
+const runDebuggerSpike = document.querySelector("#run-debugger-spike");
+const debuggerSpikeStatus = document.querySelector("#debugger-spike-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -90,3 +92,24 @@ function runDetailBatch(type) {
 
 startDetailBatch.addEventListener("click", () => runDetailBatch("SCE_START_DETAIL_BATCH"));
 resumeDetailBatch.addEventListener("click", () => runDetailBatch("SCE_RESUME_DETAIL_BATCH"));
+
+runDebuggerSpike.addEventListener("click", () => {
+  runDebuggerSpike.disabled = true;
+  debuggerSpikeStatus.textContent = "選択済みの詳細待ち投稿1件でActivity表示を検証しています。";
+  chrome.runtime.sendMessage({ type: "SCE_START_DEBUGGER_ACTIVITY_SPIKE" }, (response) => {
+    runDebuggerSpike.disabled = false;
+    if (chrome.runtime.lastError || !response) {
+      debuggerSpikeStatus.textContent = "Activity表示を検証できませんでした。";
+      return;
+    }
+    const messages = {
+      SHEET_OBSERVED: "Activity sheetの表示を確認しました。",
+      SHEET_NOT_OBSERVED: "Activity sheetの表示を確認できませんでした。",
+      TARGET_NOT_FOUND: "Activityボタンを確認できませんでした。",
+      DEBUGGER_ATTACH_FAILED: "Activity表示を検証できませんでした。",
+      DEBUGGER_COMMAND_FAILED: "Activity表示を検証できませんでした。",
+      TAB_UNAVAILABLE: "検証できる詳細待ち投稿を確認できませんでした。",
+    };
+    debuggerSpikeStatus.textContent = messages[response.outcome] || "Activity表示を検証できませんでした。";
+  });
+});
