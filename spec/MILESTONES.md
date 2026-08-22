@@ -145,11 +145,13 @@ superseded by the approved read-only S5 follow-up. It does not authorize M5.
 
 ### M4-FU01-S5 — Activity Sheet DOM Diagnostic
 
-Status: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
+Status: `ROOT_CAUSE_CONFIRMED / RE-EVALUATION REQUIRED`
 
 Approved specification: `spec/M4_FU01_ACTIVITY_DOM_DIAGNOSTIC.md`
 (`CR-0013`). It retains the calibrated Quartz click and adds only read-only
-sheet diagnosis, exact view extraction, and one-post ingest verification.
+sheet diagnosis, exact view extraction, and one-post ingest verification. The
+live sheet rendered engagement metrics but no Views field; missing Views remain
+unavailable. Native input stays viable but is not yet adopted for batch use.
 
 ## Deferred until later milestones
 

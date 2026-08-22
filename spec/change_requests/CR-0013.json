@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "change_request_id": "CR-0013",
-  "status": "IMPLEMENTED_HG_REQUIRED",
+  "status": "ROOT_CAUSE_CONFIRMED_REEVALUATION_REQUIRED",
   "title": "Diagnose and repair Activity sheet view extraction after native click",
   "risk": "HIGH",
   "affected_components": ["Activity DOM probe", "POST_DETAIL ingest bridge", "HG-03 live spike"],

@@ -1,6 +1,6 @@
 # M4-FU01-S5 — Activity Sheet DOM Diagnostic
 
-STATUS: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
+STATUS: `ROOT_CAUSE_CONFIRMED / RE-EVALUATION REQUIRED`
 
 Contract version: `M4-FU01-ACTIVITY-DOM-DIAGNOSTIC-V1`
 
@@ -45,3 +45,18 @@ No batch operation or M5 work is authorized before PASS.
   No Views kind was classified. The next diagnostic adds the localized
   `ビュー` label and numeric-only rounded-shape reporting. Rounded values remain
   unavailable and are never converted into an exact view count.
+- Attempt 3: the expanded locale and numeric-shape probe again found a visible
+  modal with structurally paired Likes, Reposts, Quotes, and their exact
+  integer leaves. It found no Views label, no exact Views value, and no rounded
+  numeric leaf inside the sheet. The provided DOM location corroborated the
+  Likes value structure. Root cause: this selected public post's Activity sheet
+  does not render a view-count field. This is observed metric unavailability,
+  not a Quartz click, visibility, timing, iframe, shadow-root, normalizer, or
+  label/value traversal failure. Missing views remain unavailable; rounded page
+  headers are not converted to exact counts.
+
+The calibrated Quartz path remains technically viable for opening Activity and
+reading metrics that are actually rendered. Batch adoption and the M4-FU01 DoD
+remain pending a separate re-evaluation of nullable-view detail enrichment or
+a selected post where exact Views evidence is observably present. This result
+does not close native input and does not authorize another interaction method.

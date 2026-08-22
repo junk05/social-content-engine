@@ -133,6 +133,6 @@
     ,{"id":"M4-FU01-S5-002","owner":"COLLECTOR","title":"Diagnose same-node and split-node Activity metrics after Quartz click","status":"COMPLETE","depends_on":["M4-FU01-S5-001"]}
     ,{"id":"M4-FU01-S5-003","owner":"DATA","title":"Ingest extracted POST_DETAIL and verify DETAIL_ENRICHED","status":"COMPLETE","depends_on":["M4-FU01-S5-002"]}
     ,{"id":"M4-FU01-S5-004","owner":"QA_REVIEWER","title":"Verify diagnostic privacy boundary and regression","status":"COMPLETE","depends_on":["M4-FU01-S5-003"]}
-    ,{"id":"M4-FU01-S5-005","owner":"ORCHESTRATOR","title":"Run one-post HG-03 Activity extraction spike","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S5-004"]}
+    ,{"id":"M4-FU01-S5-005","owner":"ORCHESTRATOR","title":"Run one-post HG-03 Activity extraction spike","status":"FAILED_REEVALUATION_REQUIRED","depends_on":["M4-FU01-S5-004"]}
   ]
 }
