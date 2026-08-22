@@ -209,7 +209,8 @@ def build_structural_pattern_report(
         (structural_feature_run_id,),
     ).fetchone()
     snapshot = repository.connection.execute(
-        """SELECT selection_spec_json FROM dataset_snapshots WHERE id = ?""",
+        """SELECT dataset_key, version, status, selection_spec_json, created_at
+        FROM dataset_snapshots WHERE id = ?""",
         (int(run["dataset_snapshot_id"]),),
     ).fetchone()
     quality_rows = repository.connection.execute(
@@ -234,6 +235,20 @@ def build_structural_pattern_report(
           )""",
         (structural_feature_run_id,),
     ).fetchone()[0])
+    component_frequencies = {
+        str(row["component_id"]): int(row["instance_count"])
+        for row in repository.connection.execute(
+            """SELECT json_extract(component.value, '$.component_id') AS component_id,
+                      COUNT(DISTINCT structural_feature_instances.id) AS instance_count
+            FROM structural_feature_instances,
+                 json_each(structural_feature_instances.feature_json, '$.components') component
+            WHERE structural_feature_instances.structural_feature_run_id = ?
+              AND json_extract(component.value, '$.component_id') != 'ASSERTION'
+            GROUP BY json_extract(component.value, '$.component_id')
+            ORDER BY instance_count DESC, component_id""",
+            (structural_feature_run_id,),
+        )
+    }
     approximate_dataset_rows = repository.connection.execute(
         """WITH snapshot_roots AS (
              SELECT DISTINCT bridges.browser_post_identity_id
@@ -315,6 +330,36 @@ def build_structural_pattern_report(
         limitations.append("NO_GENERALIZED_THREAD_PATTERN")
     if residual_count:
         limitations.append("FIRST_LINE_TAXONOMY_RESIDUAL_PRESENT")
+    cross_analysis: Dict[str, List[Dict[str, Any]]] = {}
+    for kind, items in patterns.items():
+        eligible = []
+        for item in items:
+            metrics = item["performance_statistics"]
+            observed = int(metrics.get("approximate_views_observed", 0))
+            if observed < 3:
+                continue
+            high = int(metrics.get("approximate_views_high_band_count", 0))
+            eligible.append({
+                "component_sequence": item["component_sequence"],
+                "support_count": item["support_count"],
+                "views_observed_support": observed,
+                "approximate_views_median": metrics.get("approximate_views_median"),
+                "high_view_share_percent": round(100 * high / observed, 1),
+                "view_band_distribution": {
+                    key.removeprefix("approximate_views_band_"): value
+                    for key, value in metrics.items()
+                    if key.startswith("approximate_views_band_")
+                },
+            })
+        cross_analysis[kind] = sorted(
+            eligible,
+            key=lambda item: (
+                -float(item["high_view_share_percent"]),
+                -int(item["views_observed_support"]),
+                -int(item["support_count"]),
+                item["component_sequence"],
+            ),
+        )
     return {
         "report_version": REPORT_VERSION,
         "structural_feature_run_id": structural_feature_run_id,
@@ -331,6 +376,13 @@ def build_structural_pattern_report(
         },
         "dataset_selection": json.loads(str(snapshot["selection_spec_json"]))
         if snapshot is not None else {},
+        "dataset_snapshot": {
+            "dataset_key": str(snapshot["dataset_key"]),
+            "version": int(snapshot["version"]),
+            "status": str(snapshot["status"]),
+            "created_at": str(snapshot["created_at"]),
+            "member_count": instance_total,
+        } if snapshot is not None else {},
         "selected_text_quality": {
             str(row["quality_status"]): int(row["count"]) for row in quality_rows
         },
@@ -347,6 +399,8 @@ def build_structural_pattern_report(
         "comparison_run_id": comparison_run_id,
         "removed_or_below_support_patterns": removed,
         "pattern_counts": {key: len(value) for key, value in patterns.items()},
+        "structural_component_frequency": component_frequencies,
+        "rounded_views_cross_analysis": cross_analysis,
         "thread_length_distribution": thread_lengths,
         "pattern_library_readiness": {
             "status": readiness,
@@ -360,16 +414,32 @@ def build_structural_pattern_report(
 
 
 def render_structural_pattern_report(report: Dict[str, Any]) -> str:
+    readiness = report.get("pattern_library_readiness", {})
+    audit = report.get("data_audit", {})
     lines = [
-        "# STRUCTURAL PATTERN REPORT", "",
+        "# M4 Structural Pattern Intelligence — Human Review", "",
         "- Report version: " + str(report["report_version"]),
         "- Structural run: " + str(report["structural_feature_run_id"]),
         "- Source text stored in report: false", "",
+        "## Executive summary", "",
+        "- Clean canonical roots analyzed: "
+        + str(report["coverage"].get("instances", 0)),
+        "- Newly collected roots after S8: "
+        + str(audit.get("new_root_posts_after_s8", "UNAVAILABLE")),
+        "- Promoted patterns (First-Line / Post / Thread): {0} / {1} / {2}".format(
+            report.get("pattern_counts", {}).get("FIRST_LINE", 0),
+            report.get("pattern_counts", {}).get("POST", 0),
+            report.get("pattern_counts", {}).get("THREAD", 0),
+        ),
+        "- Rounded Views coverage: "
+        + str(report["coverage"].get("rounded_views_coverage_percent", 0.0)) + "%",
+        "- Pattern Library readiness: "
+        + str(readiness.get("status", "NOT_READY")),
+        "- M5 start authorized: false", "",
         "## Coverage", "",
     ]
     for key, value in report["coverage"].items():
         lines.append("- {0}: {1}".format(key, value))
-    audit = report.get("data_audit", {})
     if audit:
         lines.extend(["", "## Latest browser data audit", ""])
         for key, value in audit.items():
@@ -405,7 +475,16 @@ def render_structural_pattern_report(report: Dict[str, Any]) -> str:
         if not patterns:
             lines.append("INSUFFICIENT_EVIDENCE")
             continue
-        for pattern in patterns:
+        ranked = sorted(
+            patterns,
+            key=lambda pattern: (
+                -int(len(pattern.get("component_sequence", [])) >= 2),
+                -int(pattern["support_count"]),
+                pattern["abstract_formula"],
+            ),
+        )
+        display_limit = 20 if key != "observed_thread_structure_patterns" else 10
+        for pattern in ranked[:display_limit]:
             sequence = pattern.get("component_sequence")
             if not isinstance(sequence, list):
                 sequence = str(pattern.get("abstract_formula", "")).split(" -> ")
@@ -426,6 +505,36 @@ def render_structural_pattern_report(report: Dict[str, Any]) -> str:
                 "  - Previous comparison: "
                 + json.dumps(pattern.get("comparison", {}), sort_keys=True),
             ])
+        if len(ranked) > display_limit:
+            lines.append("- Additional promoted patterns in JSON library: "
+                         + str(len(ranked) - display_limit))
+    lines.extend(["", "## Rounded Views descriptive cross-analysis", ""])
+    lines.append(
+        "Only patterns with at least three rounded-Views observations are shown. "
+        "This is descriptive, not a performance ranking or causal result."
+    )
+    for kind in ("FIRST_LINE", "POST", "THREAD"):
+        lines.extend(["", "### " + kind.replace("_", " ").title(), ""])
+        candidates = report.get("rounded_views_cross_analysis", {}).get(kind, [])
+        if not candidates:
+            lines.append("INSUFFICIENT_EVIDENCE")
+            continue
+        for candidate in candidates[:10]:
+            lines.append("- `{0}`: support {1}; Views observed {2}; high-band share {3}%; "
+                         "approx median {4}".format(
+                             _formula(candidate["component_sequence"]),
+                             candidate["support_count"],
+                             candidate["views_observed_support"],
+                             candidate["high_view_share_percent"],
+                             candidate["approximate_views_median"],
+                         ))
+    lines.extend(["", "## Taxonomy coverage and residual", ""])
+    lines.append("- First lines without a specific component beyond ASSERTION: "
+                 + str(report["coverage"].get("first_line_no_specific_component", 0)))
+    for component, frequency in list(
+        report.get("structural_component_frequency", {}).items()
+    )[:20]:
+        lines.append("- {0}: {1}".format(component, frequency))
     lines.extend(["", "## Thread length distribution", ""])
     if report.get("thread_length_distribution"):
         for length, count in sorted(
@@ -444,7 +553,6 @@ def render_structural_pattern_report(report: Dict[str, Any]) -> str:
             ))
     else:
         lines.append("None")
-    readiness = report.get("pattern_library_readiness", {})
     lines.extend([
         "", "## Pattern Library readiness", "",
         "- Decision: " + str(readiness.get("status", "NOT_READY")),

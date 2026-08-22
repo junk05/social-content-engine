@@ -130,7 +130,7 @@ def audit_latest_browser_data(
         "added_after": cutoff or "UNAVAILABLE",
         "canonical_root_posts": canonical_roots,
         "new_root_posts_after_s8": added_roots if added_roots is not None else "UNAVAILABLE",
-        "root_observation_text_quality_counts": quality_counts,
+        "source_observation_text_quality_counts_for_roots": quality_counts,
         "rounded_views_observed_roots": rounded_roots,
         "rounded_views_root_coverage_percent": round(
             100 * rounded_roots / canonical_roots, 1
