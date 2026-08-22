@@ -3024,6 +3024,115 @@ class Repository:
         ).fetchall()
         return [str(row["post_url"]) for row in rows]
 
+    def list_collected_browser_roots(
+        self, *, status_filter: str = "ALL", sort: str = "newest", limit: int = 200
+    ) -> Sequence[Dict[str, Any]]:
+        """Return local review metadata for human-selected roots without source text."""
+        allowed_filters = {
+            "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"
+        }
+        if status_filter not in allowed_filters:
+            raise ValueError("invalid collected-root status filter")
+        if sort not in {"newest", "oldest", "error_first"}:
+            raise ValueError("invalid collected-root sort")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 500:
+            raise ValueError("collected-root limit must be between 1 and 500")
+        where = ""
+        parameters: list[Any] = []
+        if status_filter == "EXCLUDED":
+            where = "AND queue.enrichment_excluded = 1"
+        elif status_filter != "ALL":
+            where = "AND queue.enrichment_excluded = 0 AND queue.status = ?"
+            parameters.append(status_filter)
+        order = {
+            "newest": "collected_at DESC, identity.id DESC",
+            "oldest": "collected_at ASC, identity.id ASC",
+            "error_first": (
+                "CASE WHEN queue.last_error_code IS NULL THEN 1 ELSE 0 END, "
+                "collected_at DESC, identity.id DESC"
+            ),
+        }[sort]
+        rows = self.connection.execute(
+            """SELECT identity.id AS identity_id, identity.post_url,
+                      queue.status AS queue_status, queue.attempt_count,
+                      queue.last_error_code, queue.enrichment_excluded,
+                      queue.exclusion_reason, queue.excluded_at,
+                      MIN(search.collected_at) AS collected_at
+            FROM browser_post_identities AS identity
+            JOIN browser_detail_enrichment_queue AS queue
+              ON queue.browser_post_identity_id = identity.id
+            JOIN browser_observations AS search
+              ON search.browser_post_identity_id = identity.id
+             AND search.observation_type = 'SEARCH_CARD'
+            WHERE 1 = 1 {0}
+            GROUP BY identity.id, identity.post_url, queue.status, queue.attempt_count,
+                     queue.last_error_code, queue.enrichment_excluded,
+                     queue.exclusion_reason, queue.excluded_at
+            ORDER BY {1} LIMIT ?""".format(where, order),
+            (*parameters, limit),
+        ).fetchall()
+        result = []
+        for row in rows:
+            approximate = self.connection.execute(
+                """SELECT approximate.display, approximate.normalized_approx,
+                          approximate.view_band
+                FROM browser_approximate_view_observations AS approximate
+                JOIN browser_observations AS observation
+                  ON observation.id = approximate.browser_observation_id
+                WHERE observation.browser_post_identity_id = ?
+                ORDER BY approximate.observed_at DESC, approximate.id DESC LIMIT 1""",
+                (row["identity_id"],),
+            ).fetchone()
+            latest_sequence = self.connection.execute(
+                """SELECT detail_observation_id
+                FROM browser_thread_sequence_observations
+                WHERE root_browser_post_identity_id = ?
+                  AND sequence_position = 0
+                  AND relationship_evidence = 'ROOT_DETAIL_PAGE'
+                ORDER BY observed_at DESC, id DESC LIMIT 1""",
+                (row["identity_id"],),
+            ).fetchone()
+            self_reply_count = None
+            if latest_sequence is not None:
+                self_reply_count = int(
+                    self.connection.execute(
+                        """SELECT COUNT(*)
+                        FROM browser_thread_sequence_observations
+                        WHERE detail_observation_id = ? AND sequence_position > 0
+                          AND same_author_as_root = 1
+                          AND relationship_evidence =
+                            'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'""",
+                        (latest_sequence["detail_observation_id"],),
+                    ).fetchone()[0]
+                )
+            post_url = str(row["post_url"])
+            username = post_url.split("/@", 1)[1].split("/post/", 1)[0]
+            excluded = bool(row["enrichment_excluded"])
+            result.append(
+                {
+                    "collected_at": str(row["collected_at"]),
+                    "author_username": username,
+                    "post_url": post_url,
+                    "detail_status": "EXCLUDED" if excluded else str(row["queue_status"]),
+                    "attempt_count": int(row["attempt_count"]),
+                    "last_error": None
+                    if row["last_error_code"] is None
+                    else str(row["last_error_code"]),
+                    "rounded_views_raw": None
+                    if approximate is None else str(approximate["display"]),
+                    "rounded_views_normalized": None
+                    if approximate is None else int(approximate["normalized_approx"]),
+                    "rounded_views_band": None
+                    if approximate is None else str(approximate["view_band"]),
+                    "self_reply_count": self_reply_count,
+                    "enrichment_excluded": excluded,
+                    "exclusion_reason": None
+                    if row["exclusion_reason"] is None else str(row["exclusion_reason"]),
+                    "excluded_at": None if row["excluded_at"] is None else str(row["excluded_at"]),
+                }
+            )
+        return result
+
     def count(self, table: str) -> int:
         allowed = {
             "collection_runs",

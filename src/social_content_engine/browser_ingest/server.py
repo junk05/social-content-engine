@@ -29,6 +29,8 @@ DETAIL_BATCHES_PATH = INGEST_PATH + "/detail-batches"
 DETAIL_QUEUE_CLAIM_PATH = INGEST_PATH + "/detail-queue/claim"
 DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
+COLLECTED_POSTS_PATH = INGEST_PATH + "/collected-posts"
+DETAIL_EXCLUSION_PATH = INGEST_PATH + "/detail-exclusion"
 NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
 NATIVE_INPUT_DIAGNOSTIC_PATH = INGEST_PATH + "/native-input-diagnostic"
 NATIVE_INPUT_MOVE_PATH = INGEST_PATH + "/native-input-move"
@@ -127,6 +129,7 @@ class BrowserIngestService:
                 THREAD_SEQUENCE_PATH, DETAIL_QUEUE_SUMMARY_PATH, DETAIL_BATCHES_PATH,
                 DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
                 DETAIL_QUEUE_FAIL_PATH,
+                COLLECTED_POSTS_PATH, DETAIL_EXCLUSION_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
                 NATIVE_INPUT_MOVE_PATH,
@@ -139,7 +142,8 @@ class BrowserIngestService:
     ) -> IngestResponse:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
-            path, request_origin, {PENDING_DETAILS_PATH, DETAIL_QUEUE_SUMMARY_PATH}
+            path, request_origin,
+            {PENDING_DETAILS_PATH, DETAIL_QUEUE_SUMMARY_PATH, COLLECTED_POSTS_PATH}
         )
         if error:
             return error
@@ -147,6 +151,25 @@ class BrowserIngestService:
             if query:
                 return IngestResponse(400, {"error": "invalid_query"}, request_origin)
             return self._detail_queue_summary(request_origin)
+        if path == COLLECTED_POSTS_PATH:
+            values = parse_qs(query, keep_blank_values=True)
+            if set(values) - {"status", "sort", "limit"} or any(
+                len(values.get(key, [])) > 1 for key in ("status", "sort", "limit")
+            ):
+                return IngestResponse(400, {"error": "invalid_query"}, request_origin)
+            status_filter = values.get("status", ["ALL"])[0]
+            sort = values.get("sort", ["newest"])[0]
+            try:
+                limit = int(values.get("limit", ["200"])[0])
+                posts = self.repository.list_collected_browser_roots(
+                    status_filter=status_filter, sort=sort, limit=limit
+                )
+            except (TypeError, ValueError, sqlite3.DatabaseError):
+                return IngestResponse(400, {"error": "invalid_query"}, request_origin)
+            return IngestResponse(
+                200, {"status": "ok", "count": len(posts), "posts": list(posts)},
+                request_origin,
+            )
         values = parse_qs(query, keep_blank_values=True)
         if set(values) - {"limit"} or len(values.get("limit", [])) > 1:
             return IngestResponse(400, {"error": "invalid_query"}, request_origin)
@@ -189,6 +212,7 @@ class BrowserIngestService:
                 INGEST_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH,
                 DETAIL_BATCHES_PATH, DETAIL_QUEUE_CLAIM_PATH,
                 DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
+                DETAIL_EXCLUSION_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
                 NATIVE_INPUT_MOVE_PATH,
@@ -214,6 +238,8 @@ class BrowserIngestService:
             return self._handle_detail_queue_complete(decoded, request_origin)
         if path == DETAIL_QUEUE_FAIL_PATH:
             return self._handle_detail_queue_fail(decoded, request_origin)
+        if path == DETAIL_EXCLUSION_PATH:
+            return self._handle_detail_exclusion(decoded, request_origin)
         if path == DETAIL_FAILURE_PATH:
             return self._handle_detail_failure(decoded, request_origin)
         if path == THREAD_SEQUENCE_PATH:
@@ -266,6 +292,10 @@ class BrowserIngestService:
             "GROUP BY status"
         ).fetchall():
             counts[str(row["status"])] = int(row["count"])
+        excluded = self.repository.connection.execute(
+            """SELECT COUNT(*) AS count FROM browser_detail_enrichment_queue
+            WHERE enrichment_excluded = 1"""
+        ).fetchone()
         total = self.repository.connection.execute(
             "SELECT COUNT(*) AS count FROM browser_post_identities"
         ).fetchone()
@@ -279,6 +309,7 @@ class BrowserIngestService:
                 "status": "ok",
                 "collected_count": int(total["count"]) if total else 0,
                 "counts": counts,
+                "excluded_count": int(excluded["count"]) if excluded else 0,
                 "running_batch_id": None if running is None else int(running["id"]),
             },
             origin,
@@ -428,6 +459,7 @@ class BrowserIngestService:
                         JOIN browser_post_identities ON browser_post_identities.id =
                           browser_detail_enrichment_queue.browser_post_identity_id
                         WHERE browser_detail_enrichment_queue.status = 'DETAIL_FAILED'
+                          AND browser_detail_enrichment_queue.enrichment_excluded = 0
                         ORDER BY browser_detail_enrichment_queue.id LIMIT ?""",
                         (requested,),
                     ).fetchall()
@@ -459,6 +491,33 @@ class BrowserIngestService:
                 "batch_status": str(summary["status"]),
                 "assigned_items": int(summary["assigned_items"]),
                 "counts": summary["counts"],
+            },
+            origin,
+        )
+
+    def _handle_detail_exclusion(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if set(decoded) != {"action", "post_url"}:
+            return IngestResponse(422, {"error": "invalid_detail_exclusion"}, origin)
+        action = decoded.get("action")
+        post_url = decoded.get("post_url")
+        if action not in {"EXCLUDE", "REQUEUE"} or not isinstance(post_url, str):
+            return IngestResponse(422, {"error": "invalid_detail_exclusion"}, origin)
+        try:
+            result = (
+                self.repository.exclude_browser_detail_enrichment(post_url)
+                if action == "EXCLUDE"
+                else self.repository.requeue_browser_detail_enrichment(post_url)
+            )
+        except (KeyError, TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_detail_exclusion"}, origin)
+        return IngestResponse(
+            200,
+            {
+                "status": "accepted",
+                "changed": bool(result["changed"]),
+                "enrichment_excluded": bool(result["excluded"]),
             },
             origin,
         )

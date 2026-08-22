@@ -175,8 +175,8 @@
     ,{"id":"M4-FU03-005","owner":"ORCHESTRATOR","title":"Run one-to-three-root HG-03 diagnostic and repair false negatives","status":"IN_PROGRESS","depends_on":["M4-FU03-004"]}
     ,{"id":"M4-FU04-001","owner":"ORCHESTRATOR","title":"Approve collected-root management and non-destructive exclusion contract","status":"COMPLETE","depends_on":["M4-FU01-009"]}
     ,{"id":"M4-FU04-002","owner":"DATA","title":"Persist current exclusion state and immutable action audit trail","status":"COMPLETE","depends_on":["M4-FU04-001"]}
-    ,{"id":"M4-FU04-003","owner":"DATA","title":"Expose closed local list, exclude, and re-enrich receiver operations","status":"IN_PROGRESS","depends_on":["M4-FU04-002"]}
-    ,{"id":"M4-FU04-004","owner":"COLLECTOR","title":"Render collected-post filters and row actions in Extension options","status":"PENDING","depends_on":["M4-FU04-003"]}
+    ,{"id":"M4-FU04-003","owner":"DATA","title":"Expose closed local list, exclude, and re-enrich receiver operations","status":"COMPLETE","depends_on":["M4-FU04-002"]}
+    ,{"id":"M4-FU04-004","owner":"COLLECTOR","title":"Render collected-post filters and row actions in Extension options","status":"IN_PROGRESS","depends_on":["M4-FU04-003"]}
     ,{"id":"M4-FU04-005","owner":"QA_REVIEWER","title":"Verify queue exclusion, audit preservation, UI, security, and full regression","status":"PENDING","depends_on":["M4-FU04-004"]}
   ]
 }

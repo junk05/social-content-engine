@@ -8,7 +8,9 @@ from http.server import HTTPServer
 from pathlib import Path
 
 from social_content_engine.browser_ingest.server import (
+    COLLECTED_POSTS_PATH,
     DETAIL_BATCHES_PATH,
+    DETAIL_EXCLUSION_PATH,
     DETAIL_FAILURE_PATH,
     DETAIL_QUEUE_CLAIM_PATH,
     DETAIL_QUEUE_COMPLETE_PATH,
@@ -357,6 +359,73 @@ class BrowserIngestServerTest(unittest.TestCase):
         )
         self.assertEqual("COMPLETED", finished.payload["batch_status"])
         self.assertEqual(search.payload["identity_id"], detail.payload["identity_id"])
+
+    def test_collected_root_list_exclusion_and_requeue_are_closed_and_non_destructive(self) -> None:
+        first = self.observed_url("ReviewA")
+        second = self.observed_url("ReviewB")
+        self.post(first)
+        self.post(second)
+        observation_count = self.repository.count("browser_observations")
+
+        listed = self.service.handle_get(
+            COLLECTED_POSTS_PATH, "status=ALL&sort=newest&limit=20", ALLOWED_ORIGIN
+        )
+        self.assertEqual(200, listed.status)
+        self.assertEqual(2, listed.payload["count"])
+        self.assertEqual(
+            {
+                "collected_at", "author_username", "post_url", "detail_status",
+                "attempt_count", "last_error", "rounded_views_raw",
+                "rounded_views_normalized", "rounded_views_band", "self_reply_count",
+                "enrichment_excluded", "exclusion_reason", "excluded_at",
+            },
+            set(listed.payload["posts"][0]),
+        )
+        self.assertIsNone(listed.payload["posts"][0]["rounded_views_normalized"])
+        self.assertIsNone(listed.payload["posts"][0]["self_reply_count"])
+        self.assertNotIn("source_text", listed.body.decode("utf-8"))
+
+        excluded = self.service.handle_post(
+            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"action": "EXCLUDE", "post_url": second["post_url"]}).encode(),
+        )
+        self.assertEqual(200, excluded.status)
+        self.assertTrue(excluded.payload["enrichment_excluded"])
+        excluded_list = self.service.handle_get(
+            COLLECTED_POSTS_PATH, "status=EXCLUDED", ALLOWED_ORIGIN
+        )
+        self.assertEqual(1, excluded_list.payload["count"])
+        self.assertEqual("EXCLUDED", excluded_list.payload["posts"][0]["detail_status"])
+        pending = self.service.handle_get(
+            PENDING_DETAILS_PATH, "limit=10", ALLOWED_ORIGIN
+        )
+        self.assertEqual([first["post_url"]], pending.payload["urls"])
+
+        requeued = self.service.handle_post(
+            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"action": "REQUEUE", "post_url": second["post_url"]}).encode(),
+        )
+        self.assertEqual(200, requeued.status)
+        self.assertFalse(requeued.payload["enrichment_excluded"])
+        pending_list = self.service.handle_get(
+            COLLECTED_POSTS_PATH, "status=DETAIL_PENDING", ALLOWED_ORIGIN
+        )
+        self.assertEqual(2, pending_list.payload["count"])
+        self.assertEqual(observation_count, self.repository.count("browser_observations"))
+        self.assertEqual(
+            2, self.repository.count("browser_detail_enrichment_exclusion_actions")
+        )
+        invalid = self.service.handle_post(
+            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps({"action": "DELETE", "post_url": second["post_url"]}).encode(),
+        )
+        self.assertEqual(422, invalid.status)
+        self.assertEqual(
+            400,
+            self.service.handle_get(
+                COLLECTED_POSTS_PATH, "status=UNKNOWN", ALLOWED_ORIGIN
+            ).status,
+        )
 
     def test_queue_failure_is_correlated_and_next_item_remains_claimable(self) -> None:
         self.post(self.observed_url("QueueFailure"))
