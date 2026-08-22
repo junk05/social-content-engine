@@ -117,12 +117,12 @@ authorize M5.
 
 ### M4-FU01-S2 — Debugger Foreground Input Live Spike
 
-Status: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
+Status: `FAILED / RE-EVALUATION REQUIRED`
 
 Approved specification: `spec/M4_FU01_DEBUGGER_FOREGROUND_SPIKE.md`
-(`CR-0010`). It changes only worker-tab foreground and containing-window focus
-before S1's existing single CDP input pair. It must PASS before any evaluation
-of foreground batch suitability; it does not authorize M5.
+(`CR-0010`). Its single HG-03 run returned
+`SHEET_NOT_OBSERVED_FOREGROUND`; no further interaction expansion is
+authorized. It does not authorize M5.
 
 ## Deferred until later milestones
 

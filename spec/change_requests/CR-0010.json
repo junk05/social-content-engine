@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "change_request_id": "CR-0010",
-  "status": "IMPLEMENTED",
+  "status": "EXECUTED_FAIL_REEVALUATION_REQUIRED",
   "title": "Add one foreground-focused debugger Input spike",
   "risk": "HIGH",
   "affected_components": [
