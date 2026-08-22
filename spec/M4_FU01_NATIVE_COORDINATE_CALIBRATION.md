@@ -56,3 +56,8 @@ closed helper error. Any Stage 2 failure ends native-input experimentation.
   into the post body above the Activity control. No click was sent. A text-free
   ephemeral geometry readout is required before changing the deterministic
   conversion.
+- The text-free diagnostics showed that Brave's JavaScript `screenY` omitted
+  the browser UI inset while the extension window bounds exposed it. The next
+  move-only attempt therefore derives the vertical content origin from window
+  top plus window height minus inner viewport height. Horizontal conversion
+  remains unchanged because no horizontal miss was observed.

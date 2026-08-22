@@ -42,6 +42,8 @@ credentialを扱いません。許可を外せばOS入力は直ちに使えな�
 receiverの再起動が必要です。画面座標やDOM geometryはGitにもChrome storageにも
 保存しません。校正結果には、座標変換を監査するための本文を含まない一時的な
 geometry診断値だけを表示します。
+BraveなどでJavaScriptの`screenY`が実window境界と一致しない場合、縦方向は
+Chrome window boundsからcontent originを決定します。Retina倍率を重ねて掛けません。
 
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 

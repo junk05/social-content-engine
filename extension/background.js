@@ -1,6 +1,8 @@
 "use strict";
 
-if (typeof importScripts === "function") importScripts("batch_controller.js", "debugger_spike.js");
+if (typeof importScripts === "function") {
+  importScripts("batch_controller.js", "debugger_spike.js", "native_coordinate.js");
+}
 
 (function exposeBackgroundTransport(scope) {
   const RECEIVER_URL = "http://127.0.0.1:8765/browser-ingest/threads";
@@ -499,7 +501,8 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
       const geometry = await chrome.tabs.sendMessage(
         tab.id, { type: "SCE_NATIVE_INPUT_SCREEN_POINT" },
       );
-      const point = geometry && geometry.point;
+      const point = scope.SCE_NATIVE_COORDINATE
+        && scope.SCE_NATIVE_COORDINATE.calibratedScreenPoint(geometry, workerWindow);
       if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
         return { accepted: false, outcome: "TARGET_NOT_FOUND" };
       }
