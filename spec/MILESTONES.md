@@ -98,7 +98,7 @@ requires separate approval and its applicable Human Gate.
 
 ### M4-FU01 — Automated Detail Enrichment
 
-Status: `IN_PROGRESS / ACTIVITY EXTRACTION FOLLOW-UP`
+Status: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
 
 Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 (`CR-0008`). This follow-up automates detail enrichment only after one explicit
@@ -155,7 +155,7 @@ unavailable. Native input stays viable but is not yet adopted for batch use.
 
 ### M4-FU01-S6 — Nullable Metric Observation Model
 
-Status: `COMPLETE`
+Status: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
 
 Approved specification: `spec/M4_FU01_METRIC_OBSERVATION_MODEL.md`
 (`CR-0014`). `DETAIL_ENRICHED` no longer requires Views. Per-metric observed,
@@ -177,6 +177,13 @@ detail observation retained non-empty source text, exact `view_count=null`, and
 separate rounded Views normalization/provenance. No live value, text, URL, or
 author identity is committed. Evidence:
 `spec/evidence/M4_FU01_S7_LIVE_VERIFICATION.json`.
+
+A subsequent 50-item bounded batch completed 48 items with two isolated page
+timeouts. Clean-dataset preparation found that 42 of the 48 completed items had
+legacy date metadata in place of source text. Those immutable observations stay
+available for audit, while `detail-extractor-v4` excludes date/time metadata
+from candidate post text. A provenance-preserving refresh queue is active until
+the repaired collector is verified on the affected selected identities.
 
 ## Deferred until later milestones
 

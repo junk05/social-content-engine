@@ -1,6 +1,6 @@
 # M4-FU01-S7 — Approximate Detail-Page Views
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `APPROVED / LIVE DATA QUALITY REPAIR`
 
 Contract version: `M4-FU01-APPROXIMATE-VIEWS-V1`
 
@@ -43,3 +43,10 @@ One already selected detail page with a rounded Views display must produce a
 `DETAIL_ENRICHED` observation with exact `view_count=null`, a provenance-backed
 `approximate_views` record, full visible text, and any observable Thread
 Sequence. No Activity sheet action is required for this verification.
+
+The one-post path passed. The bounded batch subsequently exposed legacy date
+metadata being selected as post text. `detail-extractor-v4` rejects exact dates
+and relative-time metadata as text candidates. Refreshing an affected identity
+changes only durable workflow state: old observations and assessments remain
+immutable, and queue-to-batch assignment history remains append-only. Completion
+requires a repaired bounded batch whose clean snapshot uses valid source text.
