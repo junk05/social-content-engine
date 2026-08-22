@@ -14,6 +14,8 @@ if (typeof importScripts === "function") {
   const DETAIL_QUEUE_CLAIM_URL = RECEIVER_URL + "/detail-queue/claim";
   const DETAIL_QUEUE_COMPLETE_URL = RECEIVER_URL + "/detail-queue/complete";
   const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
+  const COLLECTED_POSTS_URL = RECEIVER_URL + "/collected-posts";
+  const DETAIL_EXCLUSION_URL = RECEIVER_URL + "/detail-exclusion";
   const NATIVE_INPUT_SPIKE_URL = RECEIVER_URL + "/native-input-spike";
   const NATIVE_INPUT_DIAGNOSTIC_URL = RECEIVER_URL + "/native-input-diagnostic";
   const NATIVE_INPUT_MOVE_URL = RECEIVER_URL + "/native-input-move";
@@ -253,9 +255,78 @@ if (typeof importScripts === "function") {
       batchId,
       collectedCount: payload.collected_count,
       counts: payload.counts,
+      excludedCount: Number.isInteger(payload.excluded_count) ? payload.excluded_count : 0,
       runningBatchId: Number.isInteger(payload.running_batch_id)
         ? payload.running_batch_id : null,
     };
+  }
+
+  function isSafeCollectedPost(post) {
+    const keys = [
+      "collected_at", "author_username", "post_url", "detail_status",
+      "attempt_count", "last_error", "rounded_views_raw",
+      "rounded_views_normalized", "rounded_views_band", "self_reply_count",
+      "enrichment_excluded", "exclusion_reason", "excluded_at",
+    ];
+    return post && typeof post === "object" && Object.keys(post).length === keys.length
+      && keys.every((key) => key in post)
+      && typeof post.collected_at === "string"
+      && typeof post.author_username === "string"
+      && /^[A-Za-z0-9._-]+$/.test(post.author_username)
+      && isCanonicalThreadsPostUrl(post.post_url)
+      && ["DETAIL_PENDING", "DETAIL_PROCESSING", "DETAIL_ENRICHED", "DETAIL_FAILED", "EXCLUDED"]
+        .includes(post.detail_status)
+      && Number.isInteger(post.attempt_count) && post.attempt_count >= 0
+      && (post.last_error === null || typeof post.last_error === "string")
+      && (post.rounded_views_raw === null || typeof post.rounded_views_raw === "string")
+      && (post.rounded_views_normalized === null
+        || (Number.isInteger(post.rounded_views_normalized)
+          && post.rounded_views_normalized >= 0))
+      && (post.rounded_views_band === null || typeof post.rounded_views_band === "string")
+      && (post.self_reply_count === null
+        || (Number.isInteger(post.self_reply_count) && post.self_reply_count >= 0))
+      && typeof post.enrichment_excluded === "boolean"
+      && (post.exclusion_reason === null
+        || post.exclusion_reason === "USER_EXCLUDED_SOURCE_UNAVAILABLE")
+      && (post.excluded_at === null || typeof post.excluded_at === "string");
+  }
+
+  async function fetchCollectedPosts(status = "ALL", sort = "newest", limit = 200, options = {}) {
+    const statuses = ["ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"];
+    if (!statuses.includes(status) || !["newest", "oldest", "error_first"].includes(sort)
+        || !Number.isInteger(limit) || limit < 1 || limit > 500) {
+      return { accepted: false, reason: "invalid_list_request", posts: [] };
+    }
+    const query = "?status=" + encodeURIComponent(status)
+      + "&sort=" + encodeURIComponent(sort) + "&limit=" + limit;
+    const result = await durableRequest(COLLECTED_POSTS_URL + query, "GET", null, options);
+    if (!result.accepted) return { ...result, posts: [] };
+    const payload = result.payload;
+    if (!payload || payload.status !== "ok" || !Number.isInteger(payload.count)
+        || !Array.isArray(payload.posts) || payload.count !== payload.posts.length
+        || payload.posts.some((post) => !isSafeCollectedPost(post))) {
+      return { accepted: false, reason: "invalid_receiver_response", posts: [] };
+    }
+    return { accepted: true, posts: payload.posts };
+  }
+
+  async function updateDetailExclusion(action, postUrl, options = {}) {
+    if (!["EXCLUDE", "REQUEUE"].includes(action) || !isCanonicalThreadsPostUrl(postUrl)) {
+      return { accepted: false, reason: "invalid_exclusion_request" };
+    }
+    const result = await durableRequest(
+      DETAIL_EXCLUSION_URL, "POST", { action, post_url: postUrl }, options,
+    );
+    if (!result.accepted) return result;
+    const payload = result.payload;
+    return payload && payload.status === "accepted"
+      && typeof payload.changed === "boolean"
+      && typeof payload.enrichment_excluded === "boolean"
+      ? {
+        accepted: true, changed: payload.changed,
+        enrichmentExcluded: payload.enrichment_excluded,
+      }
+      : { accepted: false, reason: "invalid_receiver_response" };
   }
 
   async function startBatch(limit = 50, options = {}) {
@@ -362,8 +433,10 @@ if (typeof importScripts === "function") {
     timeoutMilliseconds: TIMEOUT_MILLISECONDS,
     pendingDetailsUrl: PENDING_DETAILS_URL,
     detailFailureUrl: DETAIL_FAILURE_URL, threadSequenceUrl: THREAD_SEQUENCE_URL,
+    collectedPostsUrl: COLLECTED_POSTS_URL, detailExclusionUrl: DETAIL_EXCLUSION_URL,
     sendObservation, fetchPendingDetails, sendDetailFailure, sendThreadSequence, extensionOrigin,
-    queueSummary, startBatch, resumeBatch, finishBatch, claimNext, completeClaim, failClaim,
+    queueSummary, fetchCollectedPosts, updateDetailExclusion,
+    startBatch, resumeBatch, finishBatch, claimNext, completeClaim, failClaim,
   });
 
   function waitForTabComplete(tabId, timeout = PAGE_LOAD_TIMEOUT_MILLISECONDS) {
@@ -634,6 +707,14 @@ if (typeof importScripts === "function") {
     }
     if (message && message.type === "SCE_DETAIL_QUEUE_STATUS") {
       queueSummary().then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_LIST_COLLECTED_POSTS") {
+      fetchCollectedPosts(message.status, message.sort, message.limit).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_UPDATE_DETAIL_EXCLUSION") {
+      updateDetailExclusion(message.action, message.postUrl).then(sendResponse);
       return true;
     }
     if (message && message.type === "SCE_DETAIL_FAILURE") {

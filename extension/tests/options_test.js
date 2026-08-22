@@ -28,7 +28,12 @@ const nodes = {
   "#native-cursor-calibration-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
+  "#collected-filter": new Node("select"), "#collected-sort": new Node("select"),
+  "#refresh-collected": new Node("button"), "#collected-status": new Node(),
+  "#collected-posts": new Node("tbody"),
 };
+nodes["#collected-filter"].value = "ALL";
+nodes["#collected-sort"].value = "newest";
 globalThis.document = {
   querySelector(selector) { return nodes[selector]; },
   createElement(tag) { return new Node(tag); },
@@ -50,7 +55,18 @@ globalThis.chrome = {
       } else if (message.type === "SCE_DETAIL_QUEUE_STATUS") {
         callback({ accepted: true, collectedCount: 4, counts: {
           DETAIL_PENDING: 1, DETAIL_PROCESSING: 0, DETAIL_ENRICHED: 2, DETAIL_FAILED: 1,
-        } });
+        }, excludedCount: 1 });
+      } else if (message.type === "SCE_LIST_COLLECTED_POSTS") {
+        callback({ accepted: true, posts: [{
+          collected_at: "2026-08-23T01:00:00Z",
+          author_username: "fixture", post_url: "https://www.threads.net/@fixture/post/Review1",
+          detail_status: "DETAIL_FAILED", attempt_count: 2, last_error: "POST_NOT_FOUND",
+          rounded_views_raw: null, rounded_views_normalized: null,
+          rounded_views_band: null, self_reply_count: 0,
+          enrichment_excluded: false, exclusion_reason: null, excluded_at: null,
+        }] });
+      } else if (message.type === "SCE_UPDATE_DETAIL_EXCLUSION") {
+        callback({ accepted: true, changed: true, enrichmentExcluded: true });
       } else {
         callback(pendingResponse);
       }
@@ -61,8 +77,18 @@ globalThis.chrome = {
 require(path.join(__dirname, "..", "options.js"));
 assert.deepEqual(messages, [
   { type: "SCE_SCAFFOLD_STATUS" }, { type: "SCE_DETAIL_QUEUE_STATUS" },
+  { type: "SCE_LIST_COLLECTED_POSTS", status: "ALL", sort: "newest", limit: 200 },
 ]);
 assert.equal(nodes["#queue-summary"].textContent.includes("DETAIL_PENDING: 1"), true);
+assert.equal(nodes["#queue-summary"].textContent.includes("除外: 1"), true);
+assert.equal(nodes["#collected-posts"].children.length, 1);
+assert.equal(nodes["#collected-posts"].children[0].children[0].children[0].textContent, "@fixture");
+assert.equal(nodes["#collected-posts"].children[0].children[1].textContent.includes("POST_NOT_FOUND"), true);
+assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("未観測"), true);
+const excludeButton = nodes["#collected-posts"].children[0].children[3].children[1];
+excludeButton.listeners.click();
+assert.equal(messages.some((message) => message.type === "SCE_UPDATE_DETAIL_EXCLUSION"
+  && message.action === "EXCLUDE"), true);
 runtimeListener({ type: "SCE_DETAIL_BATCH_PROGRESS", progress: {
   processed: 3, total: 50, succeeded: 2, failed: 1, status: "WAITING_NEXT_ITEM",
 } });
@@ -74,7 +100,7 @@ assert.equal(nodes["#pending-details"].children.length, 0);
 assert.equal(typeof globalThis.open, "undefined");
 
 nodes["#load-pending"].listeners.click();
-assert.deepEqual(messages[2], { type: "SCE_LOAD_PENDING_DETAILS", limit: 50 });
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_LOAD_PENDING_DETAILS", limit: 50 });
 assert.equal(nodes["#pending-details"].children.length, 1);
 const link = nodes["#pending-details"].children[0].children[0];
 assert.equal(link.tag, "a");

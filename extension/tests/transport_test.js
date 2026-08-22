@@ -117,6 +117,62 @@ async function main() {
     fetch: async () => response(403, { error: "origin_not_allowed" }),
   }), { accepted: false, reason: "receiver_rejected", status: 403, urls: [] });
 
+  const collectedPost = {
+    collected_at: "2026-08-23T01:00:00Z",
+    author_username: "fixture",
+    post_url: "https://www.threads.net/@fixture/post/Review1",
+    detail_status: "DETAIL_FAILED",
+    attempt_count: 2,
+    last_error: "POST_NOT_FOUND",
+    rounded_views_raw: "表示1.2万回",
+    rounded_views_normalized: 12000,
+    rounded_views_band: "10K_100K",
+    self_reply_count: null,
+    enrichment_excluded: false,
+    exclusion_reason: null,
+    excluded_at: null,
+  };
+  let collectedRequest;
+  assert.deepEqual(await transport.fetchCollectedPosts("DETAIL_FAILED", "error_first", 25, {
+    fetch: async (url, options) => {
+      collectedRequest = { url, options };
+      return response(200, { status: "ok", count: 1, posts: [collectedPost] });
+    },
+  }), { accepted: true, posts: [collectedPost] });
+  assert.equal(
+    collectedRequest.url,
+    transport.collectedPostsUrl + "?status=DETAIL_FAILED&sort=error_first&limit=25",
+  );
+  assert.equal(collectedRequest.options.credentials, "omit");
+  assert.deepEqual(await transport.fetchCollectedPosts("UNKNOWN"), {
+    accepted: false, reason: "invalid_list_request", posts: [],
+  });
+  assert.deepEqual(await transport.fetchCollectedPosts("ALL", "newest", 5, {
+    fetch: async () => response(200, {
+      status: "ok", count: 1, posts: [{ ...collectedPost, post_url: "javascript:alert(1)" }],
+    }),
+  }), { accepted: false, reason: "invalid_receiver_response", posts: [] });
+
+  let exclusionRequest;
+  assert.deepEqual(await transport.updateDetailExclusion(
+    "EXCLUDE", collectedPost.post_url, {
+      fetch: async (url, options) => {
+        exclusionRequest = { url, options };
+        return response(200, {
+          status: "accepted", changed: true, enrichment_excluded: true,
+        });
+      },
+    },
+  ), { accepted: true, changed: true, enrichmentExcluded: true });
+  assert.equal(exclusionRequest.url, transport.detailExclusionUrl);
+  assert.deepEqual(JSON.parse(exclusionRequest.options.body), {
+    action: "EXCLUDE", post_url: collectedPost.post_url,
+  });
+  assert.equal(exclusionRequest.options.credentials, "omit");
+  assert.deepEqual(await transport.updateDetailExclusion("DELETE", collectedPost.post_url), {
+    accepted: false, reason: "invalid_exclusion_request",
+  });
+
   const detailFailure = {
     post_url: "https://www.threads.net/@fixture/post/Pending1",
     attempted_at: "2026-08-16T04:00:00Z",

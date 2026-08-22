@@ -18,6 +18,11 @@ const runNativeInputDiagnostic = document.querySelector("#run-native-input-diagn
 const nativeInputDiagnosticStatus = document.querySelector("#native-input-diagnostic-status");
 const runNativeCursorCalibration = document.querySelector("#run-native-cursor-calibration");
 const nativeCursorCalibrationStatus = document.querySelector("#native-cursor-calibration-status");
+const collectedFilter = document.querySelector("#collected-filter");
+const collectedSort = document.querySelector("#collected-sort");
+const refreshCollected = document.querySelector("#refresh-collected");
+const collectedStatus = document.querySelector("#collected-status");
+const collectedPosts = document.querySelector("#collected-posts");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -42,11 +47,103 @@ function refreshQueueSummary() {
       `DETAIL_PROCESSING: ${response.counts.DETAIL_PROCESSING}`,
       `DETAIL_ENRICHED: ${response.counts.DETAIL_ENRICHED}`,
       `DETAIL_FAILED: ${response.counts.DETAIL_FAILED}`,
+      `除外: ${response.excludedCount || 0}`,
     ].join(" / ");
   });
 }
 
 refreshQueueSummary();
+
+function postCell(post) {
+  const cell = document.createElement("td");
+  const link = document.createElement("a");
+  link.href = post.post_url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = "@" + post.author_username;
+  const meta = document.createElement("span");
+  meta.className = "post-meta";
+  meta.textContent = post.collected_at + "\n" + post.post_url;
+  cell.append(link);
+  cell.append(meta);
+  return cell;
+}
+
+function valueOrUnknown(value) {
+  return value === null || value === undefined ? "未観測" : String(value);
+}
+
+function renderCollectedPosts(posts) {
+  collectedPosts.replaceChildren();
+  for (const post of posts) {
+    const row = document.createElement("tr");
+    row.append(postCell(post));
+    const state = document.createElement("td");
+    state.textContent = post.detail_status
+      + (post.last_error ? "\n" + post.last_error : "")
+      + "\n試行: " + post.attempt_count;
+    row.append(state);
+    const metrics = document.createElement("td");
+    metrics.textContent = "Views: " + valueOrUnknown(post.rounded_views_raw)
+      + "\nSelf replies: " + valueOrUnknown(post.self_reply_count);
+    row.append(metrics);
+    const actions = document.createElement("td");
+    actions.className = "row-actions";
+    const requeue = document.createElement("button");
+    requeue.type = "button";
+    requeue.textContent = "再補完";
+    requeue.addEventListener("click", () => updateCollectedPost("REQUEUE", post.post_url));
+    const exclude = document.createElement("button");
+    exclude.type = "button";
+    exclude.textContent = post.enrichment_excluded ? "除外済み" : "詳細補完対象から除外";
+    exclude.disabled = post.enrichment_excluded;
+    exclude.addEventListener("click", () => updateCollectedPost("EXCLUDE", post.post_url));
+    actions.append(requeue);
+    actions.append(exclude);
+    row.append(actions);
+    collectedPosts.append(row);
+  }
+}
+
+function loadCollectedPosts() {
+  refreshCollected.disabled = true;
+  collectedStatus.textContent = "収集済み投稿を読み込んでいます。";
+  chrome.runtime.sendMessage({
+    type: "SCE_LIST_COLLECTED_POSTS",
+    status: collectedFilter.value || "ALL",
+    sort: collectedSort.value || "newest",
+    limit: 200,
+  }, (response) => {
+    refreshCollected.disabled = false;
+    if (chrome.runtime.lastError || !response || !response.accepted
+        || !Array.isArray(response.posts)) {
+      collectedPosts.replaceChildren();
+      collectedStatus.textContent = "収集済み投稿を読み込めませんでした。";
+      return;
+    }
+    renderCollectedPosts(response.posts);
+    collectedStatus.textContent = response.posts.length + "件を表示しています。";
+  });
+}
+
+function updateCollectedPost(action, postUrl) {
+  collectedStatus.textContent = action === "EXCLUDE" ? "除外を保存しています。" : "再補完を準備しています。";
+  chrome.runtime.sendMessage({
+    type: "SCE_UPDATE_DETAIL_EXCLUSION", action, postUrl,
+  }, (response) => {
+    if (chrome.runtime.lastError || !response || !response.accepted) {
+      collectedStatus.textContent = "操作を保存できませんでした。";
+      return;
+    }
+    refreshQueueSummary();
+    loadCollectedPosts();
+  });
+}
+
+refreshCollected.addEventListener("click", loadCollectedPosts);
+collectedFilter.addEventListener("change", loadCollectedPosts);
+collectedSort.addEventListener("change", loadCollectedPosts);
+loadCollectedPosts();
 
 chrome.runtime.onMessage.addListener((message) => {
   if (!message || message.type !== "SCE_DETAIL_BATCH_PROGRESS" || !message.progress) {

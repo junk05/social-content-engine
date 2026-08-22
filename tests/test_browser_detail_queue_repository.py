@@ -7,6 +7,7 @@ from pathlib import Path
 from social_content_engine.data.browser_observation import browser_observation_payload_sha256
 from social_content_engine.data.repository import Repository
 from tests.test_browser_detail_repository import observation
+from tests.test_browser_observation_repository import observation as rich_observation
 
 
 def downgrade_before_migration_16(path: Path) -> None:
@@ -33,6 +34,80 @@ def prepare_before_assignment_reconciliation(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_collected_root_list_exposes_observed_views_and_self_replies(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "review-list.sqlite3") as repository:
+                root = repository.add_browser_observation(rich_observation())
+                queue_id = int(repository.connection.execute(
+                    "SELECT id FROM browser_detail_enrichment_queue"
+                ).fetchone()[0])
+                batch_id = repository.start_browser_detail_batch(
+                    requested_items=1, max_items=1
+                )
+                claim = repository.claim_browser_detail(batch_id)
+                rounded = {
+                    "display": "表示1.2万回", "normalized_approx": 12000,
+                    "precision": "ROUNDED", "source": "POST_DETAIL_PAGE",
+                    "view_band": "10K_100K",
+                    "observed_at": "2026-08-23T01:00:00Z",
+                    "extractor_version": "fixture-extractor-v1",
+                    "normalizer_version": "rounded-views-normalizer-v1",
+                }
+                root_detail_payload = rich_observation(
+                    observation_type="POST_DETAIL", metric_statuses=True,
+                    approximate_views=rounded,
+                )
+                root_detail = repository.add_browser_observation(
+                    root_detail_payload,
+                    detail_attempt={
+                        "attempted_at": "2026-08-23T01:00:00Z",
+                        "extractor_version": "fixture-extractor-v1",
+                        "contract_version": "M3_BROWSER_DETAIL_ATTEMPT_V1",
+                    },
+                )
+                repository.complete_browser_detail_queue(
+                    queue_id, batch_id=batch_id, attempt=claim["attempt"],
+                    lease_version=claim["lease_version"],
+                    detail_observation_id=root_detail["browser_observation_id"],
+                )
+                repository.finish_browser_detail_batch(batch_id)
+                child_payload = rich_observation(observation_type="POST_DETAIL")
+                child_payload["post_url"] = "https://www.threads.net/@fixture/post/Child1"
+                child_payload["payload_sha256"] = browser_observation_payload_sha256(
+                    child_payload
+                )
+                child = repository.add_browser_observation(child_payload)
+                repository.record_browser_thread_sequence_observations(
+                    root_identity_id=root["browser_post_identity_id"],
+                    detail_observation_id=root_detail["browser_observation_id"],
+                    extractor_version="fixture-sequence-v1",
+                    entries=[
+                        {
+                            "node_identity_id": root["browser_post_identity_id"],
+                            "reply_to_identity_id": None, "sequence_position": 0,
+                            "same_author_as_root": True,
+                            "relationship_evidence": "ROOT_DETAIL_PAGE",
+                            "observed_at": "2026-08-23T01:01:00Z",
+                        },
+                        {
+                            "node_identity_id": child["browser_post_identity_id"],
+                            "reply_to_identity_id": None, "sequence_position": 1,
+                            "same_author_as_root": True,
+                            "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+                            "observed_at": "2026-08-23T01:01:00Z",
+                        },
+                    ],
+                )
+                posts = repository.list_collected_browser_roots()
+                self.assertEqual(1, len(posts), "child-only detail identity is not a root row")
+                self.assertEqual("DETAIL_ENRICHED", posts[0]["detail_status"])
+                self.assertEqual("表示1.2万回", posts[0]["rounded_views_raw"])
+                self.assertEqual(12000, posts[0]["rounded_views_normalized"])
+                self.assertEqual("10K_100K", posts[0]["rounded_views_band"])
+                self.assertEqual(1, posts[0]["self_reply_count"])
+
     def test_human_exclusion_is_reversible_audited_and_never_claimed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "exclusion.sqlite3") as repository:

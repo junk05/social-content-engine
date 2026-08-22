@@ -24,6 +24,15 @@ Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索�
 9. Chromeや拡張機能が中断した場合は「中断した詳細補完を再開」を押します。
    Source Storeのleaseを回収して再試行し、古いworker応答は受理しません。
 
+## 収集済み投稿一覧
+
+オプション画面の`収集済み投稿一覧`は、loopback Source Storeにあるcanonical
+rootだけをローカル表示します。状態filterで絞り込み、`再補完`で明示的に
+`DETAIL_PENDING`へ戻すか、`詳細補完対象から除外`でqueue対象外にできます。
+除外は物理削除ではありません。既存の投稿、metrics、attempt、failure、Thread
+evidenceは保持され、操作履歴も追記されます。除外済み投稿は`再補完`で再有効化
+できます。
+
 ### M4-FU01-S3: macOS Native Input Spike
 
 この1投稿限定検証では、receiverを起動しているTerminal（またはその親となる

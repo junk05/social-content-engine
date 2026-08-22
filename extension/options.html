@@ -29,6 +29,35 @@
       <p id="batch-status" aria-live="polite"></p>
       <p id="pending-status">詳細待ちはまだ読み込んでいません。</p>
       <ul id="pending-details"></ul>
+      <section aria-labelledby="collected-heading">
+        <h2 id="collected-heading">収集済み投稿一覧</h2>
+        <label>状態
+          <select id="collected-filter">
+            <option value="ALL">ALL</option>
+            <option value="DETAIL_PENDING">DETAIL_PENDING</option>
+            <option value="DETAIL_FAILED">DETAIL_FAILED</option>
+            <option value="DETAIL_ENRICHED">DETAIL_ENRICHED</option>
+            <option value="EXCLUDED">EXCLUDED</option>
+          </select>
+        </label>
+        <label>並び順
+          <select id="collected-sort">
+            <option value="newest">新しい順</option>
+            <option value="oldest">古い順</option>
+            <option value="error_first">エラー優先</option>
+          </select>
+        </label>
+        <button id="refresh-collected" type="button">一覧を更新</button>
+        <p id="collected-status" aria-live="polite">一覧を読み込んでいます。</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th>収集日時・投稿</th><th>状態</th><th>観測</th><th>操作</th>
+            </tr></thead>
+            <tbody id="collected-posts"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
     <script src="options.js"></script>
   </body>
