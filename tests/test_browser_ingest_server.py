@@ -250,10 +250,12 @@ class BrowserIngestServerTest(unittest.TestCase):
 
     def test_post_detail_acceptance_records_success_even_when_view_is_missing(self) -> None:
         self.post(self.observed_url("DetailMissingView"))
+        detail = self.observed_url(
+            "DetailMissingView", observation_type="POST_DETAIL", view_count=None,
+            metric_statuses=True,
+        )
         accepted = self.post(
-            self.observed_url(
-                "DetailMissingView", observation_type="POST_DETAIL", view_count=None
-            )
+            detail
         )
         self.assertEqual(201, accepted.status)
         self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
@@ -269,6 +271,16 @@ class BrowserIngestServerTest(unittest.TestCase):
                 WHERE post_url = ?""",
                 ("https://www.threads.net/@fixture/post/DetailMissingView",),
             ).fetchone()[0],
+        )
+        statuses = self.repository.connection.execute(
+            """SELECT field_name, observation_status
+            FROM browser_metric_observation_statuses
+            WHERE browser_observation_id = ?""",
+            (accepted.payload["observation_id"],),
+        ).fetchall()
+        self.assertIn(
+            ("public_counters.view_count", "NOT_PRESENT"),
+            [tuple(row) for row in statuses],
         )
 
     def test_durable_queue_batch_claim_complete_and_summary(self) -> None:

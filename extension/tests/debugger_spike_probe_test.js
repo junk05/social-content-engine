@@ -48,6 +48,18 @@ async function main() {
   const probe = globalThis.SCE_DEBUGGER_SPIKE_PROBE;
   assert.equal(probe.exactActivityMetricPresent(), true);
   assert.equal(probe.exactActivityViewCount(), 88386);
+  assert.equal(probe.metricObservationConsistent(
+    { viewCount: 88386 },
+    { public_counters: { view_count: 88386 }, metric_observation_statuses: { view_count: "OBSERVED" } },
+  ), true);
+  assert.equal(probe.metricObservationConsistent(
+    { viewCount: null },
+    { public_counters: { view_count: null }, metric_observation_statuses: { view_count: "NOT_PRESENT" } },
+  ), true);
+  assert.equal(probe.metricObservationConsistent(
+    { viewCount: null },
+    { public_counters: { view_count: 0 }, metric_observation_statuses: { view_count: "OBSERVED" } },
+  ), false, "exact zero is distinct from an absent metric");
   const diagnostic = probe.activityDomDiagnostic();
   assert.equal(diagnostic.visibleActivityLabels, 1);
   assert.equal(diagnostic.exactValueFound, true);

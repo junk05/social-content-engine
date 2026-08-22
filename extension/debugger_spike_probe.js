@@ -29,6 +29,16 @@
     return exactActivityViewCount() !== null;
   }
 
+  function metricObservationConsistent(result, observation) {
+    if (!observation || !observation.public_counters
+        || !observation.metric_observation_statuses) return false;
+    const observedView = observation.public_counters.view_count;
+    const viewStatus = observation.metric_observation_statuses.view_count;
+    return Number.isSafeInteger(result.viewCount)
+      ? observedView === result.viewCount && viewStatus === "OBSERVED"
+      : observedView === null && ["NOT_PRESENT", "EXTRACTION_FAILED"].includes(viewStatus);
+  }
+
   function sheetRootSummary(element) {
     if (!element) return null;
     let depth = 0;
@@ -154,14 +164,16 @@
 
   async function extractOpenActivity() {
     const result = await waitForActivityResult();
-    if (!Number.isSafeInteger(result.viewCount)) return result;
+    if (!result.activitySurface) return result;
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
     const collectedAt = new Date().toISOString();
     const observation = await extractor.extractPostDetail(document, {
       pageUrl: location.href,
       collectedAt,
     });
-    if (!observation || observation.public_counters.view_count !== result.viewCount) {
+    const viewStatus = observation && observation.metric_observation_statuses
+      && observation.metric_observation_statuses.view_count;
+    if (!metricObservationConsistent(result, observation)) {
       return { ...result, observation: null, nodes: [] };
     }
     const nodes = extractor.extractVisibleThreadNodes(document, location.href).map((node) => ({
@@ -170,7 +182,7 @@
       reply_to_post_url: node.reply_to_post_url,
       same_author_as_root: node.same_author_as_root,
     }));
-    return { ...result, observation, nodes };
+    return { ...result, observation, nodes, viewObservationStatus: viewStatus };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -189,6 +201,7 @@
   scope.SCE_DEBUGGER_SPIKE_PROBE = Object.freeze({
     exactActivityMetricPresent,
     exactActivityViewCount,
+    metricObservationConsistent,
     activityDomDiagnostic,
     structuralMetricNodes,
     waitForActivityResult,

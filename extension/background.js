@@ -476,8 +476,7 @@ if (typeof importScripts === "function") {
       const extraction = await chrome.tabs.sendMessage(
         tab.id, { type: "SCE_NATIVE_INPUT_EXTRACT_OPEN_ACTIVITY" },
       );
-      if (!extraction || !Number.isSafeInteger(extraction.viewCount)
-          || !extraction.observation) {
+      if (!extraction || !extraction.activitySurface || !extraction.observation) {
         return {
           accepted: false,
           outcome: extraction && extraction.activitySurface
@@ -506,6 +505,7 @@ if (typeof importScripts === "function") {
       return {
         accepted: true,
         outcome: "NATIVE_INPUT_DETAIL_ENRICHED",
+        viewObservationStatus: extraction.viewObservationStatus,
         diagnostics: extraction.diagnostics,
       };
     } catch (_error) { return { accepted: false, outcome: "NATIVE_INPUT_FAILED" }; }

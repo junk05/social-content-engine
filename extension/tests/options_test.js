@@ -110,12 +110,14 @@ assert.equal(nodes["#native-input-spike-status"].textContent, "macOSのアクセ
 pendingResponse = {
   accepted: true,
   outcome: "NATIVE_INPUT_DETAIL_ENRICHED",
+  viewObservationStatus: "NOT_PRESENT",
   diagnostics: { visibleDialogs: 1, exactValueFound: true },
 };
 nodes["#run-native-input-spike"].listeners.click();
 assert.equal(
   nodes["#native-input-spike-status"].textContent,
-  "Activity sheet・閲覧数・DETAIL_ENRICHEDを確認しました。\n"
+  "Activity sheet・取得可能metrics・DETAIL_ENRICHEDを確認しました。\n"
+    + "view_count: NOT_PRESENT\n"
     + "DOM診断: {\"visibleDialogs\":1,\"exactValueFound\":true}",
 );
 
