@@ -62,12 +62,20 @@
         const result = await sendMessage({ type: "SCE_OBSERVATION_READY", observation });
         if (result.accepted) {
           const nodes = extractor.extractVisibleThreadNodes(root, location.href);
-          if (Number.isInteger(result.observationId) && nodes.length > 0) {
+          const acceptedUrls = new Set([observation.post_url]);
+          const childObservations = typeof extractor.extractVisibleThreadDetails === "function"
+            ? await extractor.extractVisibleThreadDetails(root, location.href, attemptedAt) : [];
+          for (const child of childObservations) {
+            const childResult = await sendMessage({ type: "SCE_OBSERVATION_READY", observation: child });
+            if (childResult.accepted) acceptedUrls.add(child.post_url);
+          }
+          const observableNodes = nodes.filter((node) => acceptedUrls.has(node.post_url));
+          if (Number.isInteger(result.observationId) && observableNodes.length > 0) {
             await sendMessage({
               type: "SCE_THREAD_SEQUENCE_READY",
               sequence: {
                 root_post_url: observation.post_url,
-                nodes: nodes.map((node) => ({
+                nodes: observableNodes.map((node) => ({
                   post_url: node.post_url,
                   sequence_position: node.sequence_position,
                   reply_to_post_url: node.reply_to_post_url,
