@@ -49,3 +49,10 @@ Stage 1: `CURSOR_MOVE_SENT`, `CURSOR_TARGET_ALIGNED` (human),
 Stage 2: `NATIVE_INPUT_SHEET_OBSERVED` only when the Activity sheet and exact
 view count are both observed; otherwise `NATIVE_INPUT_SHEET_NOT_OBSERVED` or a
 closed helper error. Any Stage 2 failure ends native-input experimentation.
+
+## Live calibration record
+
+- 2026-08-22 Stage 1 attempt 1: `CURSOR_TARGET_MISALIGNED`. The cursor moved
+  into the post body above the Activity control. No click was sent. A text-free
+  ephemeral geometry readout is required before changing the deterministic
+  conversion.

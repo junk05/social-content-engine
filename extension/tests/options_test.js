@@ -112,10 +112,15 @@ nodes["#run-native-input-diagnostic"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });
 assert.equal(nodes["#native-input-diagnostic-status"].textContent, "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK");
 
-pendingResponse = { accepted: true, outcome: "CURSOR_MOVE_SENT" };
+pendingResponse = {
+  accepted: true,
+  outcome: "CURSOR_MOVE_SENT",
+  diagnostics: { browserChromeTop: 92 },
+};
 nodes["#run-native-cursor-calibration"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_CURSOR_CALIBRATION" });
 assert.equal(
   nodes["#native-cursor-calibration-status"].textContent,
-  "カーソル位置を画面で確認してください。クリックは実行していません。",
+  "カーソル位置を画面で確認してください。クリックは実行していません。\n"
+    + "診断値: {\"browserChromeTop\":92}",
 );

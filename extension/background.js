@@ -490,8 +490,10 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     let keepOpen = false;
     try {
       if (tab.status !== "complete") await waitForTabComplete(tab.id);
+      let workerWindow = null;
       if (Number.isInteger(tab.windowId)) {
         await chrome.windows.update(tab.windowId, { focused: true });
+        workerWindow = await chrome.windows.get(tab.windowId);
       }
       await chrome.tabs.update(tab.id, { active: true });
       const geometry = await chrome.tabs.sendMessage(
@@ -527,7 +529,18 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
         };
       }
       keepOpen = true;
-      return { accepted: true, outcome: "CURSOR_MOVE_SENT" };
+      const windowBounds = workerWindow ? {
+        left: workerWindow.left,
+        top: workerWindow.top,
+        width: workerWindow.width,
+        height: workerWindow.height,
+        state: workerWindow.state,
+      } : null;
+      return {
+        accepted: true,
+        outcome: "CURSOR_MOVE_SENT",
+        diagnostics: { ...geometry.diagnostics, screenPoint: point, windowBounds },
+      };
     } catch (_error) {
       return { accepted: false, outcome: "NATIVE_INPUT_FAILED" };
     } finally {

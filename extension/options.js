@@ -171,5 +171,9 @@ runNativeCursorCalibration.addEventListener("click", () => {
     };
     nativeCursorCalibrationStatus.textContent = labels[response && response.outcome]
       || "カーソル位置を検証できませんでした。";
+    if (response && response.outcome === "CURSOR_MOVE_SENT" && response.diagnostics) {
+      nativeCursorCalibrationStatus.textContent += "\n診断値: "
+        + JSON.stringify(response.diagnostics);
+    }
   });
 });
