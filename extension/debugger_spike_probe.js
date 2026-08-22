@@ -8,16 +8,14 @@
   }
 
   function exactActivityMetricPresent() {
-    return Array.from(document.querySelectorAll("span, div")).some((element) => {
-      const text = (element.innerText || "").replace(/\s+/g, " ").trim();
-      return isVisible(element) && /^(?:閲覧数|views?)\s*[:：]?\s*[0-9][0-9,]*\s*(?:回|views?)?$/i.test(text);
-    });
+    return exactActivityViewCount() !== null;
   }
 
   function exactActivityViewCount() {
     const element = Array.from(document.querySelectorAll("span, div")).find((candidate) => {
       const text = (candidate.innerText || "").replace(/\s+/g, " ").trim();
-      return isVisible(candidate) && /^(?:閲覧数|views?)\s*[:：]?\s*[0-9][0-9,]*\s*(?:回|views?)?$/i.test(text);
+      return isVisible(candidate)
+        && /^(?:閲覧数|views?|表示)\s*[:：]?\s*[0-9][0-9,]*\s*(?:回|views?)?$/i.test(text);
     });
     if (!element) return null;
     const token = (element.innerText || "").match(/[0-9][0-9,]*/);
@@ -25,7 +23,7 @@
     return Number.isSafeInteger(value) ? value : null;
   }
 
-  function waitForActivitySurface(timeout = 4000) {
+  function waitForActivitySurface(timeout = 8000) {
     return new Promise((resolve) => {
       if (exactActivityMetricPresent()) { resolve(true); return; }
       const observer = new MutationObserver(() => {

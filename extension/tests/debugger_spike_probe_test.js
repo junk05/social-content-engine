@@ -11,6 +11,12 @@ async function main() {
   const probe = globalThis.SCE_DEBUGGER_SPIKE_PROBE;
   assert.equal(probe.exactActivityMetricPresent(), true);
   assert.equal(probe.exactActivityViewCount(), 88386);
+  metric.innerText = "表示 88,386 回";
+  assert.equal(probe.exactActivityMetricPresent(), true);
+  assert.equal(probe.exactActivityViewCount(), 88386);
+  metric.innerText = "表示8.8万回";
+  assert.equal(probe.exactActivityMetricPresent(), false);
+  metric.innerText = "閲覧数 88,386";
   let response;
   assert.equal(listener({ type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" }, {}, (value) => { response = value; }), true);
   await new Promise((resolve) => setImmediate(resolve));

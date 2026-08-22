@@ -65,3 +65,9 @@ closed helper error. Any Stage 2 failure ends native-input experimentation.
   confirmed that the move-only pointer reached the center of the Activity
   control. Stage 2 is now authorized to reuse this exact conversion for one
   existing Quartz click.
+- 2026-08-22 Stage 2 attempt 1: the existing Quartz click opened the Activity
+  sheet (`NATIVE_INPUT_SHEET_VISUALLY_OBSERVED`), but the confirmation probe
+  returned `NATIVE_INPUT_SHEET_NOT_OBSERVED` and captured no exact view count.
+  No further click was sent. The probe must accept the already-supported exact
+  `表示 <integer> 回` label variant and use the same bounded eight-second DOM
+  wait as detail enrichment before any separately gated confirmation run.
