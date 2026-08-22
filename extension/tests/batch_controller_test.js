@@ -43,8 +43,11 @@ async function main() {
       return { ok: true, observation: { post_url: url, collected_at: "2026-08-16T00:00:00Z",
         public_counters: { view_count: url === u3 ? null : 0 } },
         childObservations: [{ post_url: url + "-child", collected_at: "2026-08-16T00:00:00Z" }], nodes: [
-        { post_url: url, sequence_position: 0, reply_to_post_url: null, same_author_as_root: null },
-        { post_url: url + "-child", sequence_position: 1, reply_to_post_url: url, same_author_as_root: null },
+        { post_url: url, sequence_position: 0, reply_to_post_url: null,
+          same_author_as_root: true, relationship_evidence: "ROOT_DETAIL_PAGE" },
+        { post_url: url + "-child", sequence_position: 1, reply_to_post_url: url,
+          same_author_as_root: true,
+          relationship_evidence: "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN" },
       ] };
     },
     async close(id) { events.push(["close", id]); },

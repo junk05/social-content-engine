@@ -579,6 +579,7 @@ class BrowserIngestService:
                     "reply_to_identity_id": None if parent is None else int(parent["id"]),
                     "sequence_position": int(node["sequence_position"]),
                     "same_author_as_root": node["same_author_as_root"],
+                    "relationship_evidence": node["relationship_evidence"],
                     "observed_at": str(decoded["observed_at"]),
                 })
             self.repository.record_browser_thread_sequence_observations(

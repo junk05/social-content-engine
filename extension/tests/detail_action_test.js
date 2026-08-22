@@ -77,6 +77,7 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
       sequence_position: 0,
       reply_to_post_url: null,
       same_author_as_root: null,
+      relationship_evidence: "ROOT_DETAIL_PAGE",
     }];
   },
   async extractVisibleThreadDetails() { return []; },
@@ -129,7 +130,8 @@ async function main() {
   globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.extractVisibleThreadNodes = () => [
     ...originalNodes(),
     { post_url: childObservation.post_url, sequence_position: 1,
-      reply_to_post_url: null, same_author_as_root: true },
+      reply_to_post_url: null, same_author_as_root: true,
+      relationship_evidence: "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN" },
   ];
   globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.extractVisibleThreadDetails = async () => [childObservation];
   const childRoot = rootFixture();

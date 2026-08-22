@@ -66,13 +66,14 @@ if (typeof importScripts === "function") {
       return false;
     }
     return sequence.nodes.every((node) => {
-      const nodeKeys = ["post_url", "sequence_position", "reply_to_post_url", "same_author_as_root"];
+      const nodeKeys = ["post_url", "sequence_position", "reply_to_post_url", "same_author_as_root", "relationship_evidence"];
       return node && typeof node === "object" && Object.keys(node).length === nodeKeys.length
         && nodeKeys.every((key) => key in node)
         && isCanonicalThreadsPostUrl(node.post_url)
         && Number.isInteger(node.sequence_position) && node.sequence_position >= 0
         && (node.reply_to_post_url === null || isCanonicalThreadsPostUrl(node.reply_to_post_url))
-        && (node.same_author_as_root === null || typeof node.same_author_as_root === "boolean");
+        && (node.same_author_as_root === null || typeof node.same_author_as_root === "boolean")
+        && ["ROOT_DETAIL_PAGE", "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN"].includes(node.relationship_evidence);
     });
   }
 

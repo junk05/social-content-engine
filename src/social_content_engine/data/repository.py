@@ -1004,6 +1004,24 @@ def _migration_13_browser_thread_sequences(connection: sqlite3.Connection) -> No
     )
 
 
+def _migration_23_thread_sequence_relationship_evidence(
+    connection: sqlite3.Connection,
+) -> None:
+    columns = {
+        str(row["name"])
+        for row in connection.execute("PRAGMA table_info(browser_thread_sequence_observations)")
+    }
+    if "relationship_evidence" not in columns:
+        connection.execute(
+            """ALTER TABLE browser_thread_sequence_observations
+            ADD COLUMN relationship_evidence TEXT CHECK(
+              relationship_evidence IN (
+                'ROOT_DETAIL_PAGE', 'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'
+              )
+            )"""
+        )
+
+
 def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
     """Add append-only, source-text-free deterministic structural derivatives."""
     connection.execute(
@@ -1343,6 +1361,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
         22,
         "reconcile-browser-detail-batch-assignments-v1",
         _migration_22_reconcile_detail_batch_assignments,
+    ),
+    (
+        23,
+        "thread-sequence-relationship-evidence-v1",
+        _migration_23_thread_sequence_relationship_evidence,
     ),
 )
 
@@ -2158,6 +2181,7 @@ class Repository:
         reply_to_identity_id: Optional[int], sequence_position: int,
         same_author_as_root: Optional[bool], detail_observation_id: int,
         extractor_version: str, observed_at: Optional[str] = None,
+        relationship_evidence: Optional[str] = None,
     ) -> int:
         """Append one visible thread node without inferring an edge or author match."""
         return self.record_browser_thread_sequence_observations(
@@ -2169,6 +2193,7 @@ class Repository:
                 "reply_to_identity_id": reply_to_identity_id,
                 "sequence_position": sequence_position,
                 "same_author_as_root": same_author_as_root,
+                "relationship_evidence": relationship_evidence,
                 "observed_at": observed_at,
             }],
         )[0]
@@ -2194,6 +2219,7 @@ class Repository:
                 reply_to_identity_id = entry.get("reply_to_identity_id")
                 sequence_position = entry.get("sequence_position")
                 same_author_as_root = entry.get("same_author_as_root")
+                relationship_evidence = entry.get("relationship_evidence")
                 observed_at = entry.get("observed_at") or _utc_now()
                 if (
                     not isinstance(node_identity_id, int)
@@ -2204,6 +2230,9 @@ class Repository:
                     or not isinstance(sequence_position, int)
                     or sequence_position < 0
                     or same_author_as_root not in {None, True, False}
+                    or relationship_evidence not in {
+                        None, "ROOT_DETAIL_PAGE", "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN"
+                    }
                     or not isinstance(observed_at, str)
                 ):
                     raise ValueError("invalid browser thread sequence observation")
@@ -2211,11 +2240,13 @@ class Repository:
                     """INSERT INTO browser_thread_sequence_observations
                     (root_browser_post_identity_id, node_browser_post_identity_id,
                      reply_to_browser_post_identity_id, sequence_position, same_author_as_root,
-                     detail_observation_id, observed_at, extractor_version)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                     detail_observation_id, observed_at, extractor_version,
+                     relationship_evidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (root_identity_id, node_identity_id, reply_to_identity_id, sequence_position,
                      None if same_author_as_root is None else int(same_author_as_root),
-                     detail_observation_id, observed_at, extractor_version),
+                     detail_observation_id, observed_at, extractor_version,
+                     relationship_evidence),
                 )
                 if cursor.lastrowid is None:
                     raise RuntimeError("SQLite did not return a thread sequence observation id")

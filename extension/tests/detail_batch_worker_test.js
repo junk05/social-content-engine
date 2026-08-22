@@ -38,7 +38,8 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   extractVisibleThreadNodes() {
     calls.push(["sequence"]);
     return [{ post_url: "https://www.threads.net/@fixture/post/Batch1", sequence_position: 0,
-      reply_to_post_url: null, same_author_as_root: null }];
+      reply_to_post_url: null, same_author_as_root: null,
+      relationship_evidence: "ROOT_DETAIL_PAGE" }];
   },
   async extractVisibleThreadDetails() {
     return [{ post_url: "https://www.threads.net/@fixture/post/Child1" }];

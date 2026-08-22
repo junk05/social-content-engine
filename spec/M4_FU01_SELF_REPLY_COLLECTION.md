@@ -24,7 +24,8 @@ The collector:
   source identity, text, timestamp, counters, observed time, extractor version,
   field provenance, and payload hash contract;
 - stores root, node, optional reply-to identity, sequence position, and observed
-  same-author state through `browser_thread_sequence_observations`;
+  same-author state plus closed `relationship_evidence` through
+  `browser_thread_sequence_observations`;
 - leaves `reply_to_post_url` null unless the visible surface directly exposes the
   relationship; DOM order or wording alone never creates an edge;
 - never appends other-author general reply details;
@@ -88,3 +89,8 @@ observation remains audit evidence but is ineligible for clean Thread Sequence
 analysis. Sanitized findings are recorded in
 `spec/evidence/M4_FU01_S8_FALSE_POSITIVE_AUDIT.json`. S8 returns to COMPLETE only
 after a v2 live result contains exactly one root and three eligible self replies.
+
+Extractor v6 emits `ROOT_DETAIL_PAGE` for the root and
+`DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN` only for the contiguous root-author prefix.
+Migration 23 leaves historical rows nullable, so v5 username-only observations
+remain immutable but are excluded from clean structural self-reply eligibility.

@@ -92,6 +92,7 @@ class BrowserDetailRepositoryTest(unittest.TestCase):
                     node_identity_id=root["browser_post_identity_id"],
                     reply_to_identity_id=None, sequence_position=0,
                     same_author_as_root=None,
+                    relationship_evidence="ROOT_DETAIL_PAGE",
                     detail_observation_id=detail["browser_observation_id"],
                     extractor_version="fixture-sequence-v1",
                 )
@@ -100,6 +101,30 @@ class BrowserDetailRepositoryTest(unittest.TestCase):
                     (sequence_id,),
                 ).fetchone()
                 self.assertIsNone(row["same_author_as_root"])
+                self.assertEqual("ROOT_DETAIL_PAGE", row["relationship_evidence"])
+                legacy_detail = repository.add_browser_observation(
+                    observation(observation_type="POST_DETAIL", view_count=1)
+                )
+                legacy_id = repository.record_browser_thread_sequence_observation(
+                    root_identity_id=root["browser_post_identity_id"],
+                    node_identity_id=root["browser_post_identity_id"],
+                    reply_to_identity_id=None,
+                    sequence_position=1,
+                    same_author_as_root=True,
+                    detail_observation_id=legacy_detail["browser_observation_id"],
+                    extractor_version="legacy-username-only-v1",
+                    relationship_evidence=None,
+                )
+                self.assertIsNone(repository.connection.execute(
+                    "SELECT relationship_evidence FROM browser_thread_sequence_observations WHERE id = ?",
+                    (legacy_id,),
+                ).fetchone()[0])
+                eligible = repository.connection.execute(
+                    """SELECT COUNT(*) FROM browser_thread_sequence_observations
+                    WHERE same_author_as_root = 1 AND sequence_position > 0
+                      AND relationship_evidence = 'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'"""
+                ).fetchone()[0]
+                self.assertEqual(0, eligible, "legacy username-only evidence is ineligible")
                 with self.assertRaises(sqlite3.IntegrityError):
                     repository.connection.execute(
                         "UPDATE browser_thread_sequence_observations "

@@ -155,8 +155,8 @@
     ,{"id":"M4-FU01-S8-004","owner":"QA_REVIEWER","title":"Verify duplicate, resume, failure isolation, source boundary, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S8-002","M4-FU01-S8-003"]}
     ,{"id":"M4-FU01-S8-005","owner":"ORCHESTRATOR","title":"Run one-root self-reply HG-03 live verification","status":"REVISION_REQUIRED","depends_on":["M4-FU01-S8-004"]}
     ,{"id":"M4-FU01-S8-006","owner":"ORCHESTRATOR","title":"Audit same-author branch false positives and approve CR-0017","status":"COMPLETE","depends_on":["M4-FU01-S8-005"]}
-    ,{"id":"M4-FU01-S8-007","owner":"COLLECTOR","title":"Persist branch relationship evidence and stop traversal at other-author nodes","status":"IN_PROGRESS","depends_on":["M4-FU01-S8-006"]}
-    ,{"id":"M4-FU01-S8-008","owner":"QA_REVIEWER","title":"Verify branch regression, immutable bad evidence exclusion, and full regression","status":"PENDING","depends_on":["M4-FU01-S8-007"]}
+    ,{"id":"M4-FU01-S8-007","owner":"COLLECTOR","title":"Persist branch relationship evidence and stop traversal at other-author nodes","status":"COMPLETE","depends_on":["M4-FU01-S8-006"]}
+    ,{"id":"M4-FU01-S8-008","owner":"QA_REVIEWER","title":"Verify branch regression, immutable bad evidence exclusion, and full regression","status":"COMPLETE","depends_on":["M4-FU01-S8-007"]}
     ,{"id":"M4-FU01-S8-009","owner":"ORCHESTRATOR","title":"Repeat one-root branch-aware HG-03 live verification","status":"PENDING","depends_on":["M4-FU01-S8-008"]}
   ]
 }

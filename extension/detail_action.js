@@ -80,6 +80,7 @@
                   sequence_position: node.sequence_position,
                   reply_to_post_url: node.reply_to_post_url,
                   same_author_as_root: node.same_author_as_root,
+                  relationship_evidence: node.relationship_evidence,
                 })),
                 detail_observation_id: result.observationId,
                 observed_at: attemptedAt,

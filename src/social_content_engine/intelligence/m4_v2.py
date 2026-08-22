@@ -251,6 +251,8 @@ def derive_m4_v2_instances(repository: Repository, m4_intelligence_run_id: int) 
                           dataset_members.normalized_post_version_id
                       AND browser_thread_sequence_observations.same_author_as_root = 1
                       AND browser_thread_sequence_observations.sequence_position > 0
+                      AND browser_thread_sequence_observations.relationship_evidence =
+                          'DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN'
                   ) AS observed_self_reply
            FROM dataset_members
            JOIN normalized_post_versions

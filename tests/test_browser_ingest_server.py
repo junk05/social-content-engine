@@ -434,11 +434,13 @@ class BrowserIngestServerTest(unittest.TestCase):
                 "sequence_position": 0,
                 "reply_to_post_url": None,
                 "same_author_as_root": True,
+                "relationship_evidence": "ROOT_DETAIL_PAGE",
             }, {
                 "post_url": child["post_url"],
                 "sequence_position": 1,
                 "reply_to_post_url": root["post_url"],
                 "same_author_as_root": True,
+                "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
             }],
         }
         accepted = self.service.handle_post(
@@ -460,7 +462,7 @@ class BrowserIngestServerTest(unittest.TestCase):
         )
         relationship = self.repository.connection.execute(
             """SELECT reply_to_browser_post_identity_id, sequence_position,
-                      same_author_as_root
+                      same_author_as_root, relationship_evidence
                FROM browser_thread_sequence_observations
                WHERE node_browser_post_identity_id = ?""",
             (child_identity,),
@@ -468,6 +470,9 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertIsNotNone(relationship["reply_to_browser_post_identity_id"])
         self.assertEqual(1, relationship["sequence_position"])
         self.assertEqual(1, relationship["same_author_as_root"])
+        self.assertEqual(
+            "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN", relationship["relationship_evidence"]
+        )
         bad_detail = dict(payload)
         bad_detail["detail_observation_id"] = 1
         rejected = self.service.handle_post(
@@ -483,10 +488,18 @@ class BrowserIngestServerTest(unittest.TestCase):
             "sequence_position": 1,
             "reply_to_post_url": root["post_url"],
             "same_author_as_root": None,
+            "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
         }]
         self.assertEqual(422, self.service.handle_post(
             THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
             json.dumps(bad_node).encode("utf-8"),
+        ).status)
+        self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
+        bad_evidence = json.loads(json.dumps(payload))
+        bad_evidence["nodes"][1]["relationship_evidence"] = "USERNAME_ONLY"
+        self.assertEqual(422, self.service.handle_post(
+            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            json.dumps(bad_evidence).encode("utf-8"),
         ).status)
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
 

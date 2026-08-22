@@ -147,6 +147,7 @@ async function main() {
       sequence_position: 0,
       reply_to_post_url: null,
       same_author_as_root: true,
+      relationship_evidence: "ROOT_DETAIL_PAGE",
     }],
     detail_observation_id: 42,
     observed_at: "2026-08-16T04:00:00Z",

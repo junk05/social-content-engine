@@ -186,7 +186,7 @@
                       nodes: observableNodes,
                       detail_observation_id: accepted.observationId,
                       observed_at: extracted.observation.collected_at,
-                      extractor_version: "threads_post_detail_extractor_v1",
+                      extractor_version: extracted.observation.extractor_version,
                     });
                   } catch (_sequenceError) {
                     // Sequence evidence is optional; never infer it or fail valid root detail.

@@ -3,7 +3,9 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v5";
+  const VERSION = "threads_post_detail_extractor_v6";
+  const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
+  const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
@@ -86,20 +88,33 @@
     const seen = new Set([rootUrl]);
     const nodes = [{
       post_url: rootUrl, root_post_url: rootUrl, reply_to_post_url: null,
-      same_author_as_root: true,
+      same_author_as_root: true, relationship_evidence: ROOT_RELATIONSHIP_EVIDENCE,
     }];
+    let rootObserved = false;
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
-      if (!postUrl || seen.has(postUrl)) continue;
+      if (!postUrl) continue;
+      if (postUrl === rootUrl) {
+        rootObserved = true;
+        continue;
+      }
+      if (!rootObserved || seen.has(postUrl)) continue;
+      // Only timestamp permalinks identify nodes in the rendered conversation
+      // order. Quoted/related post links inside a card are not branch nodes.
+      if (typeof link.querySelector === "function" && !link.querySelector("time[datetime]")) {
+        continue;
+      }
       const nodeUsername = postUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
-      // A visible permalink username is direct author evidence. Do not collect
-      // the general reply tree, and do not infer an edge from DOM order alone.
-      if (nodeUsername !== rootUsername) continue;
+      // The author-owned continuation is the contiguous root-author prefix.
+      // Once the conversation enters another author, that branch is closed and
+      // a later root-author reply must never rejoin the Pattern sequence.
+      if (nodeUsername !== rootUsername) break;
       seen.add(postUrl);
       nodes.push({ post_url: postUrl,
         root_post_url: rootUrl, reply_to_post_url: null,
-        same_author_as_root: true });
+        same_author_as_root: true,
+        relationship_evidence: SELF_REPLY_RELATIONSHIP_EVIDENCE });
     }
     return nodes.map((node, sequencePosition) => ({
       ...node, sequence_position: sequencePosition,

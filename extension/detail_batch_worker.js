@@ -79,6 +79,7 @@
     const nodes = extractor.extractVisibleThreadNodes(document, url).map((node) => ({
       post_url: node.post_url, sequence_position: node.sequence_position,
       reply_to_post_url: node.reply_to_post_url, same_author_as_root: node.same_author_as_root,
+      relationship_evidence: node.relationship_evidence,
     }));
     const childObservations = typeof extractor.extractVisibleThreadDetails === "function"
       ? await extractor.extractVisibleThreadDetails(document, url, collectedAt) : [];

@@ -89,7 +89,7 @@ async function main() {
   assert.match(source, /visiblePostText\(postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v5");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v6");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -104,11 +104,18 @@ async function main() {
     "https://www.threads.net/@sample.user/post/AbC_123",
     "https://www.threads.net/@sample.user/post/SelfReply1",
     "https://www.threads.net/@sample.user/post/SelfReply2",
-  ], "only visible same-author permalinks form the compact self-reply sequence");
-  assert.deepEqual(nodes.map((node) => node.sequence_position), [0, 1, 2]);
-  assert.deepEqual(nodes.map((node) => node.reply_to_post_url), [null, null, null],
+    "https://www.threads.net/@sample.user/post/SelfReply3",
+  ], "the root-author chain stops at the first other-author conversation branch");
+  assert.deepEqual(nodes.map((node) => node.sequence_position), [0, 1, 2, 3]);
+  assert.deepEqual(nodes.map((node) => node.reply_to_post_url), [null, null, null, null],
     "reply-to edges remain unknown when the visible DOM does not expose them");
-  assert.deepEqual(nodes.map((node) => node.same_author_as_root), [true, true, true]);
+  assert.deepEqual(nodes.map((node) => node.same_author_as_root), [true, true, true, true]);
+  assert.deepEqual(nodes.map((node) => node.relationship_evidence), [
+    "ROOT_DETAIL_PAGE",
+    "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+    "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+    "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+  ]);
   const complete = await extractor.extractPostDetail(page, context);
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [
@@ -146,6 +153,7 @@ async function main() {
   assert.deepEqual(selfReplyDetails.map((item) => item.post_url), [
     "https://www.threads.net/@sample.user/post/SelfReply1",
     "https://www.threads.net/@sample.user/post/SelfReply2",
+    "https://www.threads.net/@sample.user/post/SelfReply3",
   ]);
   assert.equal(selfReplyDetails.every((item) => item.observation_type === "POST_DETAIL"), true);
   assert.equal(selfReplyDetails.every((item) => item.text !== null), true);
