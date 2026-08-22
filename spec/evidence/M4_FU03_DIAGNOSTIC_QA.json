@@ -1,0 +1,23 @@
+{
+  "verification_id": "M4-FU03-DIAGNOSTIC-QA-V1",
+  "verified_at": "2026-08-22",
+  "targeted_extension_tests": "PASS",
+  "s8_regression": {
+    "fixture": "root plus three eligible self replies and two excluded comment branches",
+    "expected_clean_nodes": 4,
+    "result": "PASS"
+  },
+  "diagnostic_boundary": {
+    "source_text_exposed": false,
+    "post_url_exposed": false,
+    "username_exposed": false,
+    "closed_exclusion_reasons": true,
+    "relationship_unknown_preserved": true
+  },
+  "full_regression": {
+    "command": "PYTHONPATH=src sh scripts/check.sh",
+    "tests": 186,
+    "result": "PASS"
+  },
+  "next_gate": "HG-03_ONE_TO_THREE_SELECTED_ROOTS"
+}

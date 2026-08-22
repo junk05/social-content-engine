@@ -170,8 +170,8 @@
     ,{"id":"M4-FU02-005","owner":"ORCHESTRATOR","title":"Run live audit/export and record aggregate verification","status":"COMPLETE","depends_on":["M4-FU02-004"]}
     ,{"id":"M4-FU03-001","owner":"ORCHESTRATOR","title":"Approve isolated Thread coverage diagnostic contract","status":"COMPLETE","depends_on":["M4-FU02-005"]}
     ,{"id":"M4-FU03-002","owner":"DATA","title":"Audit post-S8 v6 detail and Thread Sequence coverage","status":"COMPLETE","depends_on":["M4-FU03-001"]}
-    ,{"id":"M4-FU03-003","owner":"COLLECTOR","title":"Add privacy-bounded multi-form Thread candidate diagnostics","status":"IN_PROGRESS","depends_on":["M4-FU03-002"]}
-    ,{"id":"M4-FU03-004","owner":"QA_REVIEWER","title":"Verify S8 branch regression and diagnostic privacy boundary","status":"PENDING","depends_on":["M4-FU03-003"]}
-    ,{"id":"M4-FU03-005","owner":"ORCHESTRATOR","title":"Run one-to-three-root HG-03 diagnostic and repair false negatives","status":"PENDING","depends_on":["M4-FU03-004"]}
+    ,{"id":"M4-FU03-003","owner":"COLLECTOR","title":"Add privacy-bounded multi-form Thread candidate diagnostics","status":"COMPLETE","depends_on":["M4-FU03-002"]}
+    ,{"id":"M4-FU03-004","owner":"QA_REVIEWER","title":"Verify S8 branch regression and diagnostic privacy boundary","status":"COMPLETE","depends_on":["M4-FU03-003"]}
+    ,{"id":"M4-FU03-005","owner":"ORCHESTRATOR","title":"Run one-to-three-root HG-03 diagnostic and repair false negatives","status":"IN_PROGRESS","depends_on":["M4-FU03-004"]}
   ]
 }
