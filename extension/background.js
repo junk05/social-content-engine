@@ -18,6 +18,9 @@ if (typeof importScripts === "function") {
   const NATIVE_INPUT_DIAGNOSTIC_URL = RECEIVER_URL + "/native-input-diagnostic";
   const NATIVE_INPUT_MOVE_URL = RECEIVER_URL + "/native-input-move";
   const TIMEOUT_MILLISECONDS = 5000;
+  const PAGE_LOAD_TIMEOUT_MILLISECONDS = 15000;
+  const DOM_READY_TIMEOUT_MILLISECONDS = 8000;
+  const EXTRACTION_TIMEOUT_MILLISECONDS = 20000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
   ]);
@@ -362,7 +365,7 @@ if (typeof importScripts === "function") {
     queueSummary, startBatch, resumeBatch, finishBatch, claimNext, completeClaim, failClaim,
   });
 
-  function waitForTabComplete(tabId, timeout = 15000) {
+  function waitForTabComplete(tabId, timeout = PAGE_LOAD_TIMEOUT_MILLISECONDS) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         chrome.tabs.onUpdated.removeListener(listener);
@@ -379,7 +382,9 @@ if (typeof importScripts === "function") {
   }
 
   const workerResultBroker = scope.SCE_DETAIL_BATCH
-    && scope.SCE_DETAIL_BATCH.createWorkerResultBroker({ timeoutMilliseconds: 15000 });
+    && scope.SCE_DETAIL_BATCH.createWorkerResultBroker({
+      extractionTimeoutMilliseconds: EXTRACTION_TIMEOUT_MILLISECONDS,
+    });
   const durableBatchMethods = [
     "queueSummary", "startBatch", "resumeBatch", "claimNext", "completeClaim", "failClaim", "finishBatch",
   ];
@@ -390,6 +395,15 @@ if (typeof importScripts === "function") {
     && scope.SCE_DETAIL_BATCH.createController({
     transport: scope.SCE_BACKGROUND_TRANSPORT,
     storage: chrome.storage.local,
+    onProgress(progress) {
+      try {
+        chrome.runtime.sendMessage({ type: "SCE_DETAIL_BATCH_PROGRESS", progress }, () => {
+          void chrome.runtime.lastError;
+        });
+      } catch (_noProgressListener) {
+        // Progress UI is optional and never changes durable batch execution.
+      }
+    },
     tabWorker: {
       async open(url) {
         const tab = await chrome.tabs.create({ url, active: false });
@@ -405,6 +419,7 @@ if (typeof importScripts === "function") {
       async extract(tabId, url) {
         return workerResultBroker.request(
           tabId, (message) => chrome.tabs.sendMessage(tabId, message), url,
+          DOM_READY_TIMEOUT_MILLISECONDS,
         );
       },
       async close(tabId) { await chrome.tabs.remove(tabId); },

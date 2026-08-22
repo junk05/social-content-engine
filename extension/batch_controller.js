@@ -2,15 +2,17 @@
 
 (function exposeDetailBatchController(scope) {
   const STORAGE_KEY = "sce_detail_batch_v1";
+  const DEFAULT_MINIMUM_INTER_ITEM_INTERVAL_MS = 4000;
 
   function createWorkerResultBroker(dependencies = {}) {
     const setTimer = dependencies.setTimeout || setTimeout;
     const clearTimer = dependencies.clearTimeout || clearTimeout;
-    const timeoutMilliseconds = dependencies.timeoutMilliseconds || 15000;
+    const timeoutMilliseconds = dependencies.extractionTimeoutMilliseconds
+      || dependencies.timeoutMilliseconds || 15000;
     let serial = 0;
     let pending = null;
 
-    function request(tabId, dispatch, url) {
+    function request(tabId, dispatch, url, domReadyTimeoutMilliseconds = 8000) {
       if (pending) return Promise.reject(new Error("worker_busy"));
       const correlation = "detail-" + tabId + "-" + (++serial);
       return new Promise((resolve, reject) => {
@@ -19,7 +21,8 @@
           reject(new Error("worker_timeout"));
         }, timeoutMilliseconds);
         pending = { tabId, correlation, resolve, reject, timer };
-        Promise.resolve(dispatch({ type: "SCE_BATCH_EXTRACT_DETAIL", url, correlation }))
+        Promise.resolve(dispatch({ type: "SCE_BATCH_EXTRACT_DETAIL", url, correlation,
+          domReadyTimeoutMilliseconds }))
           .catch((error) => {
             if (!pending || pending.correlation !== correlation) return;
             clearTimer(pending.timer);
@@ -44,7 +47,25 @@
 
   function createController(dependencies) {
     const { transport, tabWorker, storage } = dependencies;
+    const now = dependencies.now || Date.now;
+    const setTimer = dependencies.setTimeout || setTimeout;
+    const minimumInterItemIntervalMs = Number.isInteger(
+      dependencies.minimumInterItemIntervalMs,
+    ) && dependencies.minimumInterItemIntervalMs >= 0
+      ? dependencies.minimumInterItemIntervalMs : DEFAULT_MINIMUM_INTER_ITEM_INTERVAL_MS;
+    const onProgress = typeof dependencies.onProgress === "function"
+      ? dependencies.onProgress : () => {};
     let running = false;
+
+    function sleep(milliseconds) {
+      if (milliseconds <= 0) return Promise.resolve();
+      return new Promise((resolve) => setTimer(resolve, milliseconds));
+    }
+
+    function report(progress) {
+      onProgress(Object.freeze({ minimum_inter_item_interval_ms: minimumInterItemIntervalMs,
+        ...progress }));
+    }
 
     async function persist(state) {
       await storage.set({ [STORAGE_KEY]: state });
@@ -70,8 +91,14 @@
         && canonicalUrl;
     }
 
-    async function run(batchId) {
-      await persist({ batch_id: batchId, worker_tab_id: null });
+    async function run(batchId, totalHint = null, lastStartedHint = null) {
+      const total = Number.isInteger(totalHint) && totalHint > 0 ? totalHint : null;
+      let processed = 0;
+      let succeeded = 0;
+      let failed = 0;
+      let lastItemStartedAt = Number.isFinite(lastStartedHint) ? lastStartedHint : null;
+      await persist({ batch_id: batchId, worker_tab_id: null, total,
+        last_item_started_at_ms: lastItemStartedAt });
       let tabId = null;
       try {
         while (true) {
@@ -87,9 +114,27 @@
             return { accepted: false, reason: "invalid_claim_response" };
           }
           const url = claim.post_url;
+          if (lastItemStartedAt !== null) {
+            const remaining = Math.max(
+              0, minimumInterItemIntervalMs - (now() - lastItemStartedAt),
+            );
+            if (remaining > 0) {
+              report({ batch_id: batchId, status: "WAITING_NEXT_ITEM", processed, total,
+                succeeded, failed, wait_ms: remaining });
+              await persist({ batch_id: batchId, worker_tab_id: tabId, total,
+                processed, succeeded, failed, status: "WAITING_NEXT_ITEM",
+                last_item_started_at_ms: lastItemStartedAt });
+              await sleep(remaining);
+            }
+          }
+          lastItemStartedAt = now();
+          report({ batch_id: batchId, status: "PROCESSING", processed, total,
+            succeeded, failed, wait_ms: 0 });
           try {
             tabId = tabId === null ? await tabWorker.open(url) : await tabWorker.navigate(tabId, url);
-            await persist({ batch_id: batchId, worker_tab_id: tabId });
+            await persist({ batch_id: batchId, worker_tab_id: tabId, total,
+              processed, succeeded, failed, status: "PROCESSING",
+              last_item_started_at_ms: lastItemStartedAt });
             const extracted = await tabWorker.extract(tabId, url);
             if (!extracted || !extracted.ok || !extracted.observation) {
               const reasonCodes = {
@@ -102,6 +147,7 @@
                   || "EXTRACTOR_MISMATCH",
               });
               if (!failure.accepted) return failure;
+              failed += 1;
             } else {
               const accepted = await transport.sendObservation(extracted.observation);
               if (!accepted.accepted) {
@@ -109,6 +155,7 @@
                   ...correlation(claim), error_code: "INGESTION_FAILED",
                 });
                 if (!failure.accepted) return failure;
+                failed += 1;
               } else {
                 const acceptedUrls = new Set([extracted.observation.post_url]);
                 for (const child of Array.isArray(extracted.childObservations)
@@ -123,6 +170,13 @@
                     ...correlation(claim), error_code: "INGESTION_FAILED",
                   });
                   if (!failure.accepted) return failure;
+                  failed += 1;
+                  processed += 1;
+                  report({ batch_id: batchId, status: "ITEM_SAVED", processed, total,
+                    succeeded, failed, wait_ms: 0 });
+                  await persist({ batch_id: batchId, worker_tab_id: tabId, total,
+                    processed, succeeded, failed, status: "ITEM_SAVED",
+                    last_item_started_at_ms: lastItemStartedAt });
                   continue;
                 }
                 if (observableNodes.length > 0) {
@@ -142,6 +196,7 @@
                   ...correlation(claim), detail_observation_id: accepted.observationId,
                 });
                 if (!completed.accepted) return completed;
+                succeeded += 1;
               }
             }
           } catch (_error) {
@@ -149,7 +204,14 @@
               ...correlation(claim), error_code: "PAGE_TIMEOUT",
             });
             if (!failure.accepted) return failure;
+            failed += 1;
           }
+          processed += 1;
+          report({ batch_id: batchId, status: "ITEM_SAVED", processed, total,
+            succeeded, failed, wait_ms: 0 });
+          await persist({ batch_id: batchId, worker_tab_id: tabId, total,
+            processed, succeeded, failed, status: "ITEM_SAVED",
+            last_item_started_at_ms: lastItemStartedAt });
         }
         const summary = await transport.queueSummary(batchId);
         await storage.set({ [STORAGE_KEY]: null });
@@ -174,7 +236,7 @@
       // before the first claim rather than requiring a different user action.
       const resumed = await transport.resumeBatch(started.batchId);
       if (!resumed.accepted) return resumed;
-      return run(started.batchId);
+      return run(started.batchId, limit);
       });
     }
 
@@ -195,7 +257,7 @@
           // The previous dedicated tab may already have disappeared after a restart.
         }
       }
-      return run(hint.batch_id);
+      return run(hint.batch_id, hint.total, hint.last_item_started_at_ms);
       });
     }
 
@@ -203,6 +265,8 @@
   }
 
   scope.SCE_DETAIL_BATCH = Object.freeze({
-    storageKey: STORAGE_KEY, createController, createWorkerResultBroker,
+    storageKey: STORAGE_KEY,
+    defaultMinimumInterItemIntervalMs: DEFAULT_MINIMUM_INTER_ITEM_INTERVAL_MS,
+    createController, createWorkerResultBroker,
   });
 })(globalThis);

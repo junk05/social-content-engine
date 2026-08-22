@@ -65,9 +65,11 @@
     return exactActivityMetricElements().some((element) => !beforeMetrics.has(element));
   }
 
-  async function extract(url) {
+  async function extract(url, domReadyTimeoutMilliseconds = 8000) {
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
-    const ready = await waitFor(() => extractor.recognizePostDetail(document, url));
+    const ready = await waitFor(
+      () => extractor.recognizePostDetail(document, url), domReadyTimeoutMilliseconds,
+    );
     if (!ready) return { ok: false, reason: "dom_not_ready" };
     const collectedAt = new Date().toISOString();
     const observation = await extractor.extractPostDetail(document, {
@@ -85,7 +87,11 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== "SCE_BATCH_EXTRACT_DETAIL") return false;
-    extract(message.url).then((result) => chrome.runtime.sendMessage({
+    const domReadyTimeoutMilliseconds = Number.isInteger(message.domReadyTimeoutMilliseconds)
+      && message.domReadyTimeoutMilliseconds >= 1000
+      && message.domReadyTimeoutMilliseconds <= 30000
+      ? message.domReadyTimeoutMilliseconds : 8000;
+    extract(message.url, domReadyTimeoutMilliseconds).then((result) => chrome.runtime.sendMessage({
       type: "SCE_BATCH_WORKER_RESULT", correlation: message.correlation, result,
     }));
     sendResponse({ accepted: true });

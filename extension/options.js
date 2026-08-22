@@ -48,6 +48,20 @@ function refreshQueueSummary() {
 
 refreshQueueSummary();
 
+chrome.runtime.onMessage.addListener((message) => {
+  if (!message || message.type !== "SCE_DETAIL_BATCH_PROGRESS" || !message.progress) {
+    return false;
+  }
+  const progress = message.progress;
+  const total = Number.isInteger(progress.total) ? progress.total : "?";
+  const base = `${progress.processed || 0} / ${total}件 `
+    + `(成功 ${progress.succeeded || 0} / 失敗 ${progress.failed || 0})`;
+  batchStatus.textContent = progress.status === "WAITING_NEXT_ITEM"
+    ? `${base} — 次の投稿まで待機中`
+    : `${base} — 詳細を処理中`;
+  return false;
+});
+
 loadPending.addEventListener("click", () => {
   loadPending.disabled = true;
   pendingStatus.textContent = "詳細待ちを読み込んでいます。";

@@ -5,6 +5,9 @@ require(path.join(__dirname, "..", "batch_controller.js"));
 
 async function main() {
   const saved = {}, events = [];
+  let virtualNow = 0;
+  const waits = [];
+  const progress = [];
   const u1 = "https://www.threads.net/@fixture/post/U1";
   const u2 = "https://www.threads.net/@fixture/post/U2";
   const u3 = "https://www.threads.net/@fixture/post/U3";
@@ -46,12 +49,29 @@ async function main() {
     },
     async close(id) { events.push(["close", id]); },
   };
-  const controller = globalThis.SCE_DETAIL_BATCH.createController({ transport, tabWorker, storage });
+  const controller = globalThis.SCE_DETAIL_BATCH.createController({
+    transport, tabWorker, storage,
+    minimumInterItemIntervalMs: 4000,
+    now: () => virtualNow,
+    setTimeout(callback, milliseconds) {
+      waits.push(milliseconds);
+      virtualNow += milliseconds;
+      queueMicrotask(callback);
+      return waits.length;
+    },
+    onProgress(value) { progress.push(value); },
+  });
   assert.equal((await controller.start(3)).accepted, true);
   assert.deepEqual(events.find((item) => item[0] === "resume"), ["resume", 7],
     "a duplicate-safe start recovers any stale processing lease before claim");
   assert.equal(events.filter((item) => item[0] === "open").length, 1);
   assert.equal(events.filter((item) => item[0] === "navigate").length, 2);
+  assert.deepEqual(waits, [4000, 4000],
+    "fixed minimum interval is applied before each later navigation without real sleeping");
+  assert.equal(progress.filter((item) => item.status === "WAITING_NEXT_ITEM").length, 2);
+  assert.equal(events.findIndex((item) => item[0] === "complete")
+    < events.findIndex((item) => item[0] === "navigate"), true,
+  "ingestion completion is persisted before the next navigation");
   assert.equal(events.some((item) => item[0] === "extract" && item[1] === u3), true);
   assert.equal(events.find((item) => item[0] === "sequence")[1].length, 2,
     "accepted child observation is sent before its sequence identity");
@@ -88,7 +108,7 @@ async function main() {
       async sendThreadSequence() { return { accepted: false, reason: "receiver_rejected" }; },
       async failClaim(value) { sequenceEvents.push(["fail", value]); return { accepted: true }; },
       async completeClaim(value) { sequenceEvents.push(["complete", value]); return { accepted: true }; },
-    }, tabWorker, storage,
+    }, tabWorker, storage, minimumInterItemIntervalMs: 0,
   });
   assert.equal((await sequenceFailure.start(1)).accepted, true);
   assert.equal(sequenceEvents.some((item) => item[0] === "fail"), false);
@@ -100,16 +120,42 @@ async function main() {
     async resumeBatch(batchId) { return { accepted: true, batchId }; },
     async claimNext() { return { accepted: true, claim: null }; } };
   assert.equal((await globalThis.SCE_DETAIL_BATCH.createController({
-    transport: resumeTransport, tabWorker, storage,
+    transport: resumeTransport, tabWorker, storage, minimumInterItemIntervalMs: 0,
   }).resume()).accepted, true);
   assert.equal(events.some((item) => item[0] === "close" && item[1] === 77), true,
     "resume closes the prior dedicated worker tab before opening a replacement");
+
+  const resumeWaits = [];
+  let resumedClaimed = false;
+  saved[globalThis.SCE_DETAIL_BATCH.storageKey] = {
+    batch_id: 18, worker_tab_id: null, total: 1, last_item_started_at_ms: 0,
+  };
+  const pacedResume = globalThis.SCE_DETAIL_BATCH.createController({
+    transport: { ...transport,
+      async resumeBatch(batchId) { return { accepted: true, batchId }; },
+      async claimNext() {
+        if (resumedClaimed) return { accepted: true, claim: null };
+        resumedClaimed = true;
+        return { accepted: true, claim: {
+          queue_item_id: 30, batch_id: 18, attempt: 1, lease_version: 1, post_url: u1,
+        } };
+      },
+    },
+    tabWorker, storage, minimumInterItemIntervalMs: 4000, now: () => 2000,
+    setTimeout(callback, milliseconds) {
+      resumeWaits.push(milliseconds); queueMicrotask(callback); return 1;
+    },
+  });
+  assert.equal((await pacedResume.resume()).accepted, true);
+  assert.deepEqual(resumeWaits, [2000],
+    "resume preserves the remaining fixed interval after an interrupted wait");
 
   let release;
   const held = new Promise((resolve) => { release = resolve; });
   const locked = globalThis.SCE_DETAIL_BATCH.createController({
     transport: { ...transport, async startBatch() { await held; return { accepted: true, batchId: 9 }; },
-      async claimNext() { return { accepted: true, claim: null }; } }, tabWorker, storage,
+      async claimNext() { return { accepted: true, claim: null }; },
+    }, tabWorker, storage, minimumInterItemIntervalMs: 0,
   });
   const first = locked.start();
   assert.deepEqual(await locked.resume(), { accepted: false, reason: "batch_already_running" });
@@ -122,6 +168,8 @@ async function main() {
   assert.equal(broker.accept({ correlation: "stale", result: {} }, { tab: { id: 42 } }), false);
   assert.equal(broker.accept({ correlation: command.correlation, result: {} }, { tab: { id: 99 } }), false);
   assert.equal(broker.accept({ correlation: command.correlation, result: { ok: true } }, { tab: { id: 42 } }), true);
+  assert.equal(command.domReadyTimeoutMilliseconds, 8000,
+    "DOM-ready timeout is explicit and separate from the broker extraction timeout");
   assert.deepEqual(await pending, { ok: true });
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

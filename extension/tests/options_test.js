@@ -34,6 +34,7 @@ globalThis.document = {
   createElement(tag) { return new Node(tag); },
 };
 const messages = [];
+let runtimeListener = null;
 let pendingResponse = {
   accepted: true,
   urls: ["https://www.threads.net/@fixture/post/Pending1"],
@@ -41,6 +42,7 @@ let pendingResponse = {
 globalThis.chrome = {
   runtime: {
     lastError: null,
+    onMessage: { addListener(listener) { runtimeListener = listener; } },
     sendMessage(message, callback) {
       messages.push(message);
       if (message.type === "SCE_SCAFFOLD_STATUS") {
@@ -61,6 +63,13 @@ assert.deepEqual(messages, [
   { type: "SCE_SCAFFOLD_STATUS" }, { type: "SCE_DETAIL_QUEUE_STATUS" },
 ]);
 assert.equal(nodes["#queue-summary"].textContent.includes("DETAIL_PENDING: 1"), true);
+runtimeListener({ type: "SCE_DETAIL_BATCH_PROGRESS", progress: {
+  processed: 3, total: 50, succeeded: 2, failed: 1, status: "WAITING_NEXT_ITEM",
+} });
+assert.equal(
+  nodes["#batch-status"].textContent,
+  "3 / 50件 (成功 2 / 失敗 1) — 次の投稿まで待機中",
+);
 assert.equal(nodes["#pending-details"].children.length, 0);
 assert.equal(typeof globalThis.open, "undefined");
 
