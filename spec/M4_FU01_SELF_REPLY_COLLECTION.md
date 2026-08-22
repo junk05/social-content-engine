@@ -1,6 +1,6 @@
 # M4-FU01-S8 — Self-Reply Content Collection
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Contract version: `M4-FU01-SELF-REPLY-COLLECTION-V1`
 
@@ -76,3 +76,10 @@ parent edges were present, so none are invented. Legacy positions retain their
 observed full-DOM ordinals; new v5 observations use compact self-reply positions.
 Only aggregate sanitized evidence is committed in
 `spec/evidence/M4_FU01_S8_EXISTING_EVIDENCE_AUDIT.json`.
+
+HG-03 live verification observed one root plus five visible same-author self
+replies. All five self replies were saved as v5 `POST_DETAIL` observations before
+the six-node compact Thread Sequence was accepted. No explicit parent edge was
+visible, so none was inferred. Database and foreign-key integrity passed. The
+committed evidence contains no text, URL, author identity, or live identifier:
+`spec/evidence/M4_FU01_S8_LIVE_VERIFICATION.json`.

@@ -190,12 +190,17 @@ observations remain immutable audit evidence. Aggregate verification is in
 
 ### M4-FU01-S8 — Self-Reply Content Collection
 
-Status: `IN_PROGRESS / LIVE VERIFICATION PENDING`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU01_SELF_REPLY_COLLECTION.md` (`CR-0016`).
 One selected root may append only visible same-author reply details and existing
 Thread Sequence evidence. General reply crawling, inferred edges, generation,
 and M5 remain out of scope.
+
+HG-03 passed with one live root and five visible same-author self replies. All
+child details and the compact six-node sequence were stored without inferred
+parent edges; sanitized evidence is recorded in
+`spec/evidence/M4_FU01_S8_LIVE_VERIFICATION.json`.
 
 ## Deferred until later milestones
 

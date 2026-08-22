@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU01-S8-LIVE-E2E-V1",
+  "result": "PASS",
+  "live_values_committed": false,
+  "root_detail_observed": true,
+  "sequence_nodes": 6,
+  "same_author_self_reply_nodes": 5,
+  "self_reply_post_detail_observations": 5,
+  "all_observed_self_replies_saved": true,
+  "sequence_positions_compact": true,
+  "explicit_parent_edges_observed": 0,
+  "parent_edges_inferred": false,
+  "database_integrity": "PASS",
+  "foreign_key_integrity": "PASS",
+  "sensitive_source_data_committed": false
+}
