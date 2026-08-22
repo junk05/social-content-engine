@@ -14,6 +14,10 @@ from social_content_engine.data.browser_review_export import (
 
 
 class BrowserReviewExportTest(unittest.TestCase):
+    def test_live_exports_are_git_ignored(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        self.assertIn("data/exports/", (root / ".gitignore").read_text(encoding="utf-8"))
+
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.database = Path(self.directory.name) / "browser.sqlite3"
