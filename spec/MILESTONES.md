@@ -98,7 +98,7 @@ requires separate approval and its applicable Human Gate.
 
 ### M4-FU01 — Automated Detail Enrichment
 
-Status: `IMPLEMENTED / HG-03 LIVE E2E REQUIRED`
+Status: `FAIL_AFTER_SELF_REPAIR / LIVE VIEW CAPTURE UNVERIFIED`
 
 Approved specification: `spec/M4_FU01_AUTOMATED_DETAIL_ENRICHMENT.md`
 (`CR-0008`). This follow-up automates detail enrichment only after one explicit
@@ -134,11 +134,13 @@ batch automation or M5.
 
 ### M4-FU01-S4 — Native Coordinate Calibration
 
-Status: `IMPLEMENTED / HG-03 CURSOR ALIGNMENT REQUIRED`
+Status: `CLOSED / NATIVE INPUT NOT ADOPTED`
 
 Approved specification: `spec/M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`
 (`CR-0012`). Stage 1 is move-only; the existing Quartz click remains gated on
-human confirmation of exact cursor alignment. It does not authorize M5.
+human confirmation of exact cursor alignment. Alignment and native clicking
+succeeded, but the repaired bounded probe did not capture the exact view count,
+so the method is closed without batch adoption. It does not authorize M5.
 
 ## Deferred until later milestones
 

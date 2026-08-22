@@ -1,6 +1,6 @@
 # M4-FU01-S4 — Native Coordinate Calibration
 
-STATUS: `IMPLEMENTED / HG-03 CURSOR ALIGNMENT REQUIRED`
+STATUS: `CLOSED / NATIVE INPUT NOT ADOPTED`
 
 Contract version: `M4-FU01-NATIVE-COORDINATE-CALIBRATION-V1`
 
@@ -71,3 +71,9 @@ closed helper error. Any Stage 2 failure ends native-input experimentation.
   No further click was sent. The probe must accept the already-supported exact
   `表示 <integer> 回` label variant and use the same bounded eight-second DOM
   wait as detail enrichment before any separately gated confirmation run.
+- 2026-08-22 Stage 2 confirmation: the Quartz click again opened the Activity
+  sheet, but exact view-count confirmation still timed out after the bounded
+  probe repair. The sheet then closed with its dedicated worker tab. Result:
+  `NATIVE_INPUT_SHEET_OBSERVED_VIEW_NOT_CAPTURED`. Per the approved boundary,
+  no additional click mechanism or native-input retry is authorized, and this
+  approach is not adopted for batch detail enrichment.
