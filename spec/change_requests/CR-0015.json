@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0015",
+  "status": "APPROVED",
+  "title": "Use rounded detail-page Views as a separate descriptive signal",
+  "risk": "MEDIUM",
+  "affected_components": ["browser observation contract", "detail extractor", "Source Store migration", "detail batch worker", "Structural Pattern performance analysis"],
+  "approved_decision": "Store rounded detail-page Views separately from exact view_count and make Activity-sheet enrichment optional.",
+  "unchanged_boundaries": ["no exact-value inference", "missing differs from zero", "analysis-only source text and display", "append-only provenance", "no causal claims", "no M5"]
+}

@@ -162,6 +162,16 @@ Approved specification: `spec/M4_FU01_METRIC_OBSERVATION_MODEL.md`
 absent, unobserved, and extraction-failure states remain independent and
 provenance-backed. Exact Views capability still requires separate live proof.
 
+### M4-FU01-S7 — Approximate Detail-Page Views
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_APPROXIMATE_VIEWS.md` (`CR-0015`).
+Rounded Views visible on the selected detail page are stored as a separate
+descriptive signal and never as exact `view_count`. Activity-sheet enrichment
+is optional; exact ranking, inferred Views, causal claims, and M5 remain out of
+scope.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

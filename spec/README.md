@@ -18,6 +18,7 @@ This directory is the project SSOT.
 - `M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`: move-only DOM-to-Quartz coordinate calibration
 - `M4_FU01_ACTIVITY_DOM_DIAGNOSTIC.md`: read-only Activity sheet extraction diagnosis
 - `M4_FU01_METRIC_OBSERVATION_MODEL.md`: nullable per-metric observation status model
+- `M4_FU01_APPROXIMATE_VIEWS.md`: rounded detail-page Views evidence model
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action
