@@ -159,9 +159,9 @@
     ,{"id":"M4-FU01-S8-008","owner":"QA_REVIEWER","title":"Verify branch regression, immutable bad evidence exclusion, and full regression","status":"COMPLETE","depends_on":["M4-FU01-S8-007"]}
     ,{"id":"M4-FU01-S8-009","owner":"ORCHESTRATOR","title":"Repeat one-root branch-aware HG-03 live verification","status":"COMPLETE","depends_on":["M4-FU01-S8-008"]}
     ,{"id":"M4-REFRESH-001","owner":"ORCHESTRATOR","title":"Approve latest clean browser structural refresh contract","status":"COMPLETE","depends_on":["M4-FU01-S8-009"]}
-    ,{"id":"M4-REFRESH-002","owner":"DATA","title":"Audit browser Source Store and pin root-only valid-text snapshot","status":"IN_PROGRESS","depends_on":["M4-REFRESH-001"]}
-    ,{"id":"M4-REFRESH-003","owner":"INTELLIGENCE","title":"Replay First-Line, Post, and clean Thread Structural Patterns","status":"PENDING","depends_on":["M4-REFRESH-002"]}
-    ,{"id":"M4-REFRESH-004","owner":"INTELLIGENCE","title":"Associate descriptive rounded Views and render human review report","status":"PENDING","depends_on":["M4-REFRESH-003"]}
-    ,{"id":"M4-REFRESH-005","owner":"QA_REVIEWER","title":"Run regressions, repository validation, CI, and issue readiness decision","status":"PENDING","depends_on":["M4-REFRESH-004"]}
+    ,{"id":"M4-REFRESH-002","owner":"DATA","title":"Audit browser Source Store and pin root-only valid-text snapshot","status":"COMPLETE","depends_on":["M4-REFRESH-001"]}
+    ,{"id":"M4-REFRESH-003","owner":"INTELLIGENCE","title":"Replay First-Line, Post, and clean Thread Structural Patterns","status":"COMPLETE","depends_on":["M4-REFRESH-002"]}
+    ,{"id":"M4-REFRESH-004","owner":"INTELLIGENCE","title":"Associate descriptive rounded Views and render human review report","status":"COMPLETE","depends_on":["M4-REFRESH-003"]}
+    ,{"id":"M4-REFRESH-005","owner":"QA_REVIEWER","title":"Run regressions, repository validation, CI, and issue readiness decision","status":"IN_PROGRESS","depends_on":["M4-REFRESH-004"]}
   ]
 }

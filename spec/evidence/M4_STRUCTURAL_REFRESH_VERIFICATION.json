@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-STRUCTURAL-REFRESH-V1",
+  "result": "LOCAL_PASS_CI_PENDING",
+  "live_values_committed": false,
+  "snapshot": {
+    "dataset_key": "m4-clean-browser-root-text",
+    "version": 2,
+    "dataset_snapshot_id": 11,
+    "created_at": "2026-08-22T13:41:41+00:00",
+    "member_count": 236,
+    "quality_exclusions": {"INVALID_TEXT_DATE_METADATA": 2}
+  },
+  "data_audit": {
+    "canonical_root_posts": 238,
+    "new_root_posts_after_s8": 130,
+    "detail_enriched": 106,
+    "detail_failed": 2,
+    "detail_pending": 130,
+    "rounded_views_observed": 79,
+    "rounded_views_coverage_percent": 33.5,
+    "thread_sequence_observed_roots": 4,
+    "roots_with_self_replies": 4,
+    "self_reply_nodes": 6,
+    "clean_thread_sequence_nodes": 10,
+    "excluded_relationship_observations": 48,
+    "duplicate_identity_groups": 0,
+    "duplicate_observation_replays": 0
+  },
+  "structural_analysis": {
+    "run_id": 6,
+    "first_line_patterns": 73,
+    "post_patterns": 131,
+    "generalized_thread_patterns": 1,
+    "first_line_taxonomy_residual": 60,
+    "readiness": "READY_WITH_LIMITATIONS",
+    "limitations": [
+      "ROUNDED_VIEWS_COVERAGE_BELOW_70_PERCENT",
+      "FIRST_LINE_TAXONOMY_RESIDUAL_PRESENT"
+    ],
+    "m5_start_authorized": false
+  },
+  "verification": {
+    "tests": 183,
+    "lint": "PASS",
+    "mypy": "PASS",
+    "repository_validation": "PASS",
+    "database_integrity": "PASS",
+    "foreign_key_integrity": "PASS",
+    "ci": "PENDING"
+  },
+  "source_text_or_identity_committed": false
+}
