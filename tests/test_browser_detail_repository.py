@@ -116,7 +116,8 @@ class BrowserDetailRepositoryTest(unittest.TestCase):
                     relationship_evidence=None,
                 )
                 self.assertIsNone(repository.connection.execute(
-                    "SELECT relationship_evidence FROM browser_thread_sequence_observations WHERE id = ?",
+                    """SELECT relationship_evidence
+                    FROM browser_thread_sequence_observations WHERE id = ?""",
                     (legacy_id,),
                 ).fetchone()[0])
                 eligible = repository.connection.execute(
