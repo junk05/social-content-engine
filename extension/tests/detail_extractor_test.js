@@ -17,6 +17,9 @@ class Element {
   }
   getAttribute(name) { return this.attributes[name] ?? null; }
   closest() { return this.excluded ? this : null; }
+  querySelector(selector) {
+    return selector === "time[datetime]" && this.containsTime ? {} : null;
+  }
 }
 
 function attributes(value) {
@@ -36,7 +39,11 @@ function stripHiddenAndTags(value) {
 function fixturePage(name) {
   const html = fs.readFileSync(path.join(__dirname, "fixtures", name), "utf8");
   const anchors = Array.from(html.matchAll(/<a\s+([^>]*)>([\s\S]*?)<\/a>/g),
-    (match) => new Element(attributes(match[1]), stripTags(match[2])));
+    (match) => {
+      const element = new Element(attributes(match[1]), stripTags(match[2]));
+      element.containsTime = /<time\s+[^>]*datetime=/.test(match[2]);
+      return element;
+    });
   const labelled = Array.from(html.matchAll(/<[^>]+aria-label="([^"]+)"[^>]*>/g),
     (match) => new Element(attributes(match[0])));
   const candidates = Array.from(

@@ -55,14 +55,19 @@
     return Number.isSafeInteger(value) ? value : null;
   }
   function findPermalink(root, pageUrl, expectedCanonical = null) {
+    let fallback = null;
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const canonical = canonicalPostUrl(link.getAttribute("href"), pageUrl);
       if (canonical && (!expectedCanonical || canonical === expectedCanonical)) {
-        return { link, canonical };
+        const candidate = { link, canonical };
+        if (typeof link.querySelector === "function" && link.querySelector("time[datetime]")) {
+          return candidate;
+        }
+        if (fallback === null) fallback = candidate;
       }
     }
-    return null;
+    return fallback;
   }
   function recognizePostDetail(root, pageUrl) {
     if (!root || typeof root.querySelectorAll !== "function" || typeof root.querySelector !== "function") return false;
