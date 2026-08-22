@@ -12,14 +12,14 @@ if values.count == 1 && values[values.startIndex] == "--diagnose" {
 guard values.count == 2,
       let x = Double(values[values.startIndex]), let y = Double(values[values.index(after: values.startIndex)]),
       x.isFinite, y.isFinite, x >= 0, y >= 0, x <= 10000, y <= 10000 else {
-  exit(64)
+  exit(64) // COORDINATE_OUT_OF_BOUNDS
 }
-guard AXIsProcessTrusted() else { exit(77) }
+guard AXIsProcessTrusted() else { exit(77) } // ACCESSIBILITY_PERMISSION_REQUIRED
 let point = CGPoint(x: x, y: y)
 guard let down = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left),
       let up = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left) else {
-  exit(70)
+  exit(70) // CGEVENT_CREATE_FAILED
 }
 down.post(tap: .cghidEventTap)
 up.post(tap: .cghidEventTap)
-exit(0)
+exit(0) // MOUSE_DOWN_POSTED / MOUSE_UP_POSTED

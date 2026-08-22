@@ -457,7 +457,10 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
       const response = await fetch(NATIVE_INPUT_SPIKE_URL, { method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin }, body: JSON.stringify({ x: point.x, y: point.y }), credentials: "omit", cache: "no-store" });
       const result = await response.json();
       if (!result || result.status === "accessibility_permission_required") return { accepted: false, outcome: "ACCESSIBILITY_PERMISSION_REQUIRED" };
-      if (!result || result.status !== "clicked") return { accepted: false, outcome: "NATIVE_INPUT_FAILED" };
+      if (!result || result.status !== "clicked") {
+        const errors = { coordinate_out_of_bounds: "COORDINATE_OUT_OF_BOUNDS", cgevent_create_failed: "CGEVENT_CREATE_FAILED", helper_runtime_error: "HELPER_RUNTIME_ERROR" };
+        return { accepted: false, outcome: errors[result && result.status] || "NATIVE_INPUT_FAILED" };
+      }
       const confirmation = await chrome.tabs.sendMessage(tab.id, { type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" });
       return confirmation && confirmation.activitySurface && Number.isSafeInteger(confirmation.viewCount)
         ? { accepted: true, outcome: "NATIVE_INPUT_SHEET_OBSERVED" }

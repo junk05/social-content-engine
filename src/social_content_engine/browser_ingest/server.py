@@ -294,11 +294,8 @@ class BrowserIngestService:
             ["/usr/bin/swift", str(helper), str(x), str(y)],
             capture_output=True, text=True, timeout=10, check=False,
         )
-        if completed.returncode == 0:
-            return "clicked"
-        if completed.returncode == 77:
-            return "accessibility_permission_required"
-        return "failed"
+        codes = {0: "clicked", 64: "coordinate_out_of_bounds", 70: "cgevent_create_failed", 77: "accessibility_permission_required"}
+        return codes.get(completed.returncode, "helper_runtime_error")
 
     def _handle_native_input_spike(
         self, decoded: Dict[str, Any], origin: Optional[str]
@@ -315,8 +312,8 @@ class BrowserIngestService:
             status = self.native_click_runner(x, y)
         except (OSError, subprocess.SubprocessError):
             status = "failed"
-        if status not in {"clicked", "accessibility_permission_required", "unavailable", "failed"}:
-            status = "failed"
+        if status not in {"clicked", "accessibility_permission_required", "unavailable", "coordinate_out_of_bounds", "cgevent_create_failed", "helper_runtime_error"}:
+            status = "helper_runtime_error"
         return IngestResponse(200, {"status": status}, origin)
 
     @staticmethod
