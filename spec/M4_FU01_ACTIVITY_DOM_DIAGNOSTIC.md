@@ -40,3 +40,8 @@ No batch operation or M5 work is authorized before PASS.
   `span/span`. The next read-only diagnostic is limited to canonical metric
   kinds, exact numeric leaf values, and dialog-relative tag/index paths; it
   emits no arbitrary text, IDs, classes, post fields, or URLs.
+- Attempt 2: the visible dialog exposed structurally paired Likes, Reposts,
+  Quotes, and exact integer leaves, proving that visibility and traversal work.
+  No Views kind was classified. The next diagnostic adds the localized
+  `ビュー` label and numeric-only rounded-shape reporting. Rounded values remain
+  unavailable and are never converted into an exact view count.

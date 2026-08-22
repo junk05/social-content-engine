@@ -160,7 +160,7 @@
         // "表示 64,123 回".  The page header can be rounded ("表示6.4万回"),
         // so retain the exact-integer requirement rather than interpreting a
         // rounded header as an exact Activity value.
-        const match = label.match(/^(?:閲覧数|views?|表示)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
+        const match = label.match(/^(?:閲覧数|ビュー|views?|表示)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
         if (!match) continue;
         const value = exactNonnegativeInteger(match[1]);
         if (value !== null) return value;
@@ -168,7 +168,7 @@
       const labels = elements.filter((element) => {
         if (!isVisible(element)) return false;
         const label = renderedText(element);
-        return label !== null && /^(?:閲覧数|views?|表示)$/i.test(label);
+        return label !== null && /^(?:閲覧数|ビュー|views?|表示)$/i.test(label);
       });
       for (const label of labels) {
         let neighborhood = label.parentElement;

@@ -53,6 +53,18 @@ async function main() {
   assert.equal(diagnostic.exactValueFound, true);
   assert.equal(diagnostic.metricNodes.some((node) =>
     node.kind === "EXACT_INTEGER" && node.value === 88386), true);
+  metric.innerText = "ビュー";
+  metric.textContent = "ビュー";
+  numeric.innerText = "8.8万";
+  numeric.textContent = "8.8万";
+  const localized = probe.structuralMetricNodes(dialog);
+  assert.equal(localized.some((node) => node.kind === "VIEWS"), true);
+  assert.equal(localized.some((node) =>
+    node.kind === "FORMATTED_NUMBER" && node.numericShape === "#.#万"), true);
+  metric.innerText = "閲覧数 88,386";
+  metric.textContent = "閲覧数 88,386";
+  numeric.innerText = "88,386";
+  numeric.textContent = "88,386";
   assert.equal(Object.hasOwn(diagnostic, "text"), false);
   let response;
   assert.equal(listener(

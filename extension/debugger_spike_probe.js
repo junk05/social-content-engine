@@ -4,7 +4,7 @@
 // page text, source identity, URL, DOM dumps, and browser state never enter the
 // diagnostic result.
 (function installDebuggerSpikeProbe(scope) {
-  const LABEL_PATTERN = /(?:閲覧数|views?|表示)/i;
+  const LABEL_PATTERN = /(?:閲覧数|ビュー|views?|表示)/i;
 
   function isVisible(element) {
     if (!element || element.hidden || element.getAttribute("aria-hidden") === "true") return false;
@@ -53,7 +53,7 @@
   }
 
   function metricKind(text) {
-    if (/(?:閲覧|表示|views?)/i.test(text)) return "VIEWS";
+    if (/(?:閲覧|ビュー|表示|views?)/i.test(text)) return "VIEWS";
     if (/(?:いいね|likes?)/i.test(text)) return "LIKES";
     if (/(?:返信|リプライ|repl(?:y|ies))/i.test(text)) return "REPLIES";
     if (/(?:再投稿|reposts?)/i.test(text)) return "REPOSTS";
@@ -70,10 +70,13 @@
       if (!text || text.length > 80) continue;
       const kind = metricKind(text);
       const exactInteger = /^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(text);
-      if (!kind && !exactInteger) continue;
+      const formattedNumber = /^[0-9][0-9,.]*\s*(?:万|千|億|[KMB]|回)?$/i.test(text);
+      if (!kind && !exactInteger && !formattedNumber) continue;
       result.push({
-        kind: kind || "EXACT_INTEGER",
+        kind: kind || (exactInteger ? "EXACT_INTEGER" : "FORMATTED_NUMBER"),
         value: exactInteger ? Number(text.replaceAll(",", "")) : null,
+        numericShape: formattedNumber && !exactInteger
+          ? text.replace(/[0-9]/g, "#").replace(/[,.]/g, ".") : null,
         hasDigits: /[0-9]/.test(text),
         textLength: text.length,
         tag: String(element.tagName || "UNKNOWN").toUpperCase(),
@@ -92,7 +95,7 @@
     const visibleLabels = labelElements.filter(isVisible);
     const exactValue = exactActivityViewCount();
     const splitLabels = visibleLabels.filter((element) =>
-      /^(?:閲覧数|views?|表示)$/i.test(normalizedText(element)));
+      /^(?:閲覧数|ビュー|views?|表示)$/i.test(normalizedText(element)));
     const openShadowRoots = all.filter((element) => element.shadowRoot).length;
     const visibleDialogs = dialogs.filter(isVisible);
     const root = visibleDialogs[visibleDialogs.length - 1]
