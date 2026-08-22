@@ -162,6 +162,10 @@ runNativeInputSpike.addEventListener("click", () => {
     if (response && response.extractionFailure) {
       nativeInputSpikeStatus.textContent += "\n抽出段階: " + response.extractionFailure;
     }
+    if (response && response.postDetailReadiness) {
+      nativeInputSpikeStatus.textContent += "\n投稿DOM: "
+        + JSON.stringify(response.postDetailReadiness);
+    }
     if (response && response.diagnostics) {
       nativeInputSpikeStatus.textContent += "\nDOM診断: " + JSON.stringify(response.diagnostics);
     }

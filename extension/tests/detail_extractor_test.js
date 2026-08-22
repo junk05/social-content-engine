@@ -89,6 +89,9 @@ async function main() {
   };
   const page = fixturePage("post_detail_complete.html");
   assert.equal(extractor.recognizePostDetail(page, context.pageUrl), true);
+  assert.deepEqual(extractor.postDetailReadiness(page, context.pageUrl), {
+    canonicalPage: true, permalinkFound: true, postRootFound: true, timestampFound: true,
+  });
   const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
   assert.deepEqual(nodes.map((node) => node.post_url), [
     "https://www.threads.net/@sample.user/post/AbC_123",

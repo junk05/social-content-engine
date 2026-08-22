@@ -180,7 +180,12 @@
     const viewStatus = observation && observation.metric_observation_statuses
       && observation.metric_observation_statuses.view_count;
     if (!observation) {
-      return { ...result, observation: null, nodes: [], extractionFailure: "POST_DETAIL_NOT_EXTRACTED" };
+      const readiness = typeof extractor.postDetailReadiness === "function"
+        ? extractor.postDetailReadiness(document, location.href) : null;
+      return {
+        ...result, observation: null, nodes: [],
+        extractionFailure: "POST_DETAIL_NOT_EXTRACTED", postDetailReadiness: readiness,
+      };
     }
     if (!metricObservationConsistent(result, observation)) {
       const hasStatuses = Boolean(observation.metric_observation_statuses);

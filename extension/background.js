@@ -482,6 +482,7 @@ if (typeof importScripts === "function") {
           outcome: extraction && extraction.activitySurface
             ? "NATIVE_INPUT_VIEW_NOT_EXTRACTED" : "NATIVE_INPUT_SHEET_NOT_OBSERVED",
           extractionFailure: extraction && extraction.extractionFailure,
+          postDetailReadiness: extraction && extraction.postDetailReadiness,
           viewObservationStatus: extraction && extraction.viewObservationStatus,
           diagnostics: extraction && extraction.diagnostics,
         };
