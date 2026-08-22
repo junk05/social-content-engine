@@ -1245,7 +1245,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (16, "durable-browser-detail-enrichment-queue-v1", _migration_16_detail_enrichment_queue),
     (17, "one-running-browser-detail-batch-v1", _migration_17_one_running_detail_batch),
     (18, "backfill-selected-browser-detail-queue-v1", _migration_18_backfill_selected_detail_queue),
-    (19, "browser-metric-observation-statuses-v1", _migration_19_browser_metric_observation_statuses),
+    (
+        19,
+        "browser-metric-observation-statuses-v1",
+        _migration_19_browser_metric_observation_statuses,
+    ),
 )
 
 

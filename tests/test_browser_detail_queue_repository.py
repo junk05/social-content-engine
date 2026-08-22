@@ -10,6 +10,7 @@ from tests.test_browser_detail_repository import observation
 
 def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE browser_metric_observation_statuses")
     connection.execute("DROP TABLE browser_detail_enrichment_queue")
     connection.execute("DROP TABLE browser_detail_enrichment_batches")
     connection.execute("DELETE FROM schema_migrations WHERE version >= 16")
