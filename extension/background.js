@@ -473,10 +473,41 @@ if (typeof importScripts === "function") {
         const errors = { coordinate_out_of_bounds: "COORDINATE_OUT_OF_BOUNDS", cgevent_create_failed: "CGEVENT_CREATE_FAILED", helper_runtime_error: "HELPER_RUNTIME_ERROR" };
         return { accepted: false, outcome: errors[result && result.status] || "NATIVE_INPUT_FAILED" };
       }
-      const confirmation = await chrome.tabs.sendMessage(tab.id, { type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" });
-      return confirmation && confirmation.activitySurface && Number.isSafeInteger(confirmation.viewCount)
-        ? { accepted: true, outcome: "NATIVE_INPUT_SHEET_OBSERVED" }
-        : { accepted: false, outcome: "NATIVE_INPUT_SHEET_NOT_OBSERVED" };
+      const extraction = await chrome.tabs.sendMessage(
+        tab.id, { type: "SCE_NATIVE_INPUT_EXTRACT_OPEN_ACTIVITY" },
+      );
+      if (!extraction || !Number.isSafeInteger(extraction.viewCount)
+          || !extraction.observation) {
+        return {
+          accepted: false,
+          outcome: extraction && extraction.activitySurface
+            ? "NATIVE_INPUT_VIEW_NOT_EXTRACTED" : "NATIVE_INPUT_SHEET_NOT_OBSERVED",
+          diagnostics: extraction && extraction.diagnostics,
+        };
+      }
+      const ingest = await sendObservation(extraction.observation);
+      if (!ingest.accepted || ingest.observationStatus !== "DETAIL_ENRICHED") {
+        return {
+          accepted: false,
+          outcome: "NATIVE_INPUT_INGESTION_FAILED",
+          diagnostics: extraction.diagnostics,
+        };
+      }
+      if (Number.isInteger(ingest.observationId) && Array.isArray(extraction.nodes)
+          && extraction.nodes.length > 0) {
+        await sendThreadSequence({
+          root_post_url: extraction.observation.post_url,
+          nodes: extraction.nodes,
+          detail_observation_id: ingest.observationId,
+          observed_at: extraction.observation.collected_at,
+          extractor_version: extraction.observation.extractor_version,
+        });
+      }
+      return {
+        accepted: true,
+        outcome: "NATIVE_INPUT_DETAIL_ENRICHED",
+        diagnostics: extraction.diagnostics,
+      };
     } catch (_error) { return { accepted: false, outcome: "NATIVE_INPUT_FAILED" }; }
     finally { try { await chrome.tabs.remove(tab.id); } catch (_error) {} }
   }

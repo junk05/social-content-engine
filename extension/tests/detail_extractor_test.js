@@ -163,6 +163,23 @@ async function main() {
   assert.equal(rolelessActivityExact.public_counters.view_count, 64123,
     "an exact role-less Activity sheet remains observable without accepting rounded headers");
 
+  const splitLabel = new Element({}, "閲覧数");
+  const splitValue = new Element({}, "88,386");
+  const splitParent = {
+    parentElement: null,
+    querySelectorAll(selector) { return selector === "span, div" ? [splitLabel, splitValue] : []; },
+  };
+  splitLabel.parentElement = splitParent;
+  splitValue.parentElement = splitParent;
+  const splitRoot = {
+    querySelectorAll(selector) {
+      if (selector === '[role="dialog"], [aria-modal="true"]') return [];
+      return selector === "span, div" ? [splitLabel, splitValue] : [];
+    },
+  };
+  assert.equal(extractor.activityViewCount(splitRoot), 88386,
+    "a visible Activity label and adjacent exact integer are structurally paired");
+
   assert.equal(extractor.exactNonnegativeInteger("Views 12K"), null);
   assert.equal(extractor.exactNonnegativeInteger("1.2K views"), null);
   assert.equal(extractor.pageViewCount(fixturePage("post_detail_missing_view.html")), null);

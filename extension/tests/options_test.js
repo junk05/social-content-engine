@@ -107,6 +107,18 @@ nodes["#run-native-input-spike"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_INPUT_SPIKE" });
 assert.equal(nodes["#native-input-spike-status"].textContent, "macOSのアクセシビリティ許可が必要です。");
 
+pendingResponse = {
+  accepted: true,
+  outcome: "NATIVE_INPUT_DETAIL_ENRICHED",
+  diagnostics: { visibleDialogs: 1, exactValueFound: true },
+};
+nodes["#run-native-input-spike"].listeners.click();
+assert.equal(
+  nodes["#native-input-spike-status"].textContent,
+  "Activity sheet・閲覧数・DETAIL_ENRICHEDを確認しました。\n"
+    + "DOM診断: {\"visibleDialogs\":1,\"exactValueFound\":true}",
+);
+
 pendingResponse = { accepted: true, outcome: "accessibility_allowed" };
 nodes["#run-native-input-diagnostic"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });

@@ -28,7 +28,9 @@
     return cleaned || null;
   }
   function renderedText(element) {
-    return cleanText(typeof element.innerText === "string" ? element.innerText : null);
+    const rendered = cleanText(typeof element.innerText === "string" ? element.innerText : null);
+    if (rendered) return rendered;
+    return cleanText(typeof element.textContent === "string" ? element.textContent : null);
   }
   function exactNonnegativeInteger(label) {
     if (typeof label !== "string") return null;
@@ -146,7 +148,11 @@
     const containers = Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
     containers.push(root);
     for (const container of containers) {
-      for (const element of container.querySelectorAll("span, div")) {
+      const elements = [
+        ...container.querySelectorAll("span, div"),
+        ...container.querySelectorAll("p"),
+      ];
+      for (const element of elements) {
         if (!isVisible(element)) continue;
         const label = renderedText(element);
         if (!label) continue;
@@ -158,6 +164,30 @@
         if (!match) continue;
         const value = exactNonnegativeInteger(match[1]);
         if (value !== null) return value;
+      }
+      const labels = elements.filter((element) => {
+        if (!isVisible(element)) return false;
+        const label = renderedText(element);
+        return label !== null && /^(?:閲覧数|views?|表示)$/i.test(label);
+      });
+      for (const label of labels) {
+        let neighborhood = label.parentElement;
+        for (let depth = 0; neighborhood && depth < 4; depth += 1) {
+          const candidates = [
+            ...neighborhood.querySelectorAll("span, div"),
+            ...neighborhood.querySelectorAll("p"),
+          ];
+          for (const candidate of candidates) {
+            if (!isVisible(candidate)) continue;
+            const text = renderedText(candidate);
+            if (!text || !/^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(text)) {
+              continue;
+            }
+            const value = exactNonnegativeInteger(text);
+            if (value !== null) return value;
+          }
+          neighborhood = neighborhood.parentElement;
+        }
       }
     }
     return null;

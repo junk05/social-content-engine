@@ -1,44 +1,150 @@
 "use strict";
 
-// Content-side confirmation only. This performs no debugger/CDP operation and
-// exposes no DOM text, metrics, URL, storage, cookies, or page data.
+// Read-only Activity confirmation and bounded structural diagnosis. Arbitrary
+// page text, source identity, URL, DOM dumps, and browser state never enter the
+// diagnostic result.
 (function installDebuggerSpikeProbe(scope) {
+  const LABEL_PATTERN = /(?:閲覧数|views?|表示)/i;
+
   function isVisible(element) {
-    return element && !element.hidden && element.getAttribute("aria-hidden") !== "true";
+    if (!element || element.hidden || element.getAttribute("aria-hidden") === "true") return false;
+    const style = typeof getComputedStyle === "function" ? getComputedStyle(element) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+    return typeof element.getClientRects !== "function" || element.getClientRects().length > 0;
+  }
+
+  function normalizedText(element) {
+    const rendered = typeof element.innerText === "string" ? element.innerText : "";
+    const fallback = typeof element.textContent === "string" ? element.textContent : "";
+    return (rendered || fallback).replace(/\s+/g, " ").trim();
+  }
+
+  function exactActivityViewCount() {
+    const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    return extractor && typeof extractor.visibleActivityViewCount === "function"
+      ? extractor.visibleActivityViewCount(document) : null;
   }
 
   function exactActivityMetricPresent() {
     return exactActivityViewCount() !== null;
   }
 
-  function exactActivityViewCount() {
-    const element = Array.from(document.querySelectorAll("span, div")).find((candidate) => {
-      const text = (candidate.innerText || "").replace(/\s+/g, " ").trim();
-      return isVisible(candidate)
-        && /^(?:閲覧数|views?|表示)\s*[:：]?\s*[0-9][0-9,]*\s*(?:回|views?)?$/i.test(text);
-    });
+  function sheetRootSummary(element) {
     if (!element) return null;
-    const token = (element.innerText || "").match(/[0-9][0-9,]*/);
-    const value = token ? Number(token[0].replaceAll(",", "")) : NaN;
-    return Number.isSafeInteger(value) ? value : null;
+    let depth = 0;
+    for (let node = element; node && node !== document.body; node = node.parentElement) depth += 1;
+    return {
+      tag: String(element.tagName || "UNKNOWN").toUpperCase(),
+      role: element.getAttribute("role"),
+      ariaModal: element.getAttribute("aria-modal"),
+      visible: isVisible(element),
+      bodyPortal: element.parentElement === document.body,
+      depth,
+    };
   }
 
-  function waitForActivitySurface(timeout = 8000) {
+  function activityDomDiagnostic(timedOut = false) {
+    const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
+    const all = Array.from(document.querySelectorAll("*"));
+    const labelElements = all.filter((element) => LABEL_PATTERN.test(normalizedText(element)));
+    const visibleLabels = labelElements.filter(isVisible);
+    const exactValue = exactActivityViewCount();
+    const splitLabels = visibleLabels.filter((element) =>
+      /^(?:閲覧数|views?|表示)$/i.test(normalizedText(element)));
+    const openShadowRoots = all.filter((element) => element.shadowRoot).length;
+    const visibleDialogs = dialogs.filter(isVisible);
+    const root = visibleDialogs[visibleDialogs.length - 1]
+      || (visibleLabels[0] && visibleLabels[0].closest
+        ? visibleLabels[0].closest('[role="dialog"], [aria-modal="true"]') : null);
+    return {
+      timedOut,
+      dialogCandidates: dialogs.length,
+      visibleDialogs: visibleDialogs.length,
+      activityLabelCandidates: labelElements.length,
+      visibleActivityLabels: visibleLabels.length,
+      splitLabelCandidates: splitLabels.length,
+      exactValueFound: Number.isSafeInteger(exactValue),
+      iframeCount: document.querySelectorAll("iframe").length,
+      openShadowRootCount: openShadowRoots,
+      sheetRoot: sheetRootSummary(root),
+    };
+  }
+
+  function waitForActivityResult(timeout = 12000) {
     return new Promise((resolve) => {
-      if (exactActivityMetricPresent()) { resolve(true); return; }
-      const observer = new MutationObserver(() => {
-        if (exactActivityMetricPresent()) { observer.disconnect(); clearTimeout(timer); resolve(true); }
+      let interval = null;
+      let timer = null;
+      const observer = new MutationObserver(inspect);
+      function cleanup() {
+        observer.disconnect();
+        if (interval !== null) clearInterval(interval);
+        if (timer !== null) clearTimeout(timer);
+      }
+      function inspect() {
+        const viewCount = exactActivityViewCount();
+        if (!Number.isSafeInteger(viewCount)) return false;
+        cleanup();
+        resolve({ activitySurface: true, viewCount, diagnostics: activityDomDiagnostic(false) });
+        return true;
+      }
+      if (inspect()) return;
+      observer.observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true,
+        attributeFilter: ["hidden", "aria-hidden", "style", "class"],
       });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-      const timer = setTimeout(() => { observer.disconnect(); resolve(false); }, timeout);
+      interval = setInterval(inspect, 200);
+      timer = setTimeout(() => {
+        cleanup();
+        const diagnostics = activityDomDiagnostic(true);
+        resolve({
+          activitySurface: diagnostics.visibleDialogs > 0
+            || diagnostics.visibleActivityLabels > 0,
+          viewCount: null,
+          diagnostics,
+        });
+      }, timeout);
     });
+  }
+
+  async function extractOpenActivity() {
+    const result = await waitForActivityResult();
+    if (!Number.isSafeInteger(result.viewCount)) return result;
+    const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    const collectedAt = new Date().toISOString();
+    const observation = await extractor.extractPostDetail(document, {
+      pageUrl: location.href,
+      collectedAt,
+    });
+    if (!observation || observation.public_counters.view_count !== result.viewCount) {
+      return { ...result, observation: null, nodes: [] };
+    }
+    const nodes = extractor.extractVisibleThreadNodes(document, location.href).map((node) => ({
+      post_url: node.post_url,
+      sequence_position: node.sequence_position,
+      reply_to_post_url: node.reply_to_post_url,
+      same_author_as_root: node.same_author_as_root,
+    }));
+    return { ...result, observation, nodes };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY") return false;
-    waitForActivitySurface().then((activitySurface) => sendResponse({ activitySurface, viewCount: activitySurface ? exactActivityViewCount() : null }));
-    return true;
+    if (!message) return false;
+    if (message.type === "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY") {
+      waitForActivityResult().then(sendResponse);
+      return true;
+    }
+    if (message.type === "SCE_NATIVE_INPUT_EXTRACT_OPEN_ACTIVITY") {
+      extractOpenActivity().then(sendResponse);
+      return true;
+    }
+    return false;
   });
 
-  scope.SCE_DEBUGGER_SPIKE_PROBE = Object.freeze({ exactActivityMetricPresent, exactActivityViewCount, waitForActivitySurface });
+  scope.SCE_DEBUGGER_SPIKE_PROBE = Object.freeze({
+    exactActivityMetricPresent,
+    exactActivityViewCount,
+    activityDomDiagnostic,
+    waitForActivityResult,
+    extractOpenActivity,
+  });
 })(globalThis);

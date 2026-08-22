@@ -147,8 +147,18 @@ runNativeInputSpike.addEventListener("click", () => {
   nativeInputSpikeStatus.textContent = "macOS実マウス入力を検証しています。";
   chrome.runtime.sendMessage({ type: "SCE_START_NATIVE_INPUT_SPIKE" }, (response) => {
     runNativeInputSpike.disabled = false;
-    const labels = { NATIVE_INPUT_SHEET_OBSERVED: "Activity sheetと閲覧数を確認しました。", NATIVE_INPUT_SHEET_NOT_OBSERVED: "Activity sheetの表示を確認できませんでした。", ACCESSIBILITY_PERMISSION_REQUIRED: "macOSのアクセシビリティ許可が必要です。", TARGET_NOT_FOUND: "Activityボタンを確認できませんでした。" };
+    const labels = {
+      NATIVE_INPUT_DETAIL_ENRICHED: "Activity sheet・閲覧数・DETAIL_ENRICHEDを確認しました。",
+      NATIVE_INPUT_VIEW_NOT_EXTRACTED: "Activity sheetは開きましたが閲覧数を抽出できませんでした。",
+      NATIVE_INPUT_INGESTION_FAILED: "閲覧数は抽出しましたがreceiverへ保存できませんでした。",
+      NATIVE_INPUT_SHEET_NOT_OBSERVED: "Activity sheetの表示を確認できませんでした。",
+      ACCESSIBILITY_PERMISSION_REQUIRED: "macOSのアクセシビリティ許可が必要です。",
+      TARGET_NOT_FOUND: "Activityボタンを確認できませんでした。",
+    };
     nativeInputSpikeStatus.textContent = labels[response && response.outcome] || "macOS実マウス入力を検証できませんでした。";
+    if (response && response.diagnostics) {
+      nativeInputSpikeStatus.textContent += "\nDOM診断: " + JSON.stringify(response.diagnostics);
+    }
   });
 });
 runNativeInputDiagnostic.addEventListener("click", () => {

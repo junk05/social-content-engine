@@ -47,6 +47,11 @@ Chrome window boundsからcontent originを決定します。Retina倍率を重�
 目視で中央位置が承認された後だけ、「1件だけmacOS実マウス入力を検証」が同じ
 変換結果で既存Quartz左クリックを一度送信し、Activity sheetと正確な閲覧数を
 DOMで確認します。
+Activityのlabelと数値が別elementの場合も、visibleなlabel周辺のbounded parent/
+sibling構造からexact integerだけを読みます。診断表示はdialog件数、visibility、
+split-label候補、iframe/open shadow root件数等の構造情報だけで、本文やURLを含みません。
+抽出成功時は既存`POST_DETAIL`契約でloopback receiverへ送り、`DETAIL_ENRICHED`を
+成功条件にします。
 
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 
