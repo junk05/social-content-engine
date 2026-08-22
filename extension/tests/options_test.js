@@ -1,7 +1,21 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const path = require("node:path");
+
+const optionsHtml = fs.readFileSync(path.join(__dirname, "..", "options.html"), "utf8");
+for (const obsoleteControl of [
+  "run-debugger-spike",
+  "run-debugger-foreground-spike",
+  "run-native-input-spike",
+  "run-native-input-diagnostic",
+  "run-native-cursor-calibration",
+]) {
+  assert.equal(optionsHtml.includes(`id="${obsoleteControl}"`), false);
+}
+assert.equal(optionsHtml.includes('id="start-detail-batch"'), true);
+assert.equal(optionsHtml.includes('id="collected-posts"'), true);
 
 class Node {
   constructor(tag = "div") {
@@ -20,12 +34,6 @@ const nodes = {
   "#status": new Node(), "#load-pending": new Node("button"),
   "#pending-status": new Node(), "#pending-details": new Node("ul"),
   "#start-detail-batch": new Node("button"), "#resume-detail-batch": new Node("button"),
-  "#run-debugger-spike": new Node("button"), "#debugger-spike-status": new Node(),
-  "#run-debugger-foreground-spike": new Node("button"), "#debugger-foreground-spike-status": new Node(),
-  "#run-native-input-spike": new Node("button"), "#native-input-spike-status": new Node(),
-  "#run-native-input-diagnostic": new Node("button"), "#native-input-diagnostic-status": new Node(),
-  "#run-native-cursor-calibration": new Node("button"),
-  "#native-cursor-calibration-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
   "#collected-filter": new Node("select"), "#collected-sort": new Node("select"),
@@ -126,62 +134,3 @@ pendingResponse = { accepted: false, reason: "network_error" };
 nodes["#resume-detail-batch"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RESUME_DETAIL_BATCH", limit: 50 });
 assert.equal(nodes["#batch-status"].textContent, "詳細バッチを完了できませんでした。再開できます。");
-
-pendingResponse = { accepted: true, outcome: "SHEET_OBSERVED" };
-nodes["#run-debugger-spike"].listeners.click();
-assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_DEBUGGER_ACTIVITY_SPIKE" });
-assert.equal(nodes["#debugger-spike-status"].textContent, "Activity sheetの表示を確認しました。");
-
-pendingResponse = { accepted: false, outcome: "SHEET_NOT_OBSERVED_FOREGROUND" };
-nodes["#run-debugger-foreground-spike"].listeners.click();
-assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_DEBUGGER_FOREGROUND_SPIKE" });
-assert.equal(nodes["#debugger-foreground-spike-status"].textContent, "前面化後もActivity sheetの表示を確認できませんでした。");
-
-pendingResponse = { accepted: false, outcome: "ACCESSIBILITY_PERMISSION_REQUIRED" };
-nodes["#run-native-input-spike"].listeners.click();
-assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_INPUT_SPIKE" });
-assert.equal(nodes["#native-input-spike-status"].textContent, "macOSのアクセシビリティ許可が必要です。");
-
-pendingResponse = {
-  accepted: true,
-  outcome: "NATIVE_INPUT_DETAIL_ENRICHED",
-  viewObservationStatus: "NOT_PRESENT",
-  diagnostics: { visibleDialogs: 1, exactValueFound: true },
-};
-nodes["#run-native-input-spike"].listeners.click();
-assert.equal(
-  nodes["#native-input-spike-status"].textContent,
-  "Activity sheet・取得可能metrics・DETAIL_ENRICHEDを確認しました。\n"
-    + "view_count: NOT_PRESENT\n"
-    + "DOM診断: {\"visibleDialogs\":1,\"exactValueFound\":true}",
-);
-
-pendingResponse = {
-  accepted: false,
-  outcome: "NATIVE_INPUT_VIEW_NOT_EXTRACTED",
-  extractionFailure: "POST_DETAIL_NOT_EXTRACTED",
-};
-nodes["#run-native-input-spike"].listeners.click();
-assert.equal(
-  nodes["#native-input-spike-status"].textContent,
-  "Activity sheetは開きましたが閲覧数を抽出できませんでした。\n"
-    + "抽出段階: POST_DETAIL_NOT_EXTRACTED",
-);
-
-pendingResponse = { accepted: true, outcome: "accessibility_allowed" };
-nodes["#run-native-input-diagnostic"].listeners.click();
-assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });
-assert.equal(nodes["#native-input-diagnostic-status"].textContent, "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK");
-
-pendingResponse = {
-  accepted: true,
-  outcome: "CURSOR_MOVE_SENT",
-  diagnostics: { browserChromeTop: 92 },
-};
-nodes["#run-native-cursor-calibration"].listeners.click();
-assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_CURSOR_CALIBRATION" });
-assert.equal(
-  nodes["#native-cursor-calibration-status"].textContent,
-  "カーソル位置を画面で確認してください。クリックは実行していません。\n"
-    + "診断値: {\"browserChromeTop\":92}",
-);

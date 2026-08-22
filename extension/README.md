@@ -33,34 +33,13 @@ rootだけをローカル表示します。状態filterで絞り込み、`再補
 evidenceは保持され、操作履歴も追記されます。除外済み投稿は`再補完`で再有効化
 できます。
 
-### M4-FU01-S3: macOS Native Input Spike
+## 終了済み診断機能
 
-この1投稿限定検証では、receiverを起動しているTerminal（またはその親となる
-ターミナルアプリ）だけに、macOSの「プライバシーとセキュリティ」→
-「アクセシビリティ」で許可を与えます。許可後にオプションの
-「1件だけmacOS実マウス入力を検証」を一度だけ押します。helperは固定された
-左クリック1回だけを送信し、キー入力、clipboard、Chrome UI検索、cookie、
-credentialを扱いません。許可を外せばOS入力は直ちに使えなくなります。
-
-### M4-FU01-S4: クリックなしの座標校正
-
-オプションの「1件だけカーソル位置を校正」は、既知の詳細待ち投稿を専用タブで
-前面表示し、`アクティビティを見る`の中心として計算したmacOS screen座標へ
-カーソルだけを一度移動します。この段階ではクリックしません。専用タブは目視確認の
-ため開いたままになります。receiverプロセスごとに一度だけ実行でき、再実行には
-receiverの再起動が必要です。画面座標やDOM geometryはGitにもChrome storageにも
-保存しません。校正結果には、座標変換を監査するための本文を含まない一時的な
-geometry診断値だけを表示します。
-BraveなどでJavaScriptの`screenY`が実window境界と一致しない場合、縦方向は
-Chrome window boundsからcontent originを決定します。Retina倍率を重ねて掛けません。
-目視で中央位置が承認された後だけ、「1件だけmacOS実マウス入力を検証」が同じ
-変換結果で既存Quartz左クリックを一度送信し、Activity sheetと正確な閲覧数を
-DOMで確認します。
-Activityのlabelと数値が別elementの場合も、visibleなlabel周辺のbounded parent/
-sibling構造からexact integerだけを読みます。診断表示はdialog件数、visibility、
-split-label候補、iframe/open shadow root件数等の構造情報だけで、本文やURLを含みません。
-抽出成功時は既存`POST_DETAIL`契約でloopback receiverへ送り、`DETAIL_ENRICHED`を
-成功条件にします。
+M4-FU01-S1〜S5で使用したActivity、macOS native input helper、座標校正の
+1投稿限定診断は通常運用に不要なため、オプション画面には表示しません。検証済みの
+内部実装、回帰test、SSOT、技術証跡は監査と将来の再評価のため保持します。
+Detail Enrichmentの必須経路はdetail page上の本文、Rounded Views、Thread Sequenceで、
+Activity sheetやmacOS Accessibility permissionには依存しません。
 
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 

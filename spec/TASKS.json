@@ -178,5 +178,6 @@
     ,{"id":"M4-FU04-003","owner":"DATA","title":"Expose closed local list, exclude, and re-enrich receiver operations","status":"COMPLETE","depends_on":["M4-FU04-002"]}
     ,{"id":"M4-FU04-004","owner":"COLLECTOR","title":"Render collected-post filters and row actions in Extension options","status":"COMPLETE","depends_on":["M4-FU04-003"]}
     ,{"id":"M4-FU04-005","owner":"QA_REVIEWER","title":"Verify queue exclusion, audit preservation, UI, security, and full regression","status":"COMPLETE","depends_on":["M4-FU04-004"]}
+    ,{"id":"M4-FU04-006","owner":"COLLECTOR","title":"Remove completed one-post diagnostic controls from the normal options UI","status":"COMPLETE","depends_on":["M4-FU04-005"]}
   ]
 }

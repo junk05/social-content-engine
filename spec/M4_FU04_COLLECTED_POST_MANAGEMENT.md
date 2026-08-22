@@ -61,4 +61,5 @@ are not accepted.
 - excluded roots are absent from pending URL selection, failed retry, and batch claim;
 - explicit requeue re-enables the root without deleting observations, attempts, or failures;
 - receiver and Extension contracts reject unknown actions, unsafe URLs, and malformed list rows;
+- completed one-post Activity/native-input diagnostics are removed from the normal options UI while their internal implementation and evidence remain archived;
 - local Extension suites, lint, mypy, repository validation, and 189 Python regressions pass.
