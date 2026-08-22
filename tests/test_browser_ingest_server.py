@@ -283,6 +283,29 @@ class BrowserIngestServerTest(unittest.TestCase):
             [tuple(row) for row in statuses],
         )
 
+    def test_post_detail_accepts_rounded_views_without_exact_view_count(self) -> None:
+        rounded = {
+            "display": "表示3.3万回",
+            "normalized_approx": 33000,
+            "precision": "ROUNDED",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "10K_100K",
+            "observed_at": "2026-08-16T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "rounded-views-normalizer-v1",
+        }
+        accepted = self.post(self.observed_url(
+            "RoundedViews", observation_type="POST_DETAIL", view_count=None,
+            metric_statuses=True, approximate_views=rounded,
+        ))
+        self.assertEqual(201, accepted.status)
+        self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
+        row = self.repository.connection.execute(
+            "SELECT * FROM browser_approximate_view_observations"
+        ).fetchone()
+        self.assertEqual(33000, row["normalized_approx"])
+        self.assertEqual("ROUNDED", row["precision"])
+
     def test_durable_queue_batch_claim_complete_and_summary(self) -> None:
         search = self.post(self.observed_url("QueueSuccess"))
         summary = self.service.handle_get(

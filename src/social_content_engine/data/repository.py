@@ -1250,7 +1250,9 @@ def _migration_20_browser_approximate_view_observations(
         connection.execute(
             """CREATE TRIGGER immutable_browser_approximate_view_observations_{0}
             BEFORE {0} ON browser_approximate_view_observations
-            BEGIN SELECT RAISE(ABORT, 'browser approximate Views evidence is immutable'); END""".format(
+            BEGIN SELECT RAISE(
+              ABORT, 'browser approximate Views evidence is immutable'
+            ); END""".format(
                 operation.lower()
             )
         )
