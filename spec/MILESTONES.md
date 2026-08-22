@@ -222,12 +222,17 @@ specific component beyond the generic assertion form. M5 remains unauthorized.
 
 ### M4-FU02 — Post-S8 Coverage Audit and Human Review Export
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU02_COVERAGE_AUDIT_EXPORT.md` (`CR-0019`).
 This read-only follow-up audits the isolated post-S8 root cohort and exports
 local analysis-only CSV files for human review. It does not reopen Structural
 analysis or authorize M5.
+
+The post-S8 audit isolated 130 roots and found all 130 still `DETAIL_PENDING`;
+rounded Views and clean Thread evidence therefore have 0% coverage in that
+cohort. Read-only all-root and post-S8 CSV exports were generated locally and
+remain Git-ignored. M5 remains unauthorized.
 
 ## Deferred until later milestones
 

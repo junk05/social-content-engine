@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU02-LIVE-V1",
+  "result": "PASS",
+  "live_values_committed": false,
+  "cohort": {
+    "collected_after": "2026-08-22T11:22:56.125Z",
+    "root_count": 130
+  },
+  "coverage_audit": {
+    "detail_enriched": 0,
+    "detail_failed": 0,
+    "detail_pending": 130,
+    "page_timeout": 0,
+    "rounded_views_observed": 0,
+    "rounded_views_missing": 130,
+    "rounded_views_coverage_percent": 0.0,
+    "rounded_views_detail_not_run": 130,
+    "thread_sequence_observed_roots": 0,
+    "roots_with_self_replies": 0,
+    "self_reply_nodes": 0,
+    "clean_sequence_nodes": 0,
+    "false_positive_or_excluded_nodes": 0
+  },
+  "csv_export": {
+    "all_roots_rows": 238,
+    "all_thread_node_rows": 96,
+    "post_s8_root_rows": 130,
+    "post_s8_thread_node_rows": 0,
+    "utf_8_bom": true,
+    "canonical_root_duplicates": 0,
+    "database_modified": false,
+    "exports_git_ignored": true
+  },
+  "verification": {
+    "tests": 186,
+    "lint": "PASS",
+    "mypy": "PASS",
+    "repository_validation": "PASS",
+    "ci": "PASS",
+    "ci_run": "https://github.com/junk05/social-content-engine/actions/runs/32577532894"
+  },
+  "source_text_or_identity_committed": false,
+  "m5_started": false
+}

@@ -1,6 +1,6 @@
 # M4-FU02 — Post-S8 Coverage Audit and Human Review CSV Export
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0019`.
 
@@ -42,3 +42,9 @@ The exporter opens SQLite in read-only mode, uses deterministic ordering,
 preserves null separately from numeric zero, and writes `utf-8-sig` for common
 Japanese spreadsheet applications. `data/exports/` is Git-ignored. Source text
 and identity may appear only in these local `ANALYSIS_ONLY_SOURCE` exports.
+
+The isolated live audit found all 130 post-S8 roots still `DETAIL_PENDING`.
+Consequently this cohort currently has no rounded Views or Thread Sequence
+evidence. The all-root and isolated CSV exports completed through a read-only
+connection; aggregate verification is recorded in
+`spec/evidence/M4_FU02_LIVE_VERIFICATION.json`.
