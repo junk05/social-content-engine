@@ -132,6 +132,14 @@ Approved specification: `spec/M4_FU01_NATIVE_INPUT_SPIKE.md` (`CR-0011`).
 Its single HG-03 run returned `NATIVE_INPUT_FAILED`; it does not authorize
 batch automation or M5.
 
+### M4-FU01-S4 — Native Coordinate Calibration
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`
+(`CR-0012`). Stage 1 is move-only; the existing Quartz click remains gated on
+human confirmation of exact cursor alignment. It does not authorize M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

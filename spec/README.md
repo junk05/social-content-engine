@@ -15,6 +15,7 @@ This directory is the project SSOT.
 - `M4_FU01_DEBUGGER_INPUT_SPIKE.md`: one-post debugger Input verification before batch integration
 - `M4_FU01_DEBUGGER_FOREGROUND_SPIKE.md`: one-post foreground/focused debugger Input follow-up
 - `M4_FU01_NATIVE_INPUT_SPIKE.md`: one-post macOS Quartz native-input follow-up
+- `M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`: move-only DOM-to-Quartz coordinate calibration
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action
