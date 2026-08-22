@@ -6,6 +6,19 @@
   const CONTRACT_VERSION = "M3_BROWSER_DETAIL_ATTEMPT_V1";
   const MAX_CONTAINER_ASCENT = 12;
 
+  function renderThreadDiagnostic(root, anchor, diagnostic) {
+    if (!diagnostic || !anchor || typeof root.createElement !== "function") return;
+    let output = typeof root.querySelector === "function"
+      ? root.querySelector("[data-sce-thread-diagnostic]") : null;
+    if (!output) {
+      output = root.createElement("pre");
+      output.setAttribute("data-sce-thread-diagnostic", "true");
+      output.style.cssText = "white-space:pre-wrap;font:12px/1.4 monospace;margin:8px;padding:8px;border:1px solid currentColor";
+      anchor.append(output);
+    }
+    output.textContent = "Thread診断: " + JSON.stringify(diagnostic);
+  }
+
   function sendMessage(message) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage(message, (response) => {
@@ -61,6 +74,8 @@
         }
         const result = await sendMessage({ type: "SCE_OBSERVATION_READY", observation });
         if (result.accepted) {
+          const diagnostic = typeof extractor.diagnoseVisibleThread === "function"
+            ? extractor.diagnoseVisibleThread(root, location.href) : null;
           const nodes = extractor.extractVisibleThreadNodes(root, location.href);
           const acceptedUrls = new Set([observation.post_url]);
           const childObservations = typeof extractor.extractVisibleThreadDetails === "function"
@@ -88,6 +103,7 @@
               },
             });
           }
+          renderThreadDiagnostic(root, button.parentElement || null, diagnostic);
           button.textContent = "✓ 詳細収集済み";
           return;
         }
@@ -173,5 +189,7 @@
     };
   }
 
-  scope.SCE_DETAIL_ACTION = Object.freeze({ install, observe, resolveDetailContainer, installActivityAction });
+  scope.SCE_DETAIL_ACTION = Object.freeze({
+    install, observe, resolveDetailContainer, installActivityAction, renderThreadDiagnostic,
+  });
 })(globalThis);

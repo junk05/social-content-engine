@@ -44,6 +44,14 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   async extractVisibleThreadDetails() {
     return [{ post_url: "https://www.threads.net/@fixture/post/Child1" }];
   },
+  diagnoseVisibleThread() {
+    return {
+      diagnostic_version: "thread_candidate_diagnostic_v1",
+      visible_post_nodes: 2,
+      final_eligible_nodes: 2,
+      exclusion_reasons: {},
+    };
+  },
   visibleActivityViewCount() { return null; },
 };
 require(path.join(__dirname, "..", "detail_batch_worker.js"));
@@ -57,6 +65,9 @@ async function main() {
   assert.equal(result.observation.public_counters.view_count, 123);
   assert.equal(result.nodes.length, 1);
   assert.equal(result.childObservations.length, 1);
+  assert.equal(result.threadDiagnostic.visible_post_nodes, 2);
+  assert.equal(JSON.stringify(result.threadDiagnostic).includes("fixture"), false,
+    "worker diagnostics do not expose live identity or URL data");
   assert.equal(calls.some((item) => item[0] === "sequence"), true);
   assert.equal(listener({ type: "UNRELATED" }, {}, () => {}), false);
   // A worker request arrives after navigation to a fresh detail document.

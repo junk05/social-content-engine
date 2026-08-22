@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 class Button {
-  constructor() { this.textContent = ""; this.disabled = false; this.listeners = {}; this.attributes = {}; this.style = {}; }
+  constructor() { this.textContent = ""; this.disabled = false; this.listeners = {}; this.attributes = {}; this.style = {}; this.parentElement = null; }
   setAttribute(name, value) { this.attributes[name] = value; }
   addEventListener(type, listener) { this.listeners[type] = listener; }
 }
@@ -19,7 +19,7 @@ class FakeObserver {
 function rootFixture() {
   const card = {
     children: [], parentElement: null,
-    append(child) { this.children.push(child); },
+    append(child) { child.parentElement = this; this.children.push(child); },
     querySelectorAll(selector) {
       if (selector === 'a[href*="/post/"]') return [permalink];
       if (selector === "time[datetime]") return [{}];
@@ -51,6 +51,7 @@ function rootFixture() {
     documentElement: {},
     querySelector(selector) {
       if (selector === "[data-sce-detail-action]") return card.children.find((child) => child.attributes["data-sce-detail-action"]) || null;
+      if (selector === "[data-sce-thread-diagnostic]") return card.children.find((child) => child.attributes["data-sce-thread-diagnostic"]) || null;
       return null;
     },
     querySelectorAll(selector) {
@@ -71,6 +72,9 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   recognizePostDetail() { return true; },
   canonicalPostUrl() { return "https://www.threads.net/@fixture/post/Detail1"; },
   activityViewCount(root) { return root.activityViews ?? null; },
+  diagnoseVisibleThread() {
+    return { diagnostic_version: "thread_candidate_diagnostic_v1", final_eligible_nodes: 1 };
+  },
   extractVisibleThreadNodes() {
     return [{
       post_url: "https://www.threads.net/@fixture/post/Detail1",
@@ -119,6 +123,7 @@ async function main() {
   assert.equal(messages[1].type, "SCE_THREAD_SEQUENCE_READY");
   assert.equal(messages[1].sequence.detail_observation_id, 1);
   assert.equal(successButton.textContent, "✓ 詳細収集済み");
+  assert.match(successRoot.card.children[1].textContent, /thread_candidate_diagnostic_v1/);
 
   const childObservation = {
     observation_type: "POST_DETAIL",

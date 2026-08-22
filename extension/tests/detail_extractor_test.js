@@ -116,6 +116,23 @@ async function main() {
     "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
     "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
   ]);
+  const diagnostic = extractor.diagnoseVisibleThread(page, context.pageUrl);
+  assert.equal(diagnostic.diagnostic_version, "thread_candidate_diagnostic_v1");
+  assert.equal(diagnostic.visible_post_nodes, 8);
+  assert.equal(diagnostic.root_nodes, 1);
+  assert.equal(diagnostic.direct_root_author_candidates, 3);
+  assert.equal(diagnostic.other_author_candidates, 2);
+  assert.equal(diagnostic.root_author_after_other_boundary, 2);
+  assert.equal(diagnostic.root_author_replies_under_other_author, "NOT_OBSERVED");
+  assert.equal(diagnostic.final_eligible_nodes, 4);
+  assert.deepEqual(diagnostic.exclusion_reasons, {
+    OTHER_AUTHOR_BOUNDARY: 2,
+    ROOT_AUTHOR_AFTER_OTHER_AUTHOR_BOUNDARY: 2,
+  });
+  assert.equal(JSON.stringify(diagnostic).includes("sample.user"), false,
+    "live author identity is absent from the diagnostic");
+  assert.equal(JSON.stringify(diagnostic).includes("SelfReply"), false,
+    "live URLs and post identifiers are absent from the diagnostic");
   const complete = await extractor.extractPostDetail(page, context);
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [

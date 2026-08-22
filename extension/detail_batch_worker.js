@@ -83,7 +83,9 @@
     }));
     const childObservations = typeof extractor.extractVisibleThreadDetails === "function"
       ? await extractor.extractVisibleThreadDetails(document, url, collectedAt) : [];
-    return { ok: true, observation, childObservations, nodes };
+    const threadDiagnostic = typeof extractor.diagnoseVisibleThread === "function"
+      ? extractor.diagnoseVisibleThread(document, url) : null;
+    return { ok: true, observation, childObservations, nodes, threadDiagnostic };
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

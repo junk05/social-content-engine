@@ -120,6 +120,99 @@
       ...node, sequence_position: sequencePosition,
     }));
   }
+  function diagnoseVisibleThread(root, pageUrl) {
+    const rootUrl = canonicalPostUrl(pageUrl, pageUrl);
+    if (!rootUrl || !root || typeof root.querySelectorAll !== "function") {
+      return {
+        diagnostic_version: "thread_candidate_diagnostic_v1",
+        visible_post_nodes: 0, root_nodes: 0, discovered_candidates: 0,
+        direct_root_author_candidates: 0, other_author_candidates: 0,
+        root_author_after_other_boundary: 0,
+        root_author_replies_under_other_author: "NOT_OBSERVED",
+        final_eligible_nodes: 0, excluded_candidates: 0,
+        exclusion_reasons: { INVALID_DETAIL_PAGE: 1 },
+        relationship_evidence: [], candidates: [],
+      };
+    }
+    const rootUsername = rootUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
+    const seen = new Set();
+    const candidates = [];
+    let rootObserved = false;
+    let rootNodes = 0;
+    let otherAuthorBoundary = false;
+    let eligiblePosition = 0;
+    for (const link of root.querySelectorAll('a[href*="/post/"]')) {
+      if (!isVisible(link)) continue;
+      const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
+      if (!postUrl || seen.has(postUrl)) continue;
+      const hasTimestamp = typeof link.querySelector === "function"
+        && Boolean(link.querySelector("time[datetime]"));
+      if (!hasTimestamp) continue;
+      seen.add(postUrl);
+      const isRoot = postUrl === rootUrl;
+      const nodeUsername = postUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
+      const sameAuthor = nodeUsername === rootUsername;
+      let eligible = false;
+      let reason;
+      let evidence = null;
+      if (isRoot) {
+        rootObserved = true;
+        rootNodes += 1;
+        eligible = true;
+        reason = "ROOT";
+        evidence = ROOT_RELATIONSHIP_EVIDENCE;
+      } else if (!rootObserved) {
+        reason = "BEFORE_ROOT";
+      } else if (!sameAuthor) {
+        otherAuthorBoundary = true;
+        reason = "OTHER_AUTHOR_BOUNDARY";
+      } else if (otherAuthorBoundary) {
+        reason = "ROOT_AUTHOR_AFTER_OTHER_AUTHOR_BOUNDARY";
+      } else {
+        eligiblePosition += 1;
+        eligible = true;
+        reason = "CONTIGUOUS_ROOT_AUTHOR_CHAIN";
+        evidence = SELF_REPLY_RELATIONSHIP_EVIDENCE;
+      }
+      candidates.push({
+        ordinal: candidates.length, node_type: isRoot ? "ROOT" : "POST",
+        same_author_as_root: sameAuthor, has_timestamp_permalink: hasTimestamp,
+        eligible, eligible_sequence_position: eligible ? eligiblePosition : null,
+        reason, relationship_evidence: evidence,
+      });
+    }
+    const exclusions = {};
+    for (const candidate of candidates) {
+      if (candidate.eligible) continue;
+      exclusions[candidate.reason] = (exclusions[candidate.reason] || 0) + 1;
+    }
+    const afterBoundary = candidates.filter(
+      (item) => item.reason === "ROOT_AUTHOR_AFTER_OTHER_AUTHOR_BOUNDARY",
+    ).length;
+    return {
+      diagnostic_version: "thread_candidate_diagnostic_v1",
+      visible_post_nodes: candidates.length,
+      root_nodes: rootNodes,
+      discovered_candidates: candidates.length,
+      direct_root_author_candidates: candidates.filter(
+        (item) => item.reason === "CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+      ).length,
+      other_author_candidates: candidates.filter(
+        (item) => item.reason === "OTHER_AUTHOR_BOUNDARY",
+      ).length,
+      root_author_after_other_boundary: afterBoundary,
+      // A flat permalink scan cannot prove that a later root-author node is a
+      // reply under the intervening author. Preserve that relationship as
+      // unknown rather than relabelling it from username/order alone.
+      root_author_replies_under_other_author: "NOT_OBSERVED",
+      final_eligible_nodes: candidates.filter((item) => item.eligible).length,
+      excluded_candidates: candidates.filter((item) => !item.eligible).length,
+      exclusion_reasons: exclusions,
+      relationship_evidence: Array.from(new Set(candidates
+        .map((item) => item.relationship_evidence).filter(Boolean))),
+      candidates,
+    };
+  }
   function rootPostContainer(root, pageUrl) {
     const canonical = canonicalPostUrl(pageUrl, pageUrl);
     const permalink = findPermalink(root, pageUrl, canonical);
@@ -420,7 +513,7 @@
     approximatePageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
-    extractVisibleThreadNodes, extractPostDetail,
+    extractVisibleThreadNodes, diagnoseVisibleThread, extractPostDetail,
     extractVisibleThreadDetails,
   });
 })(globalThis);
