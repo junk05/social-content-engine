@@ -1,0 +1,22 @@
+{
+  "id": "CR-0022",
+  "title": "Add local Human Review CSV downloads to Extension options",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Reuse the existing read-only M4-FU02 CSV exporter behind an exact-origin localhost download endpoint and two Extension options controls.",
+  "scope": [
+    "download canonical root review CSV from Extension options",
+    "download Thread Sequence review CSV from Extension options",
+    "apply the currently selected collected-root status filter",
+    "reuse the existing CSV row builders and UTF-8 BOM renderer",
+    "preserve read-only database and analysis-only source boundaries"
+  ],
+  "forbidden": [
+    "duplicating CSV generation in the Extension",
+    "committing live CSV or source text",
+    "exposing exports outside loopback and the exact Extension origin",
+    "exposing review data through Generation-facing DTOs",
+    "starting M5"
+  ]
+}

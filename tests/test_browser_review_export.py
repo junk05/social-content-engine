@@ -10,6 +10,7 @@ from social_content_engine.data.browser_review_export import (
     audit_browser_coverage,
     connect_read_only,
     export_browser_posts,
+    render_browser_review_csv,
 )
 
 
@@ -37,7 +38,8 @@ class BrowserReviewExportTest(unittest.TestCase):
             );
             CREATE TABLE browser_detail_enrichment_queue (
               id INTEGER PRIMARY KEY, browser_post_identity_id INTEGER, status TEXT,
-              attempt_count INTEGER, last_error_code TEXT, last_error_type TEXT
+              attempt_count INTEGER, last_error_code TEXT, last_error_type TEXT,
+              enrichment_excluded INTEGER DEFAULT 0
             );
             CREATE TABLE browser_approximate_view_observations (
               id INTEGER PRIMARY KEY, browser_observation_id INTEGER, display TEXT,
@@ -104,9 +106,10 @@ class BrowserReviewExportTest(unittest.TestCase):
             [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)],
         )
         connection.executemany(
-            "INSERT INTO browser_detail_enrichment_queue VALUES (?, ?, ?, ?, ?, ?)",
-            [(1, 1, "DETAIL_ENRICHED", 1, None, None),
-             (2, 3, "DETAIL_PENDING", 0, None, None)],
+            "INSERT INTO browser_detail_enrichment_queue VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [(1, 1, "DETAIL_ENRICHED", 1, None, None, 0),
+             (2, 3, "DETAIL_PENDING", 0, None, None, 0),
+             (3, 4, "DETAIL_ENRICHED", 1, None, None, 1)],
         )
         connection.execute(
             """INSERT INTO browser_approximate_view_observations
@@ -175,6 +178,34 @@ class BrowserReviewExportTest(unittest.TestCase):
             self.database, output, since="2026-08-22T11:59:59Z"
         )
         self.assertEqual(first["posts_rows"], second["posts_rows"])
+
+    def test_download_renderer_reuses_rows_filters_and_preserves_database(self) -> None:
+        before = hashlib.sha256(self.database.read_bytes()).hexdigest()
+        posts, posts_count, posts_name = render_browser_review_csv(
+            self.database, export_kind="POSTS", status_filter="DETAIL_ENRICHED"
+        )
+        threads, thread_count, thread_name = render_browser_review_csv(
+            self.database, export_kind="THREAD_NODES", status_filter="DETAIL_ENRICHED"
+        )
+        after = hashlib.sha256(self.database.read_bytes()).hexdigest()
+        self.assertEqual(before, after)
+        self.assertEqual("threads_posts.csv", posts_name)
+        self.assertEqual("threads_thread_nodes.csv", thread_name)
+        self.assertEqual(1, posts_count)
+        self.assertEqual(3, thread_count)
+        self.assertTrue(posts.startswith(b"\xef\xbb\xbf"))
+        self.assertIn("日本語の本文です。", posts.decode("utf-8-sig"))
+        self.assertIn("https://www.threads.com/@a/post/root", posts.decode("utf-8-sig"))
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "UPDATE browser_detail_enrichment_queue SET enrichment_excluded = 1 WHERE id = 1"
+            )
+        excluded, excluded_count, _ = render_browser_review_csv(
+            self.database, export_kind="POSTS", status_filter="EXCLUDED"
+        )
+        self.assertEqual(1, excluded_count)
+        self.assertIn("root", excluded.decode("utf-8-sig"))
+        self.assertIn(",EXCLUDED,", excluded.decode("utf-8-sig"))
 
 
 if __name__ == "__main__":

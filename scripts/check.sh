@@ -10,6 +10,7 @@ node extension/tests/transport_test.js
 node extension/tests/detail_extractor_test.js
 node extension/tests/detail_action_test.js
 node extension/tests/options_test.js
+node extension/tests/review_export_download_test.js
 node extension/tests/native_input_probe_test.js
 node extension/tests/native_coordinate_test.js
 node extension/tests/detail_batch_worker_test.js

@@ -21,6 +21,7 @@ from social_content_engine.browser_ingest.server import (
     NATIVE_INPUT_MOVE_PATH,
     NATIVE_INPUT_SPIKE_PATH,
     PENDING_DETAILS_PATH,
+    REVIEW_EXPORT_PATH,
     THREAD_SEQUENCE_PATH,
     BrowserIngestService,
     configured_handler,
@@ -424,6 +425,47 @@ class BrowserIngestServerTest(unittest.TestCase):
             400,
             self.service.handle_get(
                 COLLECTED_POSTS_PATH, "status=UNKNOWN", ALLOWED_ORIGIN
+            ).status,
+        )
+
+    def test_review_csv_download_is_filtered_bom_safe_and_read_only(self) -> None:
+        selected = self.observed_url("CsvReview", text="日本語の監査本文")
+        self.assertEqual(201, self.post(selected).status)
+        changes_before = self.repository.connection.total_changes
+        posts = self.service.handle_get(
+            REVIEW_EXPORT_PATH,
+            "kind=POSTS&status=DETAIL_PENDING",
+            ALLOWED_ORIGIN,
+        )
+        threads = self.service.handle_get(
+            REVIEW_EXPORT_PATH,
+            "kind=THREAD_NODES&status=DETAIL_PENDING",
+            ALLOWED_ORIGIN,
+        )
+        self.assertEqual(changes_before, self.repository.connection.total_changes)
+        self.assertEqual(200, posts.status)
+        self.assertEqual("text/csv; charset=utf-8", posts.content_type)
+        self.assertEqual(
+            'attachment; filename="threads_posts.csv"', posts.content_disposition
+        )
+        self.assertTrue(posts.body.startswith(b"\xef\xbb\xbf"))
+        rendered = posts.body.decode("utf-8-sig")
+        self.assertIn("日本語の監査本文", rendered)
+        self.assertIn(selected["post_url"], rendered)
+        self.assertEqual(200, threads.status)
+        self.assertIn("root_canonical_id", threads.body.decode("utf-8-sig"))
+        self.assertEqual(
+            400,
+            self.service.handle_get(
+                REVIEW_EXPORT_PATH, "kind=POSTS&status=UNKNOWN", ALLOWED_ORIGIN
+            ).status,
+        )
+        self.assertEqual(
+            403,
+            self.service.handle_get(
+                REVIEW_EXPORT_PATH,
+                "kind=POSTS&status=ALL",
+                "chrome-extension://pppppppppppppppppppppppppppppppp",
             ).status,
         )
 

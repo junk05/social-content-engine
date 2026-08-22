@@ -259,6 +259,16 @@ re-enrich/re-enable actions are implemented. Excluded items are omitted from
 pending lists, failed retries, and batch claims without deleting historical
 evidence. M5 remains unauthorized.
 
+### M4-FU05 — Extension Human Review CSV Downloads
+
+Status: `COMPLETE`
+
+Approved specification: `spec/M4_FU05_EXTENSION_CSV_EXPORT.md` (`CR-0022`).
+The Extension options page downloads the existing canonical-root and Thread
+Sequence Human Review CSVs through an exact-origin loopback endpoint. The
+currently selected status filter is preserved, CSV rendering remains read-only
+and UTF-8 BOM compatible, and no Generation-facing or M5 scope is introduced.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

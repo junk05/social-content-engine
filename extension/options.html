@@ -38,6 +38,9 @@
           </select>
         </label>
         <button id="refresh-collected" type="button">一覧を更新</button>
+        <button id="export-posts-csv" type="button">投稿一覧CSV</button>
+        <button id="export-thread-csv" type="button">Thread Sequence CSV</button>
+        <p id="export-status" aria-live="polite"></p>
         <p id="collected-status" aria-live="polite">一覧を読み込んでいます。</p>
         <div class="table-scroll">
           <table>
@@ -49,6 +52,7 @@
         </div>
       </section>
     </main>
+    <script src="review_export_download.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

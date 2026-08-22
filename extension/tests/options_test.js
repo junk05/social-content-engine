@@ -16,6 +16,8 @@ for (const obsoleteControl of [
 }
 assert.equal(optionsHtml.includes('id="start-detail-batch"'), true);
 assert.equal(optionsHtml.includes('id="collected-posts"'), true);
+assert.equal(optionsHtml.includes('id="export-posts-csv"'), true);
+assert.equal(optionsHtml.includes('id="export-thread-csv"'), true);
 
 class Node {
   constructor(tag = "div") {
@@ -39,6 +41,8 @@ const nodes = {
   "#collected-filter": new Node("select"), "#collected-sort": new Node("select"),
   "#refresh-collected": new Node("button"), "#collected-status": new Node(),
   "#collected-posts": new Node("tbody"),
+  "#export-posts-csv": new Node("button"), "#export-thread-csv": new Node("button"),
+  "#export-status": new Node(),
 };
 nodes["#collected-filter"].value = "ALL";
 nodes["#collected-sort"].value = "newest";
@@ -47,6 +51,13 @@ globalThis.document = {
   createElement(tag) { return new Node(tag); },
 };
 const messages = [];
+const exportCalls = [];
+globalThis.SCE_REVIEW_EXPORT_DOWNLOAD = {
+  download(kind, status) {
+    exportCalls.push({ kind, status });
+    return Promise.resolve({ accepted: true, filename: kind + ".csv" });
+  },
+};
 let runtimeListener = null;
 let pendingResponse = {
   accepted: true,
@@ -93,6 +104,13 @@ assert.equal(nodes["#collected-posts"].children.length, 1);
 assert.equal(nodes["#collected-posts"].children[0].children[0].children[0].textContent, "@fixture");
 assert.equal(nodes["#collected-posts"].children[0].children[1].textContent.includes("POST_NOT_FOUND"), true);
 assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("未観測"), true);
+nodes["#export-posts-csv"].listeners.click();
+nodes["#collected-filter"].value = "DETAIL_FAILED";
+nodes["#export-thread-csv"].listeners.click();
+assert.deepEqual(exportCalls, [
+  { kind: "POSTS", status: "ALL" },
+  { kind: "THREAD_NODES", status: "DETAIL_FAILED" },
+]);
 const excludeButton = nodes["#collected-posts"].children[0].children[3].children[1];
 excludeButton.listeners.click();
 assert.equal(messages.some((message) => message.type === "SCE_UPDATE_DETAIL_EXCLUSION"

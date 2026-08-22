@@ -13,6 +13,9 @@ const collectedSort = document.querySelector("#collected-sort");
 const refreshCollected = document.querySelector("#refresh-collected");
 const collectedStatus = document.querySelector("#collected-status");
 const collectedPosts = document.querySelector("#collected-posts");
+const exportPostsCsv = document.querySelector("#export-posts-csv");
+const exportThreadCsv = document.querySelector("#export-thread-csv");
+const exportStatus = document.querySelector("#export-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -134,6 +137,24 @@ refreshCollected.addEventListener("click", loadCollectedPosts);
 collectedFilter.addEventListener("change", loadCollectedPosts);
 collectedSort.addEventListener("change", loadCollectedPosts);
 loadCollectedPosts();
+
+function runReviewExport(kind, button) {
+  button.disabled = true;
+  exportStatus.textContent = "CSVを生成しています。";
+  SCE_REVIEW_EXPORT_DOWNLOAD.download(kind, collectedFilter.value || "ALL")
+    .then((result) => {
+      exportStatus.textContent = result.accepted
+        ? result.filename + "を保存しました。"
+        : "CSVを保存できませんでした。";
+    })
+    .catch(() => { exportStatus.textContent = "CSVを保存できませんでした。"; })
+    .finally(() => { button.disabled = false; });
+}
+
+exportPostsCsv.addEventListener("click", () => runReviewExport("POSTS", exportPostsCsv));
+exportThreadCsv.addEventListener(
+  "click", () => runReviewExport("THREAD_NODES", exportThreadCsv),
+);
 
 chrome.runtime.onMessage.addListener((message) => {
   if (!message || message.type !== "SCE_DETAIL_BATCH_PROGRESS" || !message.progress) {

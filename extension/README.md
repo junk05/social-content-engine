@@ -33,6 +33,12 @@ rootだけをローカル表示します。状態filterで絞り込み、`再補
 evidenceは保持され、操作履歴も追記されます。除外済み投稿は`再補完`で再有効化
 できます。
 
+`投稿一覧CSV`と`Thread Sequence CSV`は、現在選択中の状態filterを使って
+loopback receiverの既存Human Review exporterを呼び出します。CSVは日本語対応の
+UTF-8 BOMでChromeから保存され、DBや`data/exports`を変更しません。CSV生成処理は
+Extension側に持たず、source textはHuman Review用の`ANALYSIS_ONLY_SOURCE`としてのみ
+含まれます。
+
 ## 終了済み診断機能
 
 M4-FU01-S1〜S5で使用したActivity、macOS native input helper、座標校正の

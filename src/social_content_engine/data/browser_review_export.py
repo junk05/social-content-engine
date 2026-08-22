@@ -2,6 +2,7 @@
 
 import argparse
 import csv
+import io
 import json
 import re
 import sqlite3
@@ -31,6 +32,11 @@ THREAD_COLUMNS = [
     "text", "text_quality", "observed_at", "extractor_version",
     "relationship_eligibility", "exclusion_reason",
 ]
+
+EXPORT_KINDS = {"POSTS", "THREAD_NODES"}
+EXPORT_STATUS_FILTERS = {
+    "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED",
+}
 
 
 def connect_read_only(path: Path) -> sqlite3.Connection:
@@ -82,6 +88,28 @@ def _queue(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3
         "SELECT * FROM browser_detail_enrichment_queue WHERE browser_post_identity_id = ?",
         (identity_id,),
     ).fetchone())
+
+
+def _matches_status_filter(queue: Optional[sqlite3.Row], status_filter: str) -> bool:
+    if status_filter not in EXPORT_STATUS_FILTERS:
+        raise ValueError("invalid export status filter")
+    if status_filter == "ALL":
+        return True
+    if queue is None:
+        return status_filter == "DETAIL_PENDING"
+    excluded = bool(queue["enrichment_excluded"])
+    if status_filter == "EXCLUDED":
+        return excluded
+    return not excluded and str(queue["status"]) == status_filter
+
+
+def _filtered_root_ids(
+    connection: sqlite3.Connection, *, since: Optional[str], status_filter: str
+) -> List[int]:
+    return [
+        identity_id for identity_id in _root_ids(connection, since)
+        if _matches_status_filter(_queue(connection, identity_id), status_filter)
+    ]
 
 
 def _latest_rounded(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3.Row]:
@@ -281,16 +309,22 @@ def build_post_rows(
     connection: sqlite3.Connection, *, since: Optional[str] = None,
     only_valid_text: bool = False, only_detail_enriched: bool = False,
     only_with_thread: bool = False, sort: str = "collected_at", limit: Optional[int] = None,
+    status_filter: str = "ALL",
 ) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
-    for identity_id in _root_ids(connection, since):
+    for identity_id in _filtered_root_ids(
+        connection, since=since, status_filter=status_filter
+    ):
         identity = connection.execute(
             "SELECT * FROM browser_post_identities WHERE id = ?", (identity_id,)
         ).fetchone()
         source, quality = _latest_source_row(connection, identity_id)
         payload = _payload(source)
         queue = _queue(connection, identity_id)
-        detail_status = str(queue["status"]) if queue is not None else "DETAIL_PENDING"
+        detail_status = (
+            "EXCLUDED" if queue is not None and bool(queue["enrichment_excluded"])
+            else str(queue["status"]) if queue is not None else "DETAIL_PENDING"
+        )
         nodes = _latest_clean_thread_rows(connection, identity_id)
         if only_valid_text and quality != "VALID_TEXT":
             continue
@@ -434,14 +468,56 @@ def build_thread_rows(
 
 def _write_csv(path: Path, columns: List[str], rows: Iterable[Dict[str, Any]]) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
-    with path.open("w", encoding="utf-8-sig", newline="") as output:
-        writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow({key: "" if value is None else value for key, value in row.items()})
-            count += 1
+    rendered, count = render_csv(columns, rows)
+    path.write_bytes(rendered)
     return count
+
+
+def render_csv(
+    columns: List[str], rows: Iterable[Dict[str, Any]]
+) -> Tuple[bytes, int]:
+    """Render the same UTF-8 BOM CSV used by CLI and localhost downloads."""
+    output = io.StringIO(newline="")
+    writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
+    writer.writeheader()
+    count = 0
+    for row in rows:
+        writer.writerow({key: "" if value is None else value for key, value in row.items()})
+        count += 1
+    return b"\xef\xbb\xbf" + output.getvalue().encode("utf-8"), count
+
+
+def render_browser_review_csv(
+    database: Path, *, export_kind: str, status_filter: str = "ALL"
+) -> Tuple[bytes, int, str]:
+    """Build one read-only download from the existing review-export row builders."""
+    with connect_read_only(database) as connection:
+        return render_browser_review_csv_from_connection(
+            connection, export_kind=export_kind, status_filter=status_filter
+        )
+
+
+def render_browser_review_csv_from_connection(
+    connection: sqlite3.Connection, *, export_kind: str, status_filter: str = "ALL"
+) -> Tuple[bytes, int, str]:
+    """Render through SELECT-only builders using an existing receiver connection."""
+    if export_kind not in EXPORT_KINDS:
+        raise ValueError("invalid export kind")
+    if status_filter not in EXPORT_STATUS_FILTERS:
+        raise ValueError("invalid export status filter")
+    if export_kind == "POSTS":
+        rows = build_post_rows(connection, status_filter=status_filter)
+        columns = POST_COLUMNS
+        filename = "threads_posts.csv"
+    else:
+        root_ids = set(_filtered_root_ids(
+            connection, since=None, status_filter=status_filter
+        ))
+        rows = build_thread_rows(connection, root_limit_ids=root_ids)
+        columns = THREAD_COLUMNS
+        filename = "threads_thread_nodes.csv"
+    rendered, count = render_csv(columns, rows)
+    return rendered, count, filename
 
 
 def export_browser_posts(

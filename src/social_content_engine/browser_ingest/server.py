@@ -17,6 +17,9 @@ import jsonschema  # type: ignore[import-untyped]
 
 from social_content_engine.data.browser_detail import DETAIL_ATTEMPT_CONTRACT_VERSION
 from social_content_engine.data.browser_observation import validate_browser_observation
+from social_content_engine.data.browser_review_export import (
+    render_browser_review_csv_from_connection,
+)
 from social_content_engine.data.repository import Repository
 
 MAX_BODY_BYTES = 65_536
@@ -31,6 +34,7 @@ DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
 COLLECTED_POSTS_PATH = INGEST_PATH + "/collected-posts"
 DETAIL_EXCLUSION_PATH = INGEST_PATH + "/detail-exclusion"
+REVIEW_EXPORT_PATH = INGEST_PATH + "/review-export"
 NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
 NATIVE_INPUT_DIAGNOSTIC_PATH = INGEST_PATH + "/native-input-diagnostic"
 NATIVE_INPUT_MOVE_PATH = INGEST_PATH + "/native-input-move"
@@ -43,9 +47,14 @@ class IngestResponse:
     status: int
     payload: Dict[str, Any]
     origin: Optional[str] = None
+    raw_body: Optional[bytes] = None
+    content_type: str = "application/json"
+    content_disposition: Optional[str] = None
 
     @property
     def body(self) -> bytes:
+        if self.raw_body is not None:
+            return self.raw_body
         return json.dumps(self.payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
@@ -130,6 +139,7 @@ class BrowserIngestService:
                 DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
                 DETAIL_QUEUE_FAIL_PATH,
                 COLLECTED_POSTS_PATH, DETAIL_EXCLUSION_PATH,
+                REVIEW_EXPORT_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
                 NATIVE_INPUT_MOVE_PATH,
@@ -143,7 +153,10 @@ class BrowserIngestService:
         request_origin = self._effective_origin(origin, extension_origin)
         error = self._request_error(
             path, request_origin,
-            {PENDING_DETAILS_PATH, DETAIL_QUEUE_SUMMARY_PATH, COLLECTED_POSTS_PATH}
+            {
+                PENDING_DETAILS_PATH, DETAIL_QUEUE_SUMMARY_PATH,
+                COLLECTED_POSTS_PATH, REVIEW_EXPORT_PATH,
+            }
         )
         if error:
             return error
@@ -169,6 +182,30 @@ class BrowserIngestService:
             return IngestResponse(
                 200, {"status": "ok", "count": len(posts), "posts": list(posts)},
                 request_origin,
+            )
+        if path == REVIEW_EXPORT_PATH:
+            values = parse_qs(query, keep_blank_values=True)
+            if set(values) != {"kind", "status"} or any(
+                len(values.get(key, [])) != 1 for key in ("kind", "status")
+            ):
+                return IngestResponse(400, {"error": "invalid_query"}, request_origin)
+            try:
+                rendered, count, filename = render_browser_review_csv_from_connection(
+                    self.repository.connection,
+                    export_kind=values["kind"][0],
+                    status_filter=values["status"][0],
+                )
+            except (TypeError, ValueError):
+                return IngestResponse(400, {"error": "invalid_export"}, request_origin)
+            except (OSError, sqlite3.DatabaseError):
+                return IngestResponse(500, {"error": "export_failed"}, request_origin)
+            return IngestResponse(
+                200,
+                {"status": "ok", "count": count},
+                request_origin,
+                raw_body=rendered,
+                content_type="text/csv; charset=utf-8",
+                content_disposition='attachment; filename="' + filename + '"',
             )
         values = parse_qs(query, keep_blank_values=True)
         if set(values) - {"limit"} or len(values.get("limit", [])) > 1:
@@ -743,15 +780,18 @@ class BrowserIngestHandler(BaseHTTPRequestHandler):
     def _send(self, response: IngestResponse) -> None:
         body = b"" if response.status == 204 else response.body
         self.send_response(response.status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", response.content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
+        if response.content_disposition:
+            self.send_header("Content-Disposition", response.content_disposition)
         if response.origin:
             self.send_header("Access-Control-Allow-Origin", response.origin)
             self.send_header("Vary", "Origin")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type, X-SCE-Extension-Origin")
+            self.send_header("Access-Control-Expose-Headers", "Content-Disposition")
         self.end_headers()
         if body:
             self.wfile.write(body)
