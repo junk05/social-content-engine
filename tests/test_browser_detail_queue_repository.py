@@ -11,6 +11,7 @@ from tests.test_browser_detail_repository import observation
 
 def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE browser_detail_enrichment_exclusion_actions")
     connection.execute("DROP TABLE browser_detail_batch_assignments")
     connection.execute("DROP TABLE browser_approximate_view_observations")
     connection.execute("DROP TABLE browser_metric_observation_statuses")
@@ -32,6 +33,69 @@ def prepare_before_assignment_reconciliation(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_human_exclusion_is_reversible_audited_and_never_claimed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "exclusion.sqlite3") as repository:
+                saved = repository.add_browser_observation(observation())
+                before_observations = repository.count("browser_observations")
+
+                excluded = repository.exclude_browser_detail_enrichment(
+                    saved["post_url"], excluded_at="2026-08-23T01:00:00Z"
+                )
+                self.assertTrue(excluded["changed"])
+                queue = repository.connection.execute(
+                    "SELECT * FROM browser_detail_enrichment_queue"
+                ).fetchone()
+                self.assertEqual(1, queue["enrichment_excluded"])
+                self.assertEqual(
+                    "USER_EXCLUDED_SOURCE_UNAVAILABLE", queue["exclusion_reason"]
+                )
+                self.assertEqual("2026-08-23T01:00:00Z", queue["excluded_at"])
+                self.assertEqual([], repository.list_browser_pending_detail_urls(limit=10))
+                with self.assertRaisesRegex(ValueError, "explicitly excluded"):
+                    repository.enqueue_browser_detail(saved["post_url"])
+                batch_id = repository.start_browser_detail_batch(
+                    requested_items=1, max_items=1
+                )
+                self.assertIsNone(repository.claim_browser_detail(batch_id))
+                repository.finish_browser_detail_batch(batch_id)
+
+                replay = repository.exclude_browser_detail_enrichment(saved["post_url"])
+                self.assertFalse(replay["changed"])
+                self.assertEqual(
+                    1, repository.count("browser_detail_enrichment_exclusion_actions")
+                )
+                reenabled = repository.requeue_browser_detail_enrichment(
+                    saved["post_url"], requeued_at="2026-08-23T01:01:00Z"
+                )
+                self.assertTrue(reenabled["changed"])
+                queue = repository.connection.execute(
+                    "SELECT * FROM browser_detail_enrichment_queue"
+                ).fetchone()
+                self.assertEqual(0, queue["enrichment_excluded"])
+                self.assertIsNone(queue["exclusion_reason"])
+                self.assertIsNone(queue["excluded_at"])
+                self.assertEqual("DETAIL_PENDING", queue["status"])
+                self.assertEqual(
+                    [saved["post_url"]], repository.list_browser_pending_detail_urls(limit=10)
+                )
+                actions = repository.connection.execute(
+                    """SELECT action FROM browser_detail_enrichment_exclusion_actions
+                    ORDER BY id"""
+                ).fetchall()
+                self.assertEqual(["EXCLUDED", "RE_ENABLED"], [row[0] for row in actions])
+                self.assertEqual(before_observations, repository.count("browser_observations"))
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                    repository.connection.execute(
+                        "DELETE FROM browser_detail_enrichment_exclusion_actions"
+                    )
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "invalid"):
+                    repository.connection.execute(
+                        """UPDATE browser_detail_enrichment_queue
+                        SET enrichment_excluded = 1 WHERE id = ?""",
+                        (queue["id"],),
+                    )
+
     def test_migration_22_reconciles_assignment_from_pre_migration_receiver(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "assignment-reconcile.sqlite3"

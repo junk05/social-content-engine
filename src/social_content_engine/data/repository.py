@@ -1022,6 +1022,70 @@ def _migration_23_thread_sequence_relationship_evidence(
         )
 
 
+def _migration_24_detail_enrichment_exclusions(connection: sqlite3.Connection) -> None:
+    """Add reversible current exclusion state plus immutable human action history."""
+    columns = {
+        str(row["name"])
+        for row in connection.execute("PRAGMA table_info(browser_detail_enrichment_queue)")
+    }
+    if "enrichment_excluded" not in columns:
+        connection.execute(
+            """ALTER TABLE browser_detail_enrichment_queue
+            ADD COLUMN enrichment_excluded INTEGER NOT NULL DEFAULT 0
+            CHECK(enrichment_excluded IN (0, 1))"""
+        )
+        connection.execute(
+            """ALTER TABLE browser_detail_enrichment_queue
+            ADD COLUMN exclusion_reason TEXT CHECK(
+              exclusion_reason IS NULL
+              OR exclusion_reason = 'USER_EXCLUDED_SOURCE_UNAVAILABLE'
+            )"""
+        )
+        connection.execute(
+            """ALTER TABLE browser_detail_enrichment_queue
+            ADD COLUMN excluded_at TEXT"""
+        )
+    connection.execute(
+        """CREATE TABLE browser_detail_enrichment_exclusion_actions (
+          id INTEGER PRIMARY KEY,
+          browser_detail_queue_id INTEGER NOT NULL
+            REFERENCES browser_detail_enrichment_queue(id),
+          action TEXT NOT NULL CHECK(action IN ('EXCLUDED', 'RE_ENABLED', 'REQUEUED')),
+          exclusion_reason TEXT CHECK(
+            (action = 'EXCLUDED'
+             AND exclusion_reason = 'USER_EXCLUDED_SOURCE_UNAVAILABLE')
+            OR (action != 'EXCLUDED' AND exclusion_reason IS NULL)
+          ),
+          acted_at TEXT NOT NULL
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_detail_enrichment_exclusion_actions_{0}
+            BEFORE {1} ON browser_detail_enrichment_exclusion_actions
+            BEGIN SELECT RAISE(ABORT, 'browser detail exclusion audit is immutable'); END""".format(
+                operation.lower(), operation
+            )
+        )
+    for operation in ("INSERT", "UPDATE"):
+        connection.execute(
+            """CREATE TRIGGER validate_browser_detail_enrichment_exclusion_{0}
+            BEFORE {1} ON browser_detail_enrichment_queue
+            WHEN (
+              (NEW.enrichment_excluded = 1 AND (
+                NEW.exclusion_reason != 'USER_EXCLUDED_SOURCE_UNAVAILABLE'
+                OR NEW.exclusion_reason IS NULL OR NEW.excluded_at IS NULL
+              ))
+              OR (NEW.enrichment_excluded = 0 AND (
+                NEW.exclusion_reason IS NOT NULL OR NEW.excluded_at IS NOT NULL
+              ))
+            )
+            BEGIN SELECT RAISE(ABORT, 'invalid browser detail exclusion state'); END""".format(
+                operation.lower(), operation
+            )
+        )
+
+
 def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
     """Add append-only, source-text-free deterministic structural derivatives."""
     connection.execute(
@@ -1366,6 +1430,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
         23,
         "thread-sequence-relationship-evidence-v1",
         _migration_23_thread_sequence_relationship_evidence,
+    ),
+    (
+        24,
+        "browser-detail-enrichment-exclusions-v1",
+        _migration_24_detail_enrichment_exclusions,
     ),
 )
 
@@ -2530,7 +2599,8 @@ class Repository:
         timestamp = enqueued_at or _utc_now()
         with self.connection:
             existing = self.connection.execute(
-                """SELECT id, status FROM browser_detail_enrichment_queue
+                """SELECT id, status, enrichment_excluded
+                FROM browser_detail_enrichment_queue
                 WHERE browser_post_identity_id = ?""",
                 (identity["id"],),
             ).fetchone()
@@ -2545,6 +2615,8 @@ class Repository:
                 if cursor.lastrowid is None:
                     raise RuntimeError("SQLite did not return a detail queue id")
                 return int(cursor.lastrowid)
+            if bool(existing["enrichment_excluded"]):
+                raise ValueError("browser detail enrichment is explicitly excluded")
             if existing["status"] == "DETAIL_FAILED":
                 self.connection.execute(
                     """UPDATE browser_detail_enrichment_queue SET
@@ -2555,6 +2627,103 @@ class Repository:
                     (timestamp, existing["id"]),
                 )
             return int(existing["id"])
+
+    def exclude_browser_detail_enrichment(
+        self, post_url: str, *, excluded_at: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Exclude one human-selected root without deleting any Source Store evidence."""
+        canonical_url = canonical_threads_post_url(post_url)
+        if canonical_url != post_url:
+            raise ValueError("post_url must already be canonical")
+        timestamp = excluded_at or _utc_now()
+        with self.connection:
+            row = self.connection.execute(
+                """SELECT browser_detail_enrichment_queue.*
+                FROM browser_detail_enrichment_queue
+                JOIN browser_post_identities ON browser_post_identities.id =
+                  browser_detail_enrichment_queue.browser_post_identity_id
+                WHERE browser_post_identities.post_url = ?
+                  AND EXISTS (
+                    SELECT 1 FROM browser_observations
+                    WHERE browser_observations.browser_post_identity_id =
+                      browser_post_identities.id
+                      AND browser_observations.observation_type = 'SEARCH_CARD'
+                  )""",
+                (canonical_url,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("collected root queue item not found: " + canonical_url)
+            if row["status"] == "DETAIL_PROCESSING":
+                raise ValueError("DETAIL_PROCESSING item cannot be excluded")
+            if bool(row["enrichment_excluded"]):
+                return {"queue_item_id": int(row["id"]), "changed": False, "excluded": True}
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                enrichment_excluded = 1,
+                exclusion_reason = 'USER_EXCLUDED_SOURCE_UNAVAILABLE',
+                excluded_at = ?, updated_at = ? WHERE id = ?""",
+                (timestamp, timestamp, row["id"]),
+            )
+            self.connection.execute(
+                """INSERT INTO browser_detail_enrichment_exclusion_actions
+                (browser_detail_queue_id, action, exclusion_reason, acted_at)
+                VALUES (?, 'EXCLUDED', 'USER_EXCLUDED_SOURCE_UNAVAILABLE', ?)""",
+                (row["id"], timestamp),
+            )
+        return {"queue_item_id": int(row["id"]), "changed": True, "excluded": True}
+
+    def requeue_browser_detail_enrichment(
+        self, post_url: str, *, requeued_at: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Explicitly re-enable/requeue one root while retaining immutable history."""
+        canonical_url = canonical_threads_post_url(post_url)
+        if canonical_url != post_url:
+            raise ValueError("post_url must already be canonical")
+        timestamp = requeued_at or _utc_now()
+        with self.connection:
+            row = self.connection.execute(
+                """SELECT browser_detail_enrichment_queue.*,
+                          browser_post_identities.id AS identity_id
+                FROM browser_detail_enrichment_queue
+                JOIN browser_post_identities ON browser_post_identities.id =
+                  browser_detail_enrichment_queue.browser_post_identity_id
+                WHERE browser_post_identities.post_url = ?
+                  AND EXISTS (
+                    SELECT 1 FROM browser_observations
+                    WHERE browser_observations.browser_post_identity_id =
+                      browser_post_identities.id
+                      AND browser_observations.observation_type = 'SEARCH_CARD'
+                  )""",
+                (canonical_url,),
+            ).fetchone()
+            if row is None:
+                raise KeyError("collected root queue item not found: " + canonical_url)
+            if row["status"] == "DETAIL_PROCESSING":
+                raise ValueError("DETAIL_PROCESSING item cannot be requeued")
+            was_excluded = bool(row["enrichment_excluded"])
+            changed = was_excluded or row["status"] != "DETAIL_PENDING"
+            if not changed:
+                return {"queue_item_id": int(row["id"]), "changed": False, "excluded": False}
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+                last_error_code = NULL, last_error_type = NULL, last_error_reason = NULL,
+                enrichment_excluded = 0, exclusion_reason = NULL, excluded_at = NULL,
+                updated_at = ? WHERE id = ?""",
+                (timestamp, row["id"]),
+            )
+            self.connection.execute(
+                """UPDATE browser_post_identities SET status = 'DETAIL_PENDING', updated_at = ?
+                WHERE id = ?""",
+                (timestamp, row["identity_id"]),
+            )
+            self.connection.execute(
+                """INSERT INTO browser_detail_enrichment_exclusion_actions
+                (browser_detail_queue_id, action, exclusion_reason, acted_at)
+                VALUES (?, ?, NULL, ?)""",
+                (row["id"], "RE_ENABLED" if was_excluded else "REQUEUED", timestamp),
+            )
+        return {"queue_item_id": int(row["id"]), "changed": True, "excluded": False}
 
     def requeue_invalid_browser_detail_text(
         self, *, requeued_at: Optional[str] = None
@@ -2636,6 +2805,7 @@ class Repository:
                   ON browser_post_identities.id =
                      browser_detail_enrichment_queue.browser_post_identity_id
                 WHERE browser_detail_enrichment_queue.status = 'DETAIL_PENDING'
+                  AND browser_detail_enrichment_queue.enrichment_excluded = 0
                   AND (browser_detail_enrichment_queue.active_batch_id IS NULL
                        OR browser_detail_enrichment_queue.active_batch_id = ?)
                 ORDER BY browser_detail_enrichment_queue.enqueued_at,
@@ -2655,7 +2825,8 @@ class Repository:
                 active_batch_id = ?, lease_version = lease_version + 1,
                 retry_count = retry_count + CASE WHEN attempt_count > 0 THEN 1 ELSE 0 END,
                 attempt_count = attempt_count + 1
-                WHERE id = ? AND status = 'DETAIL_PENDING'""",
+                WHERE id = ? AND status = 'DETAIL_PENDING'
+                  AND enrichment_excluded = 0""",
                 (timestamp, timestamp, batch_id, row["id"]),
             )
             if cursor.rowcount != 1:
@@ -2839,9 +3010,16 @@ class Repository:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
             raise ValueError("pending detail limit must be between 1 and 100")
         rows = self.connection.execute(
-            """SELECT post_url FROM browser_post_identities
-            WHERE status = 'DETAIL_PENDING'
-            ORDER BY updated_at, id LIMIT ?""",
+            """SELECT browser_post_identities.post_url
+            FROM browser_post_identities
+            JOIN browser_detail_enrichment_queue ON
+              browser_detail_enrichment_queue.browser_post_identity_id =
+              browser_post_identities.id
+            WHERE browser_post_identities.status = 'DETAIL_PENDING'
+              AND browser_detail_enrichment_queue.status = 'DETAIL_PENDING'
+              AND browser_detail_enrichment_queue.enrichment_excluded = 0
+            ORDER BY browser_post_identities.updated_at,
+                     browser_post_identities.id LIMIT ?""",
             (limit,),
         ).fetchall()
         return [str(row["post_url"]) for row in rows]
@@ -2878,6 +3056,7 @@ class Repository:
             "browser_detail_failures",
             "browser_normalized_bridges",
             "browser_detail_enrichment_queue",
+            "browser_detail_enrichment_exclusion_actions",
             "browser_detail_batch_assignments",
             "browser_detail_enrichment_batches",
             "m4_intelligence_runs",
