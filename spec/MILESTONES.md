@@ -188,6 +188,15 @@ rounded Views evidence and none inferred unavailable exact Views. Legacy invalid
 observations remain immutable audit evidence. Aggregate verification is in
 `spec/evidence/M4_FU01_LIVE_E2E.json`.
 
+### M4-FU01-S8 — Self-Reply Content Collection
+
+Status: `IN_PROGRESS / LIVE VERIFICATION PENDING`
+
+Approved specification: `spec/M4_FU01_SELF_REPLY_COLLECTION.md` (`CR-0016`).
+One selected root may append only visible same-author reply details and existing
+Thread Sequence evidence. General reply crawling, inferred edges, generation,
+and M5 remain out of scope.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

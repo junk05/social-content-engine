@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v4";
+  const VERSION = "threads_post_detail_extractor_v5";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
@@ -83,19 +83,24 @@
     const rootUrl = canonicalPostUrl(pageUrl, pageUrl);
     if (!rootUrl) return [];
     const rootUsername = rootUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
-    const seen = new Set();
-    const nodes = [];
+    const seen = new Set([rootUrl]);
+    const nodes = [{
+      post_url: rootUrl, root_post_url: rootUrl, reply_to_post_url: null,
+      same_author_as_root: true,
+    }];
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
       if (!postUrl || seen.has(postUrl)) continue;
-      seen.add(postUrl);
       const nodeUsername = postUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
+      // A visible permalink username is direct author evidence. Do not collect
+      // the general reply tree, and do not infer an edge from DOM order alone.
+      if (nodeUsername !== rootUsername) continue;
+      seen.add(postUrl);
       nodes.push({ post_url: postUrl,
         root_post_url: rootUrl, reply_to_post_url: null,
-        same_author_as_root: nodeUsername === rootUsername });
+        same_author_as_root: true });
     }
-    nodes.sort((left, right) => Number(right.post_url === rootUrl) - Number(left.post_url === rootUrl));
     return nodes.map((node, sequencePosition) => ({
       ...node, sequence_position: sequencePosition,
     }));

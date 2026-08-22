@@ -89,7 +89,7 @@ async function main() {
   assert.match(source, /visiblePostText\(postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v4");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v5");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -102,9 +102,13 @@ async function main() {
   const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
   assert.deepEqual(nodes.map((node) => node.post_url), [
     "https://www.threads.net/@sample.user/post/AbC_123",
-    "https://www.threads.net/@related/post/Other1",
-  ], "visible non-root permalinks are no longer dropped by a root-only filter");
-  assert.deepEqual(nodes.map((node) => node.same_author_as_root), [true, false]);
+    "https://www.threads.net/@sample.user/post/SelfReply1",
+    "https://www.threads.net/@sample.user/post/SelfReply2",
+  ], "only visible same-author permalinks form the compact self-reply sequence");
+  assert.deepEqual(nodes.map((node) => node.sequence_position), [0, 1, 2]);
+  assert.deepEqual(nodes.map((node) => node.reply_to_post_url), [null, null, null],
+    "reply-to edges remain unknown when the visible DOM does not expose them");
+  assert.deepEqual(nodes.map((node) => node.same_author_as_root), [true, true, true]);
   const complete = await extractor.extractPostDetail(page, context);
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [
@@ -136,6 +140,15 @@ async function main() {
   assert.equal(complete.observed_fields.every((item) => item.surface === "threads_post_detail"), true);
   assert.equal(complete.observed_fields.every((item) => item.extractor_version === extractor.version), true);
   assert.match(complete.payload_sha256, /^[0-9a-f]{64}$/);
+  const selfReplyDetails = await extractor.extractVisibleThreadDetails(
+    page, context.pageUrl, context.collectedAt,
+  );
+  assert.deepEqual(selfReplyDetails.map((item) => item.post_url), [
+    "https://www.threads.net/@sample.user/post/SelfReply1",
+    "https://www.threads.net/@sample.user/post/SelfReply2",
+  ]);
+  assert.equal(selfReplyDetails.every((item) => item.observation_type === "POST_DETAIL"), true);
+  assert.equal(selfReplyDetails.every((item) => item.text !== null), true);
   const serialized = JSON.stringify(complete).toLowerCase();
   for (const forbidden of ["<main", "outerhtml", "cookie", "password", "access_token"]) assert.equal(serialized.includes(forbidden), false);
 

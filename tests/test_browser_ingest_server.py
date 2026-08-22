@@ -418,7 +418,9 @@ class BrowserIngestServerTest(unittest.TestCase):
         root = self.observed_url("SequenceRoot")
         child = self.observed_url("SequenceChild")
         self.post(root)
-        self.post(child)
+        child_detail = self.post(
+            self.observed_url("SequenceChild", observation_type="POST_DETAIL")
+        )
         detail = self.post(
             self.observed_url("SequenceRoot", observation_type="POST_DETAIL")
         )
@@ -436,7 +438,7 @@ class BrowserIngestServerTest(unittest.TestCase):
                 "post_url": child["post_url"],
                 "sequence_position": 1,
                 "reply_to_post_url": root["post_url"],
-                "same_author_as_root": None,
+                "same_author_as_root": True,
             }],
         }
         accepted = self.service.handle_post(
@@ -446,6 +448,26 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(201, accepted.status)
         self.assertEqual({"status": "accepted", "node_count": 2}, accepted.payload)
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
+        child_identity = self.repository.connection.execute(
+            "SELECT id FROM browser_post_identities WHERE post_url = ?", (child["post_url"],)
+        ).fetchone()[0]
+        self.assertEqual(
+            child_detail.payload["observation_id"],
+            self.repository.connection.execute(
+                """SELECT current_observation_id FROM browser_post_identities WHERE id = ?""",
+                (child_identity,),
+            ).fetchone()[0],
+        )
+        relationship = self.repository.connection.execute(
+            """SELECT reply_to_browser_post_identity_id, sequence_position,
+                      same_author_as_root
+               FROM browser_thread_sequence_observations
+               WHERE node_browser_post_identity_id = ?""",
+            (child_identity,),
+        ).fetchone()
+        self.assertIsNotNone(relationship["reply_to_browser_post_identity_id"])
+        self.assertEqual(1, relationship["sequence_position"])
+        self.assertEqual(1, relationship["same_author_as_root"])
         bad_detail = dict(payload)
         bad_detail["detail_observation_id"] = 1
         rejected = self.service.handle_post(

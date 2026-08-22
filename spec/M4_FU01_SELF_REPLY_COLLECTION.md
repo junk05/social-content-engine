@@ -1,0 +1,71 @@
+# M4-FU01-S8 — Self-Reply Content Collection
+
+STATUS: `APPROVED / IN_PROGRESS`
+
+Contract version: `M4-FU01-SELF-REPLY-COLLECTION-V1`
+
+## Scope
+
+One human-selected root remains the only collection trigger. During its existing
+detail enrichment, the shared visible-DOM extractor may append detail observations
+for visible same-author reply permalinks. This is an extension of the existing
+M4-FU01 Thread Sequence path, not a new crawler or pipeline.
+
+The collector:
+
+- emits the root at sequence position 0;
+- compares visible permalink usernames as direct same-author evidence;
+- appends only distinct same-author reply details in visible DOM order at positions
+  1, 2, 3, and beyond;
+- stores each reply as an immutable `POST_DETAIL` observation with the existing
+  source identity, text, timestamp, counters, observed time, extractor version,
+  field provenance, and payload hash contract;
+- stores root, node, optional reply-to identity, sequence position, and observed
+  same-author state through `browser_thread_sequence_observations`;
+- leaves `reply_to_post_url` null unless the visible surface directly exposes the
+  relationship; DOM order or wording alone never creates an edge;
+- never appends other-author general reply details;
+- deduplicates visible permalinks within extraction and reuses existing identity
+  and normalized-version semantics across repeated collection.
+
+`source_post_id`, an explicit parent edge, or another field that is not visible
+remains null/unknown. Absence is not inferred as false.
+
+## Data and generation boundary
+
+Root and self-reply text, URL, author, and source-specific wording remain
+`ANALYSIS_ONLY_SOURCE`. Existing Source Store and Thread Sequence provenance may
+be reused without migration. Pattern Library artifacts contain only abstract
+structural components and aggregate evidence. Generation-safe DTOs continue to
+exclude source observations and identifiers.
+
+## Analysis contract
+
+A root-only node is not a self-reply transition. `PARENT_TO_SELF_REPLY` and
+`OBSERVED_SELF_REPLY_TRANSITION` require an observed node with
+`same_author_as_root=true` and `sequence_position>0`.
+
+The stored graph supports later deterministic sequence analysis such as:
+
+`ROOT -> SELF_REPLY_1 -> SELF_REPLY_2 -> ...`
+
+and abstract roles such as:
+
+`OPEN_LOOP -> EXPLANATION -> ESCALATION -> PAYOFF -> CTA`.
+
+This follow-up does not assign those semantic roles, implement generation, or
+authorize M5.
+
+## Definition of Done
+
+1. shared detail extractor emits a compact root plus same-author sequence only;
+2. zero, one, or many self replies are supported without a one-to-one model;
+3. self-reply `POST_DETAIL` observations precede relationship persistence;
+4. unknown reply-to edges remain null;
+5. duplicate, resume, pacing, and failure-isolation behavior remains intact;
+6. source/generation isolation and regressions pass;
+7. existing stored self-reply detail and sequence evidence remains reusable;
+8. HG-03 verifies one selected live root with at least one visible self reply.
+
+Items 1–7 proceed autonomously. Item 8 reuses the existing browser-action Human
+Gate and creates no new gate.

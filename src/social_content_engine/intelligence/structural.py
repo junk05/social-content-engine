@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple
 from social_content_engine.data.repository import Repository
 
 TAXONOMY_VERSION = "M4_STRUCTURAL_TAXONOMY_V1"
-EXTRACTOR_VERSION = "m4-structural-extractor-v3"
+EXTRACTOR_VERSION = "m4-structural-extractor-v4"
 FEATURE_CONTRACT_VERSION = "M4_STRUCTURAL_FEATURE_V1"
 _DATE_METADATA = re.compile(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$")
 _RELATIVE_TIME_METADATA = re.compile(
@@ -143,6 +143,7 @@ def derive_structural_features(repository: Repository, structural_feature_run_id
                     WHERE browser_normalized_bridges.normalized_post_version_id =
                           dataset_members.normalized_post_version_id
                       AND browser_thread_sequence_observations.same_author_as_root = 1
+                      AND browser_thread_sequence_observations.sequence_position > 0
                   ) AS observed_self_reply
            FROM dataset_members
            JOIN normalized_post_versions

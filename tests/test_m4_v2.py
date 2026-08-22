@@ -10,7 +10,7 @@ from social_content_engine.intelligence.m4_v2 import (
 
 class M4V2Test(unittest.TestCase):
     def test_derivation_version_tracks_taxonomy_revision(self) -> None:
-        self.assertEqual("m4-intelligence-v2.3", DERIVATION_VERSION)
+        self.assertEqual("m4-intelligence-v2.4", DERIVATION_VERSION)
 
     def test_multi_label_first_line_and_text_free_evidence(self) -> None:
         feature = build_v2_feature(
