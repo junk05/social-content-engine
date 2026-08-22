@@ -246,13 +246,18 @@ unchanged. M5 remains unauthorized.
 
 ### M4-FU04 — Collected Post Management
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU04_COLLECTED_POST_MANAGEMENT.md`
 (`CR-0021`). This independent M4-FU01 follow-up adds a local Extension list of
 collected roots plus audited exclude/re-enable/re-enrich controls. Source
 evidence is never deleted, excluded identities cannot be batch-claimed, and M5
 remains unauthorized.
+
+The local collected-root list, status filters, audited exclusion, and explicit
+re-enrich/re-enable actions are implemented. Excluded items are omitted from
+pending lists, failed retries, and batch claims without deleting historical
+evidence. M5 remains unauthorized.
 
 ## Deferred until later milestones
 

@@ -177,6 +177,6 @@
     ,{"id":"M4-FU04-002","owner":"DATA","title":"Persist current exclusion state and immutable action audit trail","status":"COMPLETE","depends_on":["M4-FU04-001"]}
     ,{"id":"M4-FU04-003","owner":"DATA","title":"Expose closed local list, exclude, and re-enrich receiver operations","status":"COMPLETE","depends_on":["M4-FU04-002"]}
     ,{"id":"M4-FU04-004","owner":"COLLECTOR","title":"Render collected-post filters and row actions in Extension options","status":"COMPLETE","depends_on":["M4-FU04-003"]}
-    ,{"id":"M4-FU04-005","owner":"QA_REVIEWER","title":"Verify queue exclusion, audit preservation, UI, security, and full regression","status":"IN_PROGRESS","depends_on":["M4-FU04-004"]}
+    ,{"id":"M4-FU04-005","owner":"QA_REVIEWER","title":"Verify queue exclusion, audit preservation, UI, security, and full regression","status":"COMPLETE","depends_on":["M4-FU04-004"]}
   ]
 }

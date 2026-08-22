@@ -1,6 +1,6 @@
 # M4-FU04 — Collected Post Management
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0021`.
 
@@ -54,3 +54,11 @@ are not accepted.
 5. Extension renders the list and both row actions safely;
 6. repository, receiver, transport, UI, security, and M4-FU01 regressions pass;
 7. completed logical commits are pushed to `main` and M5 remains unauthorized.
+
+## Verification
+
+- additive migration 24 preserves queue/source rows and appends immutable action history;
+- excluded roots are absent from pending URL selection, failed retry, and batch claim;
+- explicit requeue re-enables the root without deleting observations, attempts, or failures;
+- receiver and Extension contracts reject unknown actions, unsafe URLs, and malformed list rows;
+- local Extension suites, lint, mypy, repository validation, and 189 Python regressions pass.
