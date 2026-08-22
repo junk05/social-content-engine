@@ -13,7 +13,9 @@ from social_content_engine.data.browser_text_quality import (
 )
 from social_content_engine.data.repository import Repository
 from social_content_engine.intelligence.clean_dataset import (
+    bridge_current_browser_roots,
     create_clean_browser_dataset_snapshot,
+    create_clean_root_dataset_snapshot,
 )
 from tests.test_browser_observation_repository import observation
 
@@ -86,6 +88,40 @@ class BrowserTextQualityTest(unittest.TestCase):
                 ).fetchone()
                 self.assertEqual(INVALID_TEXT_DATE_METADATA, quality[0])
                 self.assertEqual(2, repository.count("browser_post_identities"))
+
+    def test_root_snapshot_excludes_child_only_identity_and_reports_quality(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "root-clean.sqlite3") as repository:
+                root_payload = observation(text="有効な親投稿です")
+                root_payload["post_url"] = "https://www.threads.net/@valid/post/root"
+                root_payload["payload_sha256"] = browser_observation_payload_sha256(
+                    root_payload
+                )
+                repository.add_browser_observation(root_payload)
+                invalid_payload = observation(text="3日")
+                invalid_payload["post_url"] = "https://www.threads.net/@invalid/post/root"
+                invalid_payload["payload_sha256"] = browser_observation_payload_sha256(
+                    invalid_payload
+                )
+                repository.add_browser_observation(invalid_payload)
+                child_payload = observation(text="子投稿", observation_type="POST_DETAIL")
+                child_payload["post_url"] = "https://www.threads.net/@valid/post/child"
+                child_payload["payload_sha256"] = browser_observation_payload_sha256(
+                    child_payload
+                )
+                child = repository.add_browser_observation(child_payload)
+                self.assertEqual(2, bridge_current_browser_roots(repository))
+                repository.bridge_browser_post(child["post_url"])
+
+                result = create_clean_root_dataset_snapshot(
+                    repository, dataset_key="m4-root-clean", version=1
+                )
+                self.assertEqual(2, result["canonical_root_count"])
+                self.assertEqual(1, result["member_count"])
+                self.assertEqual(1, result["excluded_count"])
+                self.assertEqual(
+                    {"INVALID_TEXT_DATE_METADATA": 1}, result["quality_exclusions"]
+                )
 
 
 if __name__ == "__main__":

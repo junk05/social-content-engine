@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 from social_content_engine.data.browser_text_quality import (
     ASSESSOR_VERSION,
@@ -11,6 +11,7 @@ from social_content_engine.data.browser_text_quality import (
 from social_content_engine.data.repository import Repository
 
 CLEAN_DATASET_VERSION = "m4-clean-browser-text-v1"
+ROOT_CLEAN_DATASET_VERSION = "m4-clean-browser-root-text-v2"
 DETAIL_BATCH_DATASET_VERSION = "m4-detail-batch-analysis-v1"
 
 
@@ -189,7 +190,7 @@ def create_clean_browser_dataset_snapshot(
                     browser_normalized_versions.version DESC,
                     browser_normalized_bridges.id DESC"""
     ).fetchall()
-    selected_identities = set()
+    selected_identities: Set[int] = set()
     ordinal = 0
     for row in rows:
         identity_id = int(row["browser_post_identity_id"])
@@ -208,3 +209,114 @@ def create_clean_browser_dataset_snapshot(
     repository.finalize_dataset_snapshot(snapshot_id)
     return {"dataset_snapshot_id": snapshot_id, "member_count": ordinal,
             "new_assessments": sum(assessment_counts.values())}
+
+
+def bridge_current_browser_roots(repository: Repository) -> int:
+    """Bridge the current observation for every human-selected canonical root."""
+    rows = repository.connection.execute(
+        """SELECT DISTINCT browser_post_identities.post_url
+        FROM browser_post_identities
+        JOIN browser_observations
+          ON browser_observations.browser_post_identity_id = browser_post_identities.id
+         AND browser_observations.observation_type = 'SEARCH_CARD'
+        ORDER BY browser_post_identities.id"""
+    ).fetchall()
+    for row in rows:
+        repository.bridge_browser_post(str(row["post_url"]))
+    return len(rows)
+
+
+def create_clean_root_dataset_snapshot(
+    repository: Repository, *, dataset_key: str, version: int
+) -> Dict[str, Any]:
+    """Freeze the latest valid bridged version of each selected root only."""
+    assessment_counts = assess_browser_source_text(repository)
+    selection_spec = {
+        "contract_version": ROOT_CLEAN_DATASET_VERSION,
+        "include_quality_status": "VALID_TEXT",
+        "exclude_quality_statuses": ["INVALID_TEXT_DATE_METADATA", "TEXT_UNAVAILABLE"],
+        "identity_scope": "CANONICAL_ROOT_WITH_SEARCH_CARD_EVIDENCE",
+        "source": "threads_browser",
+        "selection_order": "browser_identity_id_asc_then_latest_valid_browser_version_desc",
+        "relationship_eligibility": "RELATIONSHIP_EVIDENCE_REQUIRED",
+    }
+    snapshot_id = repository.create_dataset_snapshot(dataset_key, version, selection_spec)
+    rows = repository.connection.execute(
+        """SELECT browser_normalized_bridges.normalized_post_version_id,
+                  browser_normalized_versions.source_observation_id,
+                  browser_normalized_bridges.browser_post_identity_id,
+                  browser_normalized_versions.version AS browser_version
+           FROM browser_normalized_bridges
+           JOIN browser_normalized_versions
+             ON browser_normalized_versions.id =
+                browser_normalized_bridges.browser_normalized_version_id
+           JOIN browser_text_quality_assessments
+             ON browser_text_quality_assessments.browser_observation_id =
+                browser_normalized_versions.source_observation_id
+           WHERE browser_text_quality_assessments.quality_status = 'VALID_TEXT'
+             AND EXISTS (
+               SELECT 1 FROM browser_observations root_observation
+               WHERE root_observation.browser_post_identity_id =
+                     browser_normalized_bridges.browser_post_identity_id
+                 AND root_observation.observation_type = 'SEARCH_CARD'
+             )
+           ORDER BY browser_normalized_bridges.browser_post_identity_id,
+                    browser_normalized_versions.version DESC,
+                    browser_normalized_bridges.id DESC"""
+    ).fetchall()
+    selected_identities: Set[int] = set()
+    for row in rows:
+        identity_id = int(row["browser_post_identity_id"])
+        if identity_id in selected_identities:
+            continue
+        repository.add_browser_dataset_member(
+            snapshot_id,
+            int(row["normalized_post_version_id"]),
+            int(row["source_observation_id"]),
+            len(selected_identities),
+            {
+                "contract_version": ROOT_CLEAN_DATASET_VERSION,
+                "quality_status": "VALID_TEXT",
+                "browser_identity_id": identity_id,
+                "browser_normalized_version": int(row["browser_version"]),
+                "identity_scope": "CANONICAL_ROOT",
+            },
+        )
+        selected_identities.add(identity_id)
+    repository.finalize_dataset_snapshot(snapshot_id)
+
+    root_count = int(repository.connection.execute(
+        """SELECT COUNT(DISTINCT browser_post_identity_id)
+        FROM browser_observations WHERE observation_type = 'SEARCH_CARD'"""
+    ).fetchone()[0])
+    exclusion_rows = repository.connection.execute(
+        """SELECT COALESCE(browser_text_quality_assessments.quality_status,
+                            'TEXT_UNAVAILABLE') AS quality_status,
+                  COUNT(*) AS count
+        FROM browser_post_identities
+        LEFT JOIN browser_text_quality_assessments
+          ON browser_text_quality_assessments.browser_observation_id =
+             browser_post_identities.current_observation_id
+        WHERE EXISTS (
+          SELECT 1 FROM browser_observations root_observation
+          WHERE root_observation.browser_post_identity_id = browser_post_identities.id
+            AND root_observation.observation_type = 'SEARCH_CARD'
+        )
+          AND browser_post_identities.id NOT IN ({0})
+        GROUP BY COALESCE(browser_text_quality_assessments.quality_status,
+                          'TEXT_UNAVAILABLE')
+        ORDER BY quality_status""".format(
+            ",".join("?" for _ in selected_identities) or "NULL"
+        ),
+        tuple(sorted(selected_identities)),
+    ).fetchall()
+    return {
+        "dataset_snapshot_id": snapshot_id,
+        "canonical_root_count": root_count,
+        "member_count": len(selected_identities),
+        "excluded_count": root_count - len(selected_identities),
+        "quality_exclusions": {
+            str(row["quality_status"]): int(row["count"]) for row in exclusion_rows
+        },
+        "new_assessments": sum(assessment_counts.values()),
+    }
