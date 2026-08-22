@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v3";
+  const VERSION = "threads_post_detail_extractor_v4";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
@@ -299,12 +299,15 @@
   }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
+    const dateMetadata = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/;
+    const relativeTimeMetadata = /^(?:\d+\s*(?:分|時間|日|週|ヶ月|か月|月|年|m|min|h|d|w|mo|y)|昨日|一昨日)$/i;
     for (const selector of ['[data-testid="post-text"]', '[dir="auto"]']) {
       for (const candidate of root.querySelectorAll(selector)) {
         if (!isVisible(candidate)) continue;
         if (candidate.closest('a[href^="/@"], a[href*="/post/"], time, button, [role="button"]')) continue;
         const value = renderedText(candidate);
-        if (value && !excluded.has(value.toLowerCase())) return value;
+        if (value && !excluded.has(value.toLowerCase())
+            && !dateMetadata.test(value) && !relativeTimeMetadata.test(value)) return value;
       }
     }
     return null;
