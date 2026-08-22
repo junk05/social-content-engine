@@ -103,15 +103,6 @@
               });
               if (!failure.accepted) return failure;
             } else {
-              const viewCount = extracted.observation.public_counters
-                && extracted.observation.public_counters.view_count;
-              if (!Number.isInteger(viewCount) || viewCount < 0) {
-                const failure = await transport.failClaim({
-                  ...correlation(claim), error_code: "VIEW_COUNT_NOT_FOUND",
-                });
-                if (!failure.accepted) return failure;
-                continue;
-              }
               const accepted = await transport.sendObservation(extracted.observation);
               if (!accepted.accepted) {
                 const failure = await transport.failClaim({

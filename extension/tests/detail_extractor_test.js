@@ -89,7 +89,7 @@ async function main() {
   assert.match(source, /visiblePostText\(postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v2");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v3");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -149,6 +149,12 @@ async function main() {
   const missing = await extractor.extractPostDetail(fixturePage("post_detail_missing_view.html"), missingContext);
   assert.equal(missing.public_counters.view_count, null);
   assert.equal(missing.public_counters.like_count, 0);
+  assert.deepEqual(missing.approximate_views, {
+    display: "表示6.4万回", normalized_approx: 64000, precision: "ROUNDED",
+    source: "POST_DETAIL_PAGE", view_band: "10K_100K",
+    observed_at: context.collectedAt, extractor_version: extractor.version,
+    normalizer_version: "rounded-views-normalizer-v1",
+  });
   assert.equal(missing.metric_observation_statuses.view_count, "NOT_OBSERVED");
   assert.equal(missing.metric_observation_statuses.like_count, "OBSERVED");
   assert.equal(missing.observed_fields.some((item) => item.field === "public_counters.view_count"), false);
@@ -158,11 +164,10 @@ async function main() {
     fixturePage("post_detail_header_exact_view.html"),
     { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/HeaderExact" },
   );
-  assert.equal(headerExact.public_counters.view_count, 6400);
-  assert.equal(
-    headerExact.observed_fields.find((item) => item.field === "public_counters.view_count").value,
-    6400,
-  );
+  assert.equal(headerExact.public_counters.view_count, null,
+    "detail-page displays never populate exact view_count");
+  assert.equal(headerExact.approximate_views, undefined,
+    "a display without an explicit rounded unit is not relabelled as rounded evidence");
 
   const activityExact = await extractor.extractPostDetail(
     fixturePage("post_detail_activity_exact_view.html"),
@@ -180,8 +185,8 @@ async function main() {
     fixturePage("post_detail_roleless_activity_exact_view.html"),
     { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/RolelessActivityExact" },
   );
-  assert.equal(rolelessActivityExact.public_counters.view_count, 64123,
-    "an exact role-less Activity sheet remains observable without accepting rounded headers");
+  assert.equal(rolelessActivityExact.public_counters.view_count, null,
+    "role-less page text is not promoted to an exact Activity metric");
 
   const splitLabel = new Element({}, "閲覧数");
   const splitValue = new Element({}, "88,386");
@@ -193,10 +198,12 @@ async function main() {
   splitValue.parentElement = splitParent;
   const splitRoot = {
     querySelectorAll(selector) {
-      if (selector === '[role="dialog"], [aria-modal="true"]') return [];
+      if (selector === '[role="dialog"], [aria-modal="true"]') return [splitParent];
       return selector === "span, div" ? [splitLabel, splitValue] : [];
     },
   };
+  splitParent.hidden = false;
+  splitParent.getAttribute = () => null;
   assert.equal(extractor.activityViewCount(splitRoot), 88386,
     "a visible Activity label and adjacent exact integer are structurally paired");
   splitLabel.innerText = "いいね";
@@ -209,6 +216,12 @@ async function main() {
   assert.equal(extractor.exactNonnegativeInteger("Views 12K"), null);
   assert.equal(extractor.exactNonnegativeInteger("1.2K views"), null);
   assert.equal(extractor.pageViewCount(fixturePage("post_detail_missing_view.html")), null);
+  assert.equal(
+    extractor.approximatePageViews(
+      fixturePage("post_detail_missing_view.html"), context.collectedAt,
+    ).normalized_approx,
+    64000,
+  );
   assert.equal(extractor.activityViewCount(fixturePage("post_detail_missing_view.html")), null);
   assert.equal(extractor.exactNonnegativeInteger("Views 0"), 0);
   assert.equal(extractor.canonicalPostUrl("javascript:alert(1)", context.pageUrl), null);

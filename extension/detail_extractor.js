@@ -3,7 +3,8 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v2";
+  const VERSION = "threads_post_detail_extractor_v3";
+  const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
     view_count: ["表示", "view"], like_count: ["いいね", "like"],
@@ -170,14 +171,55 @@
     }
     return null;
   }
+  function viewBand(value) {
+    if (value < 1000) return "LT_1K";
+    if (value < 10000) return "1K_10K";
+    if (value < 100000) return "10K_100K";
+    if (value < 1000000) return "100K_1M";
+    return "1M_PLUS";
+  }
+  function approximatePageViews(root, observedAt) {
+    const patterns = [
+      /^(表示)\s*([0-9]+(?:\.[0-9]+)?)\s*(千|万|億)\s*回$/i,
+      /^([0-9]+(?:\.[0-9]+)?)\s*([KMB])\s*(views?)$/i,
+    ];
+    const multipliers = { 千: 1000, 万: 10000, 億: 100000000, K: 1000, M: 1000000, B: 1000000000 };
+    for (const element of root.querySelectorAll("span, div")) {
+      if (!isVisible(element)) continue;
+      const display = renderedText(element);
+      if (!display || display.length > 32) continue;
+      let numericToken = null;
+      let unit = null;
+      for (const pattern of patterns) {
+        const match = display.match(pattern);
+        if (!match) continue;
+        if (match.length === 4 && match[1] === "表示") {
+          numericToken = match[2]; unit = match[3];
+        } else {
+          numericToken = match[1]; unit = match[2].toUpperCase();
+        }
+        break;
+      }
+      if (numericToken === null || !Object.hasOwn(multipliers, unit)) continue;
+      const normalizedApprox = Math.round(Number(numericToken) * multipliers[unit]);
+      if (!Number.isSafeInteger(normalizedApprox) || normalizedApprox < 0) continue;
+      return {
+        display, normalized_approx: normalizedApprox, precision: "ROUNDED",
+        source: "POST_DETAIL_PAGE", view_band: viewBand(normalizedApprox),
+        observed_at: observedAt, extractor_version: VERSION,
+        normalizer_version: APPROXIMATE_VIEWS_NORMALIZER_VERSION,
+      };
+    }
+    return null;
+  }
   function activityMetricValue(root, counterName) {
     // Threads exposes a rounded page-header count (for example, "表示6.4万回")
     // and may expose the exact count only after the person opens Activity.  We
     // read the already-visible dialog; opening it remains a human action.
     const labelPattern = ACTIVITY_LABELS[counterName];
     if (!labelPattern) return null;
-    const containers = Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
-    containers.push(root);
+    const containers = Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'))
+      .filter(isVisible);
     for (const container of containers) {
       const elements = [container,
         ...container.querySelectorAll("span, div"),
@@ -253,12 +295,7 @@
     return null;
   }
   function visibleActivityViewCount(root) {
-    // Current Threads variants do not consistently expose the Activity sheet
-    // with role=dialog.  An exact, visible Activity metric is the observable
-    // contract we need; do not require a particular accessibility wrapper.
-    const dialogValue = visibleActivityDialogViewCount(root);
-    if (dialogValue !== null) return dialogValue;
-    return activityViewCount(root);
+    return visibleActivityDialogViewCount(root);
   }
   function visiblePostText(root, excludedValues) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
@@ -309,10 +346,10 @@
     if (!post || !timestamp) return null;
     const profile = profileValues(postRoot, post.canonical);
     const counters = visibleCounters(postRoot);
-    if (counters.view_count === null) counters.view_count = pageViewCount(postRoot);
     for (const name of Object.keys(counters)) {
       if (counters[name] === null) counters[name] = activityMetricValue(root, name);
     }
+    const approximateViews = approximatePageViews(root, collectedAt);
     const activityVisible = visibleActivitySurface(root);
     const metricStatuses = {};
     for (const [name, value] of Object.entries(counters)) {
@@ -339,6 +376,7 @@
       collection_context: { surface: SURFACE, page_url: post.canonical, query: null, position: null },
       observed_fields: observed, collected_at: collectedAt, extractor_version: VERSION,
     };
+    if (approximateViews !== null) observation.approximate_views = approximateViews;
     observation.payload_sha256 = await sha256(observation);
     return observation;
   }
@@ -356,6 +394,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
+    approximatePageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
     extractVisibleThreadNodes, extractPostDetail,

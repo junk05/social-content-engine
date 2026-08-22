@@ -69,16 +69,6 @@
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
     const ready = await waitFor(() => extractor.recognizePostDetail(document, url));
     if (!ready) return { ok: false, reason: "dom_not_ready" };
-    const trigger = activityButton();
-    if (!trigger) return { ok: false, reason: "activity_button_not_found" };
-    const beforeDialogs = new Set(document.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
-    const beforeMetrics = new Set(exactActivityMetricElements());
-    trigger.click();
-    // Threads variants may expose Activity as a role-less sheet. Require a
-    // click-triggered new dialog or exact metric, so an existing exact page
-    // header is never mistaken for a successfully opened Activity surface.
-    const surface = await waitFor(() => activitySurface(beforeDialogs, beforeMetrics), 8000);
-    if (!surface) return { ok: false, reason: "activity_dialog_timeout" };
     const collectedAt = new Date().toISOString();
     const observation = await extractor.extractPostDetail(document, {
       pageUrl: url, collectedAt,

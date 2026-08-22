@@ -64,10 +64,12 @@ async function main() {
   assert.deepEqual(events.find((item) => item[0] === "fail")[1], {
     queue_item_id: 12, batch_id: 7, attempt: 1, lease_version: 3, error_code: "PAGE_TIMEOUT",
   });
-  assert.deepEqual(events.filter((item) => item[0] === "fail")[1][1], {
+  assert.equal(events.filter((item) => item[0] === "fail").length, 1,
+    "missing exact Views does not fail an otherwise valid detail observation");
+  assert.deepEqual(events.filter((item) => item[0] === "complete")[1][1], {
     queue_item_id: 13, batch_id: 7, attempt: 2, lease_version: 4,
-    error_code: "VIEW_COUNT_NOT_FOUND",
-  }, "missing view is a failure while an exact zero remains valid");
+    detail_observation_id: 103,
+  });
   assert.equal(saved[globalThis.SCE_DETAIL_BATCH.storageKey], null,
     "storage is a resume hint, not the durable queue SSOT");
 

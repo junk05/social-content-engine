@@ -51,7 +51,7 @@ async function main() {
   const url = "https://www.threads.net/@fixture/post/Batch1";
   const result = await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url);
   assert.equal(result.ok, true);
-  assert.equal(activityClicked, 1, "activity is opened only inside the user-started worker request");
+  assert.equal(activityClicked, 0, "detail collection does not require Activity automation");
   assert.equal(result.observation.text, "full visible fixture text");
   assert.equal(result.observation.public_counters.view_count, 123);
   assert.equal(result.nodes.length, 1);
@@ -86,47 +86,15 @@ async function main() {
     "only an exact Activity label is eligible; a post-card ancestor is not");
   document.querySelectorAll = originalCandidates;
 
-  const originalQuerySelectorAll = document.querySelectorAll;
-  document.querySelectorAll = () => [];
-  assert.deepEqual(await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url), {
-    ok: false, reason: "activity_button_not_found",
-  });
-  document.querySelectorAll = originalQuerySelectorAll;
-  const originalQuerySelector = document.querySelector;
+  const originalRecognize = globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail;
+  globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = () => false;
   const originalSetTimeout = globalThis.setTimeout;
-  dialogEnabled = false;
-  document.querySelector = () => null;
   globalThis.setTimeout = (callback) => { queueMicrotask(callback); return 1; };
   assert.deepEqual(await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url), {
-    ok: false, reason: "activity_dialog_timeout",
+    ok: false, reason: "dom_not_ready",
   });
   globalThis.setTimeout = originalSetTimeout;
-  document.querySelector = originalQuerySelector;
-
-  const originalQueryAll = document.querySelectorAll;
-  const rolelessMetric = {
-    hidden: false,
-    innerText: "閲覧数 456",
-    getAttribute() { return null; },
-  };
-  let clickedRoleless = false;
-  const activityText = {
-    hidden: false,
-    innerText: "アクティビティを見る",
-    getAttribute() { return null; },
-    click() { clickedRoleless = true; },
-  };
-  document.querySelector = () => null;
-  document.querySelectorAll = (selector) => {
-    if (selector.includes("button")) return [activityText];
-    if (selector === "span, div") return clickedRoleless ? [rolelessMetric] : [];
-    return [];
-  };
-  assert.equal((await globalThis.SCE_DETAIL_BATCH_WORKER.extract(url)).ok, true,
-    "a role-less click-triggered Activity metric is accepted");
-  document.querySelectorAll = originalQueryAll;
-  document.querySelector = originalQuerySelector;
-  dialogEnabled = true;
+  globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = originalRecognize;
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });
