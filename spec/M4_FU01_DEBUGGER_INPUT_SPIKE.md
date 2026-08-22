@@ -1,6 +1,6 @@
 # M4-FU01-S1 — Debugger Input Live Spike
 
-STATUS: `APPROVED / IN_PROGRESS`
+STATUS: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
 
 Contract version: `M4-FU01-DEBUGGER-INPUT-SPIKE-V1`
 
@@ -37,7 +37,7 @@ the cause remains `UNKNOWN` until this spike records PASS or FAIL.
 
 ## Explicit prohibitions
 
-- no `Network`, `Storage`, `Cookies`, `DOMSnapshot`, `Page.captureScreenshot`,
+- no CDP `Network`, `Storage`, `Cookies`, `DOMSnapshot`, `Page.captureScreenshot`,
   `Runtime.evaluate` source-text extraction, or arbitrary evaluation;
 - no search, scrolling, selection, retry loop, parallel tab, normal user-tab
   navigation, anti-detection, or credential extraction;
@@ -54,7 +54,8 @@ the cause remains `UNKNOWN` until this spike records PASS or FAIL.
 - `DEBUGGER_ATTACH_FAILED`, `DEBUGGER_COMMAND_FAILED`, or `TAB_UNAVAILABLE`.
 
 Results contain no source text, URL, user identity, coordinates, or browser
-data. The live result is a local, ignored audit record only.
+data. The extension displays only the closed outcome; the HG-03 result is
+recorded in the SSOT after the human observes it.
 
 ## Human boundary and Definition of Done
 

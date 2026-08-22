@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "change_request_id": "CR-0009",
-  "status": "APPROVED",
+  "status": "IMPLEMENTED",
   "title": "Add one-post Chrome debugger Input live spike",
   "risk": "HIGH",
   "affected_components": [
@@ -11,7 +11,7 @@
   ],
   "approved_decision": "Use chrome.debugger only for one dedicated tab and one human-selected pending post to dispatch one press/release pair to the visible Activity control, then detach immediately.",
   "unchanged_boundaries": [
-    "no Network, Storage, Cookies, DOMSnapshot, screenshots, or arbitrary Runtime evaluation",
+    "no CDP Network, Storage, Cookies, DOMSnapshot, screenshots, or arbitrary Runtime evaluation",
     "no source text, URL, author, credential, or DOM persistence",
     "no automated search, scrolling, selection, or batch integration",
     "no M5 content generation",

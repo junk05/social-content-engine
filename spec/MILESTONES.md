@@ -107,7 +107,7 @@ not reopen M4 quality approval and does not authorize M5.
 
 ### M4-FU01-S1 — Debugger Input Live Spike
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `IMPLEMENTED / HG-03 LIVE SPIKE REQUIRED`
 
 Approved specification: `spec/M4_FU01_DEBUGGER_INPUT_SPIKE.md` (`CR-0009`).
 This material-permission spike is restricted to one selected post and one

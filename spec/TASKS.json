@@ -113,8 +113,8 @@
     ,{"id":"M4-FU01-008","owner":"QA_REVIEWER","title":"Verify retry, resume, failure isolation, security, extension, and M0-M4 regression","status":"COMPLETE","depends_on":["M4-FU01-002","M4-FU01-005","M4-FU01-006","M4-FU01-007"]}
     ,{"id":"M4-FU01-009","owner":"ORCHESTRATOR","title":"Run HG-03 live E2E and complete M4-FU01 only after DoD passes","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-008"]}
     ,{"id":"M4-FU01-S1-001","owner":"ORCHESTRATOR","title":"Approve one-post debugger Input spike contract and material permission boundary","status":"COMPLETE","depends_on":["M4-FU01-008"]}
-    ,{"id":"M4-FU01-S1-002","owner":"COLLECTOR","title":"Implement closed one-tab debugger Input spike without batch integration","status":"IN_PROGRESS","depends_on":["M4-FU01-S1-001"]}
-    ,{"id":"M4-FU01-S1-003","owner":"QA_REVIEWER","title":"Verify debugger command allowlist, detach, leakage boundary, and regressions","status":"PENDING","depends_on":["M4-FU01-S1-002"]}
+    ,{"id":"M4-FU01-S1-002","owner":"COLLECTOR","title":"Implement closed one-tab debugger Input spike without batch integration","status":"COMPLETE","depends_on":["M4-FU01-S1-001"]}
+    ,{"id":"M4-FU01-S1-003","owner":"QA_REVIEWER","title":"Verify debugger command allowlist, detach, leakage boundary, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S1-002"]}
     ,{"id":"M4-FU01-S1-004","owner":"ORCHESTRATOR","title":"Run one-post HG-03 debugger Input live spike and record closed result","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S1-003"]}
   ]
 }
