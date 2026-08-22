@@ -61,3 +61,7 @@ closed helper error. Any Stage 2 failure ends native-input experimentation.
   move-only attempt therefore derives the vertical content origin from window
   top plus window height minus inner viewport height. Horizontal conversion
   remains unchanged because no horizontal miss was observed.
+- 2026-08-22 Stage 1 attempt 2: `CURSOR_TARGET_ALIGNED`. Human visual review
+  confirmed that the move-only pointer reached the center of the Activity
+  control. Stage 2 is now authorized to reuse this exact conversion for one
+  existing Quartz click.
