@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "change_request_id": "CR-0011",
-  "status": "APPROVED",
+  "status": "IMPLEMENTED",
   "title": "Add one-post macOS native input spike",
   "risk": "HIGH",
   "affected_components": ["loopback receiver", "Chrome extension worker tab", "local macOS helper"],
