@@ -10,10 +10,11 @@ require(path.join(__dirname, "..", "debugger_spike_probe.js"));
 async function main() {
   const probe = globalThis.SCE_DEBUGGER_SPIKE_PROBE;
   assert.equal(probe.exactActivityMetricPresent(), true);
+  assert.equal(probe.exactActivityViewCount(), 88386);
   let response;
   assert.equal(listener({ type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" }, {}, (value) => { response = value; }), true);
   await new Promise((resolve) => setImmediate(resolve));
-  assert.deepEqual(response, { activitySurface: true });
+  assert.deepEqual(response, { activitySurface: true, viewCount: 88386 });
   assert.equal(listener({ type: "unrelated" }, {}, () => {}), false);
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

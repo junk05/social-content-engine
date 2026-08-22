@@ -29,6 +29,7 @@ class ManifestTest(unittest.TestCase):
                 "extractor.js",
                 "detail_extractor.js",
                 "debugger_spike_probe.js",
+                "native_input_probe.js",
                 "detail_batch_worker.js",
                 "injection.js",
                 "detail_action.js",

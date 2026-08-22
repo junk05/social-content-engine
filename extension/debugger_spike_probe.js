@@ -14,6 +14,17 @@
     });
   }
 
+  function exactActivityViewCount() {
+    const element = Array.from(document.querySelectorAll("span, div")).find((candidate) => {
+      const text = (candidate.innerText || "").replace(/\s+/g, " ").trim();
+      return isVisible(candidate) && /^(?:閲覧数|views?)\s*[:：]?\s*[0-9][0-9,]*\s*(?:回|views?)?$/i.test(text);
+    });
+    if (!element) return null;
+    const token = (element.innerText || "").match(/[0-9][0-9,]*/);
+    const value = token ? Number(token[0].replaceAll(",", "")) : NaN;
+    return Number.isSafeInteger(value) ? value : null;
+  }
+
   function waitForActivitySurface(timeout = 4000) {
     return new Promise((resolve) => {
       if (exactActivityMetricPresent()) { resolve(true); return; }
@@ -27,9 +38,9 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (!message || message.type !== "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY") return false;
-    waitForActivitySurface().then((activitySurface) => sendResponse({ activitySurface }));
+    waitForActivitySurface().then((activitySurface) => sendResponse({ activitySurface, viewCount: activitySurface ? exactActivityViewCount() : null }));
     return true;
   });
 
-  scope.SCE_DEBUGGER_SPIKE_PROBE = Object.freeze({ exactActivityMetricPresent, waitForActivitySurface });
+  scope.SCE_DEBUGGER_SPIKE_PROBE = Object.freeze({ exactActivityMetricPresent, exactActivityViewCount, waitForActivitySurface });
 })(globalThis);

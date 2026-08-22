@@ -5,6 +5,8 @@ import ipaddress
 import json
 import os
 import sqlite3
+import subprocess
+import sys
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -27,6 +29,7 @@ DETAIL_BATCHES_PATH = INGEST_PATH + "/detail-batches"
 DETAIL_QUEUE_CLAIM_PATH = INGEST_PATH + "/detail-queue/claim"
 DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
+NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
 DEFAULT_PENDING_LIMIT = 50
 MAX_PENDING_LIMIT = 100
 
@@ -93,6 +96,7 @@ class BrowserIngestService:
         repository: Repository,
         allowed_origins: Set[str],
         schema: Mapping[str, Any],
+        native_click_runner: Optional[Any] = None,
     ) -> None:
         if not allowed_origins:
             raise ValueError("at least one extension origin is required")
@@ -104,6 +108,8 @@ class BrowserIngestService:
         self.thread_sequence_validator = jsonschema.Draft202012Validator(
             load_thread_sequence_schema(), format_checker=jsonschema.FormatChecker()
         )
+        self.native_click_runner = native_click_runner or self._run_native_click
+        self.native_click_consumed = False
 
     def handle_options(
         self, path: str, origin: Optional[str], extension_origin: Optional[str] = None
@@ -116,6 +122,7 @@ class BrowserIngestService:
                 THREAD_SEQUENCE_PATH, DETAIL_QUEUE_SUMMARY_PATH, DETAIL_BATCHES_PATH,
                 DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
                 DETAIL_QUEUE_FAIL_PATH,
+                NATIVE_INPUT_SPIKE_PATH,
             },
         )
         return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
@@ -175,6 +182,7 @@ class BrowserIngestService:
                 INGEST_PATH, DETAIL_FAILURE_PATH, THREAD_SEQUENCE_PATH,
                 DETAIL_BATCHES_PATH, DETAIL_QUEUE_CLAIM_PATH,
                 DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
+                NATIVE_INPUT_SPIKE_PATH,
             },
         )
         if error:
@@ -201,6 +209,8 @@ class BrowserIngestService:
             return self._handle_detail_failure(decoded, request_origin)
         if path == THREAD_SEQUENCE_PATH:
             return self._handle_thread_sequence(decoded, request_origin)
+        if path == NATIVE_INPUT_SPIKE_PATH:
+            return self._handle_native_input_spike(decoded, request_origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
             return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         try:
@@ -260,6 +270,49 @@ class BrowserIngestService:
             },
             origin,
         )
+
+    @staticmethod
+    def _native_coordinate(value: Any) -> float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError("invalid coordinate")
+        coordinate = float(value)
+        if not 0 <= coordinate <= 10000:
+            raise ValueError("invalid coordinate")
+        return coordinate
+
+    @staticmethod
+    def _run_native_click(x: float, y: float) -> str:
+        helper = Path(__file__).parents[3] / "scripts" / "macos_native_click.swift"
+        if sys.platform != "darwin" or not helper.is_file():
+            return "unavailable"
+        completed = subprocess.run(
+            ["/usr/bin/swift", str(helper), str(x), str(y)],
+            capture_output=True, text=True, timeout=10, check=False,
+        )
+        if completed.returncode == 0:
+            return "clicked"
+        if completed.returncode == 77:
+            return "accessibility_permission_required"
+        return "failed"
+
+    def _handle_native_input_spike(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if self.native_click_consumed or set(decoded) != {"x", "y"}:
+            return IngestResponse(422, {"status": "unavailable"}, origin)
+        try:
+            x = self._native_coordinate(decoded["x"])
+            y = self._native_coordinate(decoded["y"])
+        except (KeyError, TypeError, ValueError):
+            return IngestResponse(422, {"status": "unavailable"}, origin)
+        self.native_click_consumed = True
+        try:
+            status = self.native_click_runner(x, y)
+        except (OSError, subprocess.SubprocessError):
+            status = "failed"
+        if status not in {"clicked", "accessibility_permission_required", "unavailable", "failed"}:
+            status = "failed"
+        return IngestResponse(200, {"status": status}, origin)
 
     def _handle_detail_batch(
         self, decoded: Dict[str, Any], origin: Optional[str]

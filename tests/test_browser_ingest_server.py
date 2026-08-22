@@ -16,6 +16,7 @@ from social_content_engine.browser_ingest.server import (
     DETAIL_QUEUE_SUMMARY_PATH,
     INGEST_PATH,
     MAX_BODY_BYTES,
+    NATIVE_INPUT_SPIKE_PATH,
     PENDING_DETAILS_PATH,
     THREAD_SEQUENCE_PATH,
     BrowserIngestService,
@@ -91,6 +92,21 @@ class BrowserIngestServerTest(unittest.TestCase):
             "chrome-extension://pppppppppppppppppppppppppppppppp",
         )
         self.assertEqual(403, rejected.status)
+
+    def test_native_input_spike_is_extension_only_shape_closed_and_one_shot(self) -> None:
+        clicks = []
+        self.service.native_click_runner = lambda x, y: clicks.append((x, y)) or "clicked"
+        first = self.service.handle_post(
+            NATIVE_INPUT_SPIKE_PATH, ALLOWED_ORIGIN, "application/json", b'{"x":12.5,"y":30}'
+        )
+        self.assertEqual(200, first.status)
+        self.assertEqual({"status": "clicked"}, first.payload)
+        self.assertEqual([(12.5, 30.0)], clicks)
+        second = self.service.handle_post(
+            NATIVE_INPUT_SPIKE_PATH, ALLOWED_ORIGIN, "application/json", b'{"x":13,"y":31}'
+        )
+        self.assertEqual(422, second.status)
+        self.assertEqual([], clicks[1:])
 
     def test_actual_http_options_and_post_include_allowlisted_cors_headers(self) -> None:
         class StubRepository:

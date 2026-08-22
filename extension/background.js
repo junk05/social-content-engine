@@ -12,6 +12,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
   const DETAIL_QUEUE_CLAIM_URL = RECEIVER_URL + "/detail-queue/claim";
   const DETAIL_QUEUE_COMPLETE_URL = RECEIVER_URL + "/detail-queue/complete";
   const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
+  const NATIVE_INPUT_SPIKE_URL = RECEIVER_URL + "/native-input-spike";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -441,6 +442,29 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     return debuggerSpike.run(pending.urls[0], { foreground: true });
   }
 
+  async function runNativeInputSpike() {
+    const pending = await fetchPendingDetails(1);
+    if (!pending.accepted || pending.urls.length !== 1) return { accepted: false, outcome: "NATIVE_INPUT_UNAVAILABLE" };
+    const tab = await chrome.tabs.create({ url: pending.urls[0], active: true });
+    if (!tab || !Number.isInteger(tab.id)) return { accepted: false, outcome: "NATIVE_INPUT_UNAVAILABLE" };
+    try {
+      if (tab.status !== "complete") await waitForTabComplete(tab.id);
+      const pointResponse = await chrome.tabs.sendMessage(tab.id, { type: "SCE_NATIVE_INPUT_SCREEN_POINT" });
+      const point = pointResponse && pointResponse.point;
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return { accepted: false, outcome: "TARGET_NOT_FOUND" };
+      const origin = extensionOrigin();
+      const response = await fetch(NATIVE_INPUT_SPIKE_URL, { method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin }, body: JSON.stringify({ x: point.x, y: point.y }), credentials: "omit", cache: "no-store" });
+      const result = await response.json();
+      if (!result || result.status === "accessibility_permission_required") return { accepted: false, outcome: "ACCESSIBILITY_PERMISSION_REQUIRED" };
+      if (!result || result.status !== "clicked") return { accepted: false, outcome: "NATIVE_INPUT_FAILED" };
+      const confirmation = await chrome.tabs.sendMessage(tab.id, { type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" });
+      return confirmation && confirmation.activitySurface && Number.isSafeInteger(confirmation.viewCount)
+        ? { accepted: true, outcome: "NATIVE_INPUT_SHEET_OBSERVED" }
+        : { accepted: false, outcome: "NATIVE_INPUT_SHEET_NOT_OBSERVED" };
+    } catch (_error) { return { accepted: false, outcome: "NATIVE_INPUT_FAILED" }; }
+    finally { try { await chrome.tabs.remove(tab.id); } catch (_error) {} }
+  }
+
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === "SCE_BATCH_WORKER_RESULT" && workerResultBroker) {
       sendResponse({
@@ -491,6 +515,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
       runForegroundDebuggerActivitySpike().then(sendResponse);
       return true;
     }
+    if (message && message.type === "SCE_START_NATIVE_INPUT_SPIKE") { runNativeInputSpike().then(sendResponse); return true; }
     return false;
   });
 })(globalThis);

@@ -24,6 +24,15 @@ Manifest V3 unpacked extensionです。M3-006では、認識済みThreads検索�
 9. Chromeや拡張機能が中断した場合は「中断した詳細補完を再開」を押します。
    Source Storeのleaseを回収して再試行し、古いworker応答は受理しません。
 
+### M4-FU01-S3: macOS Native Input Spike
+
+この1投稿限定検証では、receiverを起動しているTerminal（またはその親となる
+ターミナルアプリ）だけに、macOSの「プライバシーとセキュリティ」→
+「アクセシビリティ」で許可を与えます。許可後にオプションの
+「1件だけmacOS実マウス入力を検証」を一度だけ押します。helperは固定された
+左クリック1回だけを送信し、キー入力、clipboard、Chrome UI検索、cookie、
+credentialを扱いません。許可を外せばOS入力は直ちに使えなくなります。
+
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 
 ## セキュリティ境界
@@ -35,6 +44,8 @@ Chrome Web Store公開、ビルドツール、パッケージ化、自動更新�
   使用します。本文や認証情報は保存しません。
 - Chromeの`tabs`権限は、明示開始後の専用detail tab 1枚の作成・再利用・閉鎖だけに
   使用します。検索、選別、scroll、通常タブの遷移には使用しません。
+- Native Input Spikeのlocal helperはreceiverだけが一度だけ起動できます。任意座標、
+  keyboard、clipboard、任意コマンドを受け付けるAPIは提供しません。
 - 自動検索、スクロール、ナビゲーション、DOM dumpを行いません。
 - 外部サイトや公開receiverへデータを送信しません。
 
