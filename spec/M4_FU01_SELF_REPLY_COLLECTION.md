@@ -69,3 +69,10 @@ authorize M5.
 
 Items 1–7 proceed autonomously. Item 8 reuses the existing browser-action Human
 Gate and creates no new gate.
+
+The existing local Source Store audit found 43 non-root same-author sequence
+nodes, all with corresponding `POST_DETAIL` source observations. No explicit
+parent edges were present, so none are invented. Legacy positions retain their
+observed full-DOM ordinals; new v5 observations use compact self-reply positions.
+Only aggregate sanitized evidence is committed in
+`spec/evidence/M4_FU01_S8_EXISTING_EVIDENCE_AUDIT.json`.

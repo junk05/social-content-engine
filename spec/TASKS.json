@@ -152,7 +152,7 @@
     ,{"id":"M4-FU01-S8-001","owner":"ORCHESTRATOR","title":"Approve shared-path self-reply collection contract","status":"COMPLETE","depends_on":["M4-FU01-009"]}
     ,{"id":"M4-FU01-S8-002","owner":"COLLECTOR","title":"Extract compact visible same-author reply details without general reply collection","status":"COMPLETE","depends_on":["M4-FU01-S8-001"]}
     ,{"id":"M4-FU01-S8-003","owner":"INTELLIGENCE","title":"Require a non-root observed node for self-reply structural transitions","status":"COMPLETE","depends_on":["M4-FU01-S8-002"]}
-    ,{"id":"M4-FU01-S8-004","owner":"QA_REVIEWER","title":"Verify duplicate, resume, failure isolation, source boundary, and regressions","status":"IN_PROGRESS","depends_on":["M4-FU01-S8-002","M4-FU01-S8-003"]}
-    ,{"id":"M4-FU01-S8-005","owner":"ORCHESTRATOR","title":"Run one-root self-reply HG-03 live verification","status":"PENDING","depends_on":["M4-FU01-S8-004"]}
+    ,{"id":"M4-FU01-S8-004","owner":"QA_REVIEWER","title":"Verify duplicate, resume, failure isolation, source boundary, and regressions","status":"COMPLETE","depends_on":["M4-FU01-S8-002","M4-FU01-S8-003"]}
+    ,{"id":"M4-FU01-S8-005","owner":"ORCHESTRATOR","title":"Run one-root self-reply HG-03 live verification","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S8-004"]}
   ]
 }

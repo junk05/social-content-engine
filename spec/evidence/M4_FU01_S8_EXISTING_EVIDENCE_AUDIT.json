@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU01-S8-EXISTING-EVIDENCE-AUDIT-V1",
+  "result": "REUSABLE_WITH_OBSERVED_LIMITS",
+  "live_values_committed": false,
+  "same_author_non_root_sequence_nodes": 43,
+  "nodes_with_post_detail_source_observation": 43,
+  "nodes_with_explicit_parent_edge": 0,
+  "legacy_sequence_position_semantics": "VISIBLE_DOM_ORDINAL_WITH_GAPS",
+  "parent_edges_inferred": false,
+  "source_migration_required": false,
+  "sensitive_source_data_committed": false
+}
