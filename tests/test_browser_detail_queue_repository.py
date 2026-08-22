@@ -4,12 +4,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from social_content_engine.data.browser_observation import browser_observation_payload_sha256
 from social_content_engine.data.repository import Repository
 from tests.test_browser_detail_repository import observation
 
 
 def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE browser_detail_batch_assignments")
     connection.execute("DROP TABLE browser_approximate_view_observations")
     connection.execute("DROP TABLE browser_metric_observation_statuses")
     connection.execute("DROP TABLE browser_detail_enrichment_queue")
@@ -20,6 +22,79 @@ def downgrade_before_migration_16(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_requeue_only_latest_enriched_invalid_date_text(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "requeue.sqlite3") as repository:
+                search = repository.add_browser_observation(observation())
+                queue_id = int(
+                    repository.connection.execute(
+                        "SELECT id FROM browser_detail_enrichment_queue"
+                    ).fetchone()[0]
+                )
+                batch_id = repository.start_browser_detail_batch(
+                    requested_items=1, max_items=1
+                )
+                claimed = repository.claim_browser_detail(batch_id)
+                detail_payload = observation(observation_type="POST_DETAIL", view_count=None)
+                detail_payload["text"] = "2026/08/16"
+                detail_payload["observed_fields"][0]["value"] = "2026/08/16"
+                detail_payload["payload_sha256"] = browser_observation_payload_sha256(
+                    detail_payload
+                )
+                detail = repository.add_browser_observation(
+                    detail_payload,
+                    detail_attempt={
+                        "attempted_at": "2026-08-22T04:59:00Z",
+                        "extractor_version": "detail-extractor-v3",
+                        "contract_version": "M3_BROWSER_DETAIL_ATTEMPT_V1",
+                    },
+                )
+                repository.complete_browser_detail_queue(
+                    queue_id,
+                    batch_id=batch_id,
+                    attempt=claimed["attempt"],
+                    lease_version=claimed["lease_version"],
+                    detail_observation_id=detail["browser_observation_id"],
+                )
+                repository.finish_browser_detail_batch(batch_id)
+                repository.assess_browser_text_quality(
+                    browser_observation_id=detail["browser_observation_id"],
+                    quality_status="INVALID_TEXT_DATE_METADATA",
+                    input_sha256="0" * 64,
+                )
+
+                self.assertEqual(
+                    1,
+                    repository.requeue_invalid_browser_detail_text(
+                        requeued_at="2026-08-22T05:00:00Z"
+                    ),
+                )
+                queue = repository.connection.execute(
+                    "SELECT * FROM browser_detail_enrichment_queue WHERE id = ?", (queue_id,)
+                ).fetchone()
+                identity = repository.connection.execute(
+                    "SELECT * FROM browser_post_identities WHERE post_url = ?",
+                    (search["post_url"],),
+                ).fetchone()
+                self.assertEqual("DETAIL_PENDING", queue["status"])
+                self.assertEqual("DETAIL_PENDING", identity["status"])
+                self.assertEqual(2, repository.count("browser_observations"))
+                self.assertEqual(1, repository.count("browser_text_quality_assessments"))
+                self.assertEqual(1, queue["attempt_count"])
+                self.assertIsNotNone(queue["last_attempt_id"])
+                assignment = repository.connection.execute(
+                    """SELECT * FROM browser_detail_batch_assignments
+                    WHERE browser_detail_queue_id = ?""",
+                    (queue_id,),
+                ).fetchone()
+                self.assertEqual(batch_id, assignment["browser_detail_batch_id"])
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                    repository.connection.execute(
+                        """DELETE FROM browser_detail_batch_assignments WHERE id = ?""",
+                        (assignment["id"],),
+                    )
+                self.assertEqual(0, repository.requeue_invalid_browser_detail_text())
+
     def test_migration_18_backfills_existing_selected_pending_identity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "backfill.sqlite3"

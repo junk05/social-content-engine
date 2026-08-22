@@ -1258,6 +1258,40 @@ def _migration_20_browser_approximate_view_observations(
         )
 
 
+def _migration_21_detail_batch_assignment_history(connection: sqlite3.Connection) -> None:
+    """Preserve immutable queue-to-batch assignment provenance across safe refreshes."""
+    connection.execute(
+        """CREATE TABLE browser_detail_batch_assignments (
+          id INTEGER PRIMARY KEY,
+          browser_detail_batch_id INTEGER NOT NULL
+            REFERENCES browser_detail_enrichment_batches(id),
+          browser_detail_queue_id INTEGER NOT NULL
+            REFERENCES browser_detail_enrichment_queue(id),
+          attempt_count INTEGER NOT NULL CHECK(attempt_count >= 1),
+          lease_version INTEGER NOT NULL CHECK(lease_version >= 1),
+          assigned_at TEXT NOT NULL,
+          UNIQUE(browser_detail_batch_id, browser_detail_queue_id, attempt_count)
+        )"""
+    )
+    connection.execute(
+        """INSERT INTO browser_detail_batch_assignments
+        (browser_detail_batch_id, browser_detail_queue_id, attempt_count,
+         lease_version, assigned_at)
+        SELECT active_batch_id, id, attempt_count, lease_version,
+               COALESCE(claimed_at, updated_at)
+        FROM browser_detail_enrichment_queue
+        WHERE active_batch_id IS NOT NULL AND attempt_count >= 1"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_detail_batch_assignments_{0}
+            BEFORE {0} ON browser_detail_batch_assignments
+            BEGIN SELECT RAISE(
+              ABORT, 'browser detail batch assignment evidence is immutable'
+            ); END""".format(operation.lower())
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1286,6 +1320,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
         20,
         "browser-approximate-view-observations-v1",
         _migration_20_browser_approximate_view_observations,
+    ),
+    (
+        21,
+        "browser-detail-batch-assignment-history-v1",
+        _migration_21_detail_batch_assignment_history,
     ),
 )
 
@@ -2468,6 +2507,59 @@ class Repository:
                 )
             return int(existing["id"])
 
+    def requeue_invalid_browser_detail_text(
+        self, *, requeued_at: Optional[str] = None
+    ) -> int:
+        """Requeue enriched identities whose latest detail text is known date metadata.
+
+        Source observations and their immutable quality assessments remain untouched. The
+        durable queue keeps its original ``enqueued_at`` ordering so repaired collection
+        revisits the oldest human-selected invalid evidence before newer pending work.
+        """
+        timestamp = requeued_at or _utc_now()
+        with self.connection:
+            rows = self.connection.execute(
+                """SELECT browser_detail_enrichment_queue.id AS queue_id,
+                          browser_post_identities.id AS identity_id
+                   FROM browser_detail_enrichment_queue
+                   JOIN browser_post_identities
+                     ON browser_post_identities.id =
+                        browser_detail_enrichment_queue.browser_post_identity_id
+                   JOIN browser_observations
+                     ON browser_observations.id =
+                        browser_post_identities.current_observation_id
+                    AND browser_observations.browser_post_identity_id =
+                        browser_post_identities.id
+                    AND browser_observations.observation_type = 'POST_DETAIL'
+                   JOIN browser_text_quality_assessments
+                     ON browser_text_quality_assessments.browser_observation_id =
+                        browser_observations.id
+                    AND browser_text_quality_assessments.quality_status =
+                        'INVALID_TEXT_DATE_METADATA'
+                   WHERE browser_detail_enrichment_queue.status = 'DETAIL_ENRICHED'
+                   ORDER BY browser_detail_enrichment_queue.id"""
+            ).fetchall()
+            queue_ids = [int(row["queue_id"]) for row in rows]
+            identity_ids = [int(row["identity_id"]) for row in rows]
+            if not queue_ids:
+                return 0
+            queue_placeholders = ",".join("?" for _ in queue_ids)
+            identity_placeholders = ",".join("?" for _ in identity_ids)
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                   status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+                   last_error_code = NULL, last_error_type = NULL,
+                   last_error_reason = NULL, updated_at = ?
+                   WHERE id IN ({0})""".format(queue_placeholders),
+                (timestamp, *queue_ids),
+            )
+            self.connection.execute(
+                """UPDATE browser_post_identities SET status = 'DETAIL_PENDING',
+                   updated_at = ? WHERE id IN ({0})""".format(identity_placeholders),
+                (timestamp, *identity_ids),
+            )
+        return len(queue_ids)
+
     def claim_browser_detail(
         self, batch_id: int, *, claimed_at: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
@@ -2519,15 +2611,23 @@ class Repository:
             )
             if cursor.rowcount != 1:
                 return None
+            next_attempt = int(row["attempt_count"]) + 1
+            next_lease = int(row["lease_version"]) + 1
+            self.connection.execute(
+                """INSERT INTO browser_detail_batch_assignments
+                (browser_detail_batch_id, browser_detail_queue_id, attempt_count,
+                 lease_version, assigned_at) VALUES (?, ?, ?, ?, ?)""",
+                (batch_id, row["id"], next_attempt, next_lease, timestamp),
+            )
             result = dict(row)
             result.update(
                 status="DETAIL_PROCESSING",
                 claimed_at=timestamp,
-                attempt_count=int(row["attempt_count"]) + 1,
+                attempt_count=next_attempt,
                 retry_count=int(row["retry_count"])
                 + (1 if int(row["attempt_count"]) > 0 else 0),
                 active_batch_id=batch_id,
-                lease_version=int(row["lease_version"]) + 1,
+                lease_version=next_lease,
             )
             result["queue_item_id"] = int(row["id"])
             result["batch_id"] = batch_id
@@ -2729,6 +2829,7 @@ class Repository:
             "browser_detail_failures",
             "browser_normalized_bridges",
             "browser_detail_enrichment_queue",
+            "browser_detail_batch_assignments",
             "browser_detail_enrichment_batches",
             "m4_intelligence_runs",
             "m4_intelligence_instances",

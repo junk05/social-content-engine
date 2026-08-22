@@ -20,6 +20,7 @@ sce-build-dataset = "social_content_engine.data.dataset:main"
 sce-browser-ingest = "social_content_engine.browser_ingest.server:main"
 sce-browser-bridge = "social_content_engine.data.browser_bridge:main"
 sce-prepare-detail-batch = "social_content_engine.intelligence.detail_batch:main"
+sce-requeue-invalid-detail-text = "social_content_engine.intelligence.requeue_invalid_detail:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
