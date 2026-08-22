@@ -134,7 +134,7 @@ batch automation or M5.
 
 ### M4-FU01-S4 — Native Coordinate Calibration
 
-Status: `APPROVED / IN_PROGRESS`
+Status: `IMPLEMENTED / HG-03 CURSOR ALIGNMENT REQUIRED`
 
 Approved specification: `spec/M4_FU01_NATIVE_COORDINATE_CALIBRATION.md`
 (`CR-0012`). Stage 1 is move-only; the existing Quartz click remains gated on
