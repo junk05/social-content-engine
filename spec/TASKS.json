@@ -120,5 +120,9 @@
     ,{"id":"M4-FU01-S2-002","owner":"COLLECTOR","title":"Implement foreground/focused one-tab debugger Input spike without batch integration","status":"COMPLETE","depends_on":["M4-FU01-S2-001"]}
     ,{"id":"M4-FU01-S2-003","owner":"QA_REVIEWER","title":"Verify foreground-only variable, CDP allowlist, audit boundary, detach, and regression","status":"COMPLETE","depends_on":["M4-FU01-S2-002"]}
     ,{"id":"M4-FU01-S2-004","owner":"ORCHESTRATOR","title":"Run one-post HG-03 foreground debugger Input spike and record closed result","status":"FAILED_REEVALUATION_REQUIRED","depends_on":["M4-FU01-S2-003"]}
+    ,{"id":"M4-FU01-S3-001","owner":"ORCHESTRATOR","title":"Approve one-post macOS native input spike boundary","status":"COMPLETE","depends_on":["M4-FU01-S2-004"]}
+    ,{"id":"M4-FU01-S3-002","owner":"COLLECTOR","title":"Implement one-shot native-coordinate handoff and local Quartz helper","status":"IN_PROGRESS","depends_on":["M4-FU01-S3-001"]}
+    ,{"id":"M4-FU01-S3-003","owner":"QA_REVIEWER","title":"Verify native helper allowlist, single-click limit, leakage boundary, and regression","status":"PENDING","depends_on":["M4-FU01-S3-002"]}
+    ,{"id":"M4-FU01-S3-004","owner":"ORCHESTRATOR","title":"Run one-post HG-03 native-input spike and record closed result","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S3-003"]}
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0011",
+  "status": "APPROVED",
+  "title": "Add one-post macOS native input spike",
+  "risk": "HIGH",
+  "affected_components": ["loopback receiver", "Chrome extension worker tab", "local macOS helper"],
+  "approved_decision": "Use a fixed local Quartz CGEvent helper for one left-click on one extension-derived Activity-control coordinate for one existing selected pending post.",
+  "unchanged_boundaries": ["localhost only", "one post and one click", "no generic remote-control API", "no credential/cookie/storage access", "no batch or retry", "Accessibility is the sole human gate", "no M5"]
+}

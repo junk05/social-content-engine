@@ -124,6 +124,14 @@ Approved specification: `spec/M4_FU01_DEBUGGER_FOREGROUND_SPIKE.md`
 `SHEET_NOT_OBSERVED_FOREGROUND`; no further interaction expansion is
 authorized. It does not authorize M5.
 
+### M4-FU01-S3 — macOS Native Input Live Spike
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_NATIVE_INPUT_SPIKE.md` (`CR-0011`).
+This is one standard Quartz OS-level mouse click for one selected post only;
+it does not authorize batch automation or M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
