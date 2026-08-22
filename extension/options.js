@@ -10,6 +10,8 @@ const batchStatus = document.querySelector("#batch-status");
 const queueSummary = document.querySelector("#queue-summary");
 const runDebuggerSpike = document.querySelector("#run-debugger-spike");
 const debuggerSpikeStatus = document.querySelector("#debugger-spike-status");
+const runDebuggerForegroundSpike = document.querySelector("#run-debugger-foreground-spike");
+const debuggerForegroundSpikeStatus = document.querySelector("#debugger-foreground-spike-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -111,5 +113,26 @@ runDebuggerSpike.addEventListener("click", () => {
       TAB_UNAVAILABLE: "検証できる詳細待ち投稿を確認できませんでした。",
     };
     debuggerSpikeStatus.textContent = messages[response.outcome] || "Activity表示を検証できませんでした。";
+  });
+});
+
+runDebuggerForegroundSpike.addEventListener("click", () => {
+  runDebuggerForegroundSpike.disabled = true;
+  debuggerForegroundSpikeStatus.textContent = "詳細投稿を前面化してActivity表示を検証しています。";
+  chrome.runtime.sendMessage({ type: "SCE_START_DEBUGGER_FOREGROUND_SPIKE" }, (response) => {
+    runDebuggerForegroundSpike.disabled = false;
+    if (chrome.runtime.lastError || !response) {
+      debuggerForegroundSpikeStatus.textContent = "Activity表示を検証できませんでした。";
+      return;
+    }
+    const messages = {
+      SHEET_OBSERVED: "Activity sheetの表示を確認しました。",
+      SHEET_NOT_OBSERVED_FOREGROUND: "前面化後もActivity sheetの表示を確認できませんでした。",
+      TARGET_NOT_FOUND: "Activityボタンを確認できませんでした。",
+      DEBUGGER_ATTACH_FAILED: "Activity表示を検証できませんでした。",
+      DEBUGGER_COMMAND_FAILED: "Activity表示を検証できませんでした。",
+      TAB_UNAVAILABLE: "検証できる詳細待ち投稿を確認できませんでした。",
+    };
+    debuggerForegroundSpikeStatus.textContent = messages[response.outcome] || "Activity表示を検証できませんでした。";
   });
 });

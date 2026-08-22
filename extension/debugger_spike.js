@@ -34,41 +34,89 @@
   }
 
   function createRunner(dependencies) {
-    const { tabs, debuggerApi, waitForTabComplete, confirmActivity } = dependencies;
+    const { tabs, windows, debuggerApi, waitForTabComplete, confirmActivity, audit = () => {} } = dependencies;
 
-    async function run(postUrl) {
+    async function run(postUrl, options = {}) {
+      const foreground = options.foreground === true;
       if (!isCanonicalPostUrl(postUrl)) return { accepted: false, outcome: "TAB_UNAVAILABLE" };
       let tabId = null;
       let attached = false;
+      let result = null;
+      const diagnostics = {
+        foreground,
+        requestedUrl: postUrl,
+        currentUrl: null,
+        targetTabActive: false,
+        targetWindowFocused: false,
+        buttonRect: null,
+        buttonCenter: null,
+        debuggerAttached: false,
+        mousePressedSent: false,
+        mouseReleasedSent: false,
+      };
       try {
         const tab = await tabs.create({ url: postUrl, active: false });
         tabId = tab && tab.id;
-        if (!Number.isInteger(tabId)) return { accepted: false, outcome: "TAB_UNAVAILABLE" };
+        if (!Number.isInteger(tabId)) {
+          result = { accepted: false, outcome: "TAB_UNAVAILABLE" };
+          return result;
+        }
         if (tab.status !== "complete") await waitForTabComplete(tabId);
+        if (foreground) {
+          const activeTab = await tabs.update(tabId, { active: true });
+          diagnostics.targetTabActive = activeTab && activeTab.active === true;
+          const windowId = activeTab && activeTab.windowId;
+          if (!diagnostics.targetTabActive || !Number.isInteger(windowId) || !windows) {
+            result = { accepted: false, outcome: "TAB_UNAVAILABLE" };
+            return result;
+          }
+          const focusedWindow = await windows.update(windowId, { focused: true });
+          diagnostics.targetWindowFocused = focusedWindow && focusedWindow.focused === true;
+          if (!diagnostics.targetWindowFocused) {
+            result = { accepted: false, outcome: "TAB_UNAVAILABLE" };
+            return result;
+          }
+          try {
+            const currentTab = await tabs.get(tabId);
+            diagnostics.currentUrl = currentTab && typeof currentTab.url === "string"
+              ? currentTab.url : null;
+          } catch (_currentTabError) { /* diagnostic is best effort only */ }
+        }
         const target = { tabId };
         await debuggerApi.attach(target, PROTOCOL_VERSION);
         attached = true;
+        diagnostics.debuggerAttached = true;
         const evaluation = await debuggerApi.sendCommand(target, "Runtime.evaluate", {
           expression: ACTIVITY_RECT_EXPRESSION, returnByValue: true,
         });
         const point = pointFromEvaluation(evaluation);
-        if (!point) return { accepted: false, outcome: "TARGET_NOT_FOUND" };
+        if (!point) {
+          result = { accepted: false, outcome: "TARGET_NOT_FOUND" };
+          return result;
+        }
+        diagnostics.buttonRect = evaluation.result.value;
+        diagnostics.buttonCenter = point;
         await debuggerApi.sendCommand(target, "Input.dispatchMouseEvent", {
           type: "mousePressed", x: point.x, y: point.y, button: "left", clickCount: 1,
         });
+        diagnostics.mousePressedSent = true;
         await debuggerApi.sendCommand(target, "Input.dispatchMouseEvent", {
           type: "mouseReleased", x: point.x, y: point.y, button: "left", clickCount: 1,
         });
+        diagnostics.mouseReleasedSent = true;
         const confirmation = await confirmActivity(tabId);
-        return confirmation && confirmation.activitySurface === true
+        result = confirmation && confirmation.activitySurface === true
           ? { accepted: true, outcome: "SHEET_OBSERVED" }
-          : { accepted: false, outcome: "SHEET_NOT_OBSERVED" };
+          : { accepted: false, outcome: foreground ? "SHEET_NOT_OBSERVED_FOREGROUND" : "SHEET_NOT_OBSERVED" };
+        return result;
       } catch (_error) {
-        return {
+        result = {
           accepted: false,
           outcome: attached ? "DEBUGGER_COMMAND_FAILED" : "DEBUGGER_ATTACH_FAILED",
         };
+        return result;
       } finally {
+        if (foreground) audit(Object.freeze({ ...diagnostics, outcome: result && result.outcome }));
         if (attached && tabId !== null) {
           try { await debuggerApi.detach({ tabId }); } catch (_detachError) { /* best effort */ }
         }

@@ -26,7 +26,7 @@ The only user-facing outcome is `SHEET_OBSERVED`, `TARGET_NOT_FOUND`,
 `DEBUGGER_COMMAND_FAILED`, or `TAB_UNAVAILABLE`.
 
 Immediately before the click, an ignored local in-memory audit may contain
-only: canonical requested URL, target-tab-active boolean,
+only: canonical requested URL, current tab URL, target-tab-active boolean,
 target-window-focused boolean, button rectangle, center coordinates,
 debugger-attached boolean, and press/release-sent booleans. It must never be
 committed, sent to the receiver, persisted, or displayed in normal extension

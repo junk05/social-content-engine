@@ -34,6 +34,50 @@ async function main() {
   });
   assert.deepEqual(await notObserved.run("https://www.threads.net/@fixture/post/Spike1"), { accepted: false, outcome: "SHEET_NOT_OBSERVED" });
 
+  const foregroundCalls = [];
+  let foregroundAudit;
+  const foreground = spike.createRunner({
+    tabs: {
+      async create(options) { foregroundCalls.push(["create", options]); return { id: 47, status: "complete" }; },
+      async update(tabId, options) { foregroundCalls.push(["tab-update", tabId, options]); return { id: tabId, active: true, windowId: 9 }; },
+      async get(tabId) { foregroundCalls.push(["tab-get", tabId]); return { id: tabId, url: "https://www.threads.net/@fixture/post/Spike1" }; },
+      async remove(tabId) { foregroundCalls.push(["remove", tabId]); },
+    },
+    windows: { async update(windowId, options) { foregroundCalls.push(["window-update", windowId, options]); return { id: windowId, focused: true }; } },
+    debuggerApi: {
+      async attach(target) { foregroundCalls.push(["attach", target]); },
+      async detach(target) { foregroundCalls.push(["detach", target]); },
+      async sendCommand(target, command, options) {
+        foregroundCalls.push(["command", target, command, options]);
+        return command === "Runtime.evaluate" ? { result: { value: { x: 3, y: 5, width: 20, height: 10 } } } : {};
+      },
+    },
+    async waitForTabComplete() {}, async confirmActivity() { return { activitySurface: false }; },
+    audit(record) { foregroundAudit = record; },
+  });
+  assert.deepEqual(await foreground.run("https://www.threads.net/@fixture/post/Spike1", { foreground: true }), { accepted: false, outcome: "SHEET_NOT_OBSERVED_FOREGROUND" });
+  assert.deepEqual(foregroundCalls.slice(0, 5), [
+    ["create", { url: "https://www.threads.net/@fixture/post/Spike1", active: false }],
+    ["tab-update", 47, { active: true }],
+    ["window-update", 9, { focused: true }],
+    ["tab-get", 47],
+    ["attach", { tabId: 47 }],
+  ]);
+  assert.deepEqual(foregroundCalls.filter((call) => call[0] === "command").map((call) => call[2]), ["Runtime.evaluate", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent"]);
+  assert.deepEqual(foregroundAudit, {
+    foreground: true,
+    requestedUrl: "https://www.threads.net/@fixture/post/Spike1",
+    currentUrl: "https://www.threads.net/@fixture/post/Spike1",
+    targetTabActive: true,
+    targetWindowFocused: true,
+    buttonRect: { x: 3, y: 5, width: 20, height: 10 },
+    buttonCenter: { x: 13, y: 10 },
+    debuggerAttached: true,
+    mousePressedSent: true,
+    mouseReleasedSent: true,
+    outcome: "SHEET_NOT_OBSERVED_FOREGROUND",
+  });
+
   const noTargetCalls = [];
   const noTarget = spike.createRunner({
     tabs: { async create() { return { id: 46, status: "complete" }; }, async remove(tabId) { noTargetCalls.push(["remove", tabId]); } },

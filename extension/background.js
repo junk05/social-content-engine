@@ -406,12 +406,19 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     },
   });
 
+  let lastForegroundDebuggerSpikeAudit = null;
   const debuggerSpike = scope.SCE_DEBUGGER_SPIKE && scope.SCE_DEBUGGER_SPIKE.createRunner({
     tabs: chrome.tabs,
+    windows: chrome.windows,
     debuggerApi: chrome.debugger,
     waitForTabComplete,
     async confirmActivity(tabId) {
       return chrome.tabs.sendMessage(tabId, { type: "SCE_DEBUGGER_SPIKE_CONFIRM_ACTIVITY" });
+    },
+    audit(record) {
+      // Ephemeral foreground-spike audit only; there is intentionally no
+      // receiver transport, storage write, UI read path, or persisted output.
+      lastForegroundDebuggerSpikeAudit = record;
     },
   });
 
@@ -423,6 +430,15 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
       return { accepted: false, outcome: "TAB_UNAVAILABLE" };
     }
     return debuggerSpike.run(pending.urls[0]);
+  }
+
+  async function runForegroundDebuggerActivitySpike() {
+    const pending = await fetchPendingDetails(1);
+    if (!pending.accepted || pending.urls.length !== 1) {
+      return { accepted: false, outcome: "TAB_UNAVAILABLE" };
+    }
+    lastForegroundDebuggerSpikeAudit = null;
+    return debuggerSpike.run(pending.urls[0], { foreground: true });
   }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -469,6 +485,10 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     // one-post live capability spike and never claims or mutates queue state.
     if (message && message.type === "SCE_START_DEBUGGER_ACTIVITY_SPIKE" && debuggerSpike) {
       runDebuggerActivitySpike().then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_START_DEBUGGER_FOREGROUND_SPIKE" && debuggerSpike) {
+      runForegroundDebuggerActivitySpike().then(sendResponse);
       return true;
     }
     return false;

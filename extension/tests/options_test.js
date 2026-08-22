@@ -21,6 +21,7 @@ const nodes = {
   "#pending-status": new Node(), "#pending-details": new Node("ul"),
   "#start-detail-batch": new Node("button"), "#resume-detail-batch": new Node("button"),
   "#run-debugger-spike": new Node("button"), "#debugger-spike-status": new Node(),
+  "#run-debugger-foreground-spike": new Node("button"), "#debugger-foreground-spike-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
 };
@@ -91,3 +92,8 @@ pendingResponse = { accepted: true, outcome: "SHEET_OBSERVED" };
 nodes["#run-debugger-spike"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_DEBUGGER_ACTIVITY_SPIKE" });
 assert.equal(nodes["#debugger-spike-status"].textContent, "Activity sheetの表示を確認しました。");
+
+pendingResponse = { accepted: false, outcome: "SHEET_NOT_OBSERVED_FOREGROUND" };
+nodes["#run-debugger-foreground-spike"].listeners.click();
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_DEBUGGER_FOREGROUND_SPIKE" });
+assert.equal(nodes["#debugger-foreground-spike-status"].textContent, "前面化後もActivity sheetの表示を確認できませんでした。");
