@@ -453,8 +453,17 @@ if (typeof importScripts === "function") {
     if (!tab || !Number.isInteger(tab.id)) return { accepted: false, outcome: "NATIVE_INPUT_UNAVAILABLE" };
     try {
       if (tab.status !== "complete") await waitForTabComplete(tab.id);
-      const pointResponse = await chrome.tabs.sendMessage(tab.id, { type: "SCE_NATIVE_INPUT_SCREEN_POINT" });
-      const point = pointResponse && pointResponse.point;
+      let workerWindow = null;
+      if (Number.isInteger(tab.windowId)) {
+        await chrome.windows.update(tab.windowId, { focused: true });
+        workerWindow = await chrome.windows.get(tab.windowId);
+      }
+      await chrome.tabs.update(tab.id, { active: true });
+      const pointResponse = await chrome.tabs.sendMessage(
+        tab.id, { type: "SCE_NATIVE_INPUT_SCREEN_POINT" },
+      );
+      const point = scope.SCE_NATIVE_COORDINATE
+        && scope.SCE_NATIVE_COORDINATE.calibratedScreenPoint(pointResponse, workerWindow);
       if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return { accepted: false, outcome: "TARGET_NOT_FOUND" };
       const origin = extensionOrigin();
       const response = await fetch(NATIVE_INPUT_SPIKE_URL, { method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin }, body: JSON.stringify({ x: point.x, y: point.y }), credentials: "omit", cache: "no-store" });

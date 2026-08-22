@@ -44,6 +44,9 @@ receiverの再起動が必要です。画面座標やDOM geometryはGitにもChr
 geometry診断値だけを表示します。
 BraveなどでJavaScriptの`screenY`が実window境界と一致しない場合、縦方向は
 Chrome window boundsからcontent originを決定します。Retina倍率を重ねて掛けません。
+目視で中央位置が承認された後だけ、「1件だけmacOS実マウス入力を検証」が同じ
+変換結果で既存Quartz左クリックを一度送信し、Activity sheetと正確な閲覧数を
+DOMで確認します。
 
 Chrome Web Store公開、ビルドツール、パッケージ化、自動更新は対象外です。
 
