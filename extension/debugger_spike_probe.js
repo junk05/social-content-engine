@@ -43,6 +43,48 @@
     };
   }
 
+  function relativeStructuralPath(element, root) {
+    const parts = [];
+    for (let node = element; node && node !== root && parts.length < 8; node = node.parentElement) {
+      const siblings = node.parentElement ? Array.from(node.parentElement.children || []) : [];
+      parts.push(`${String(node.tagName || "UNKNOWN").toUpperCase()}[${siblings.indexOf(node)}]`);
+    }
+    return parts.reverse().join("/");
+  }
+
+  function metricKind(text) {
+    if (/(?:閲覧|表示|views?)/i.test(text)) return "VIEWS";
+    if (/(?:いいね|likes?)/i.test(text)) return "LIKES";
+    if (/(?:返信|リプライ|repl(?:y|ies))/i.test(text)) return "REPLIES";
+    if (/(?:再投稿|reposts?)/i.test(text)) return "REPOSTS";
+    if (/(?:引用|quotes?)/i.test(text)) return "QUOTES";
+    return null;
+  }
+
+  function structuralMetricNodes(root) {
+    if (!root) return [];
+    const result = [];
+    for (const element of root.querySelectorAll("span, div, p")) {
+      if (!isVisible(element)) continue;
+      const text = normalizedText(element);
+      if (!text || text.length > 80) continue;
+      const kind = metricKind(text);
+      const exactInteger = /^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(text);
+      if (!kind && !exactInteger) continue;
+      result.push({
+        kind: kind || "EXACT_INTEGER",
+        value: exactInteger ? Number(text.replaceAll(",", "")) : null,
+        hasDigits: /[0-9]/.test(text),
+        textLength: text.length,
+        tag: String(element.tagName || "UNKNOWN").toUpperCase(),
+        path: relativeStructuralPath(element, root),
+        childCount: element.children ? element.children.length : 0,
+      });
+      if (result.length >= 60) break;
+    }
+    return result;
+  }
+
   function activityDomDiagnostic(timedOut = false) {
     const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
     const all = Array.from(document.querySelectorAll("*"));
@@ -67,6 +109,7 @@
       iframeCount: document.querySelectorAll("iframe").length,
       openShadowRootCount: openShadowRoots,
       sheetRoot: sheetRootSummary(root),
+      metricNodes: structuralMetricNodes(root),
     };
   }
 
@@ -144,6 +187,7 @@
     exactActivityMetricPresent,
     exactActivityViewCount,
     activityDomDiagnostic,
+    structuralMetricNodes,
     waitForActivityResult,
     extractOpenActivity,
   });

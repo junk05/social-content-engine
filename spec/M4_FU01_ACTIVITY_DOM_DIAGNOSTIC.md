@@ -31,3 +31,12 @@ PASS requires one existing Quartz click, visible Activity sheet, exact
 `view_count`, accepted `POST_DETAIL`, and receiver state `DETAIL_ENRICHED`.
 FAIL records a closed structural reason without adopting a new input method.
 No batch operation or M5 work is authorized before PASS.
+
+## Live diagnostic record
+
+- Attempt 1: Quartz click and visible modal dialog succeeded. The dialog was
+  neither iframe nor open shadow-root content, but no current exact/split Views
+  label matched. A human-provided DOM location showed metric values nested in
+  `span/span`. The next read-only diagnostic is limited to canonical metric
+  kinds, exact numeric leaf values, and dialog-relative tag/index paths; it
+  emits no arbitrary text, IDs, classes, post fields, or URLs.

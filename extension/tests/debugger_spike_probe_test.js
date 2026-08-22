@@ -10,12 +10,27 @@ const metric = {
   tagName: "DIV",
   getAttribute() { return null; },
   closest() { return null; },
+  children: [],
 };
+const numeric = {
+  hidden: false, innerText: "88,386", textContent: "88,386",
+  parentElement: null, tagName: "SPAN", children: [],
+  getAttribute() { return null; },
+};
+const dialog = {
+  hidden: false, innerText: "", textContent: "", parentElement: null,
+  tagName: "DIV", children: [metric, numeric],
+  getAttribute(name) { return name === "role" ? "dialog" : null; },
+  querySelectorAll() { return [metric, numeric]; },
+};
+metric.parentElement = dialog;
+numeric.parentElement = dialog;
 globalThis.document = {
   documentElement: {}, body: {},
   querySelectorAll(selector) {
-    if (selector === "*") return [metric];
-    if (selector === "iframe" || selector.includes("dialog")) return [];
+    if (selector === "*") return [dialog, metric, numeric];
+    if (selector === "iframe") return [];
+    if (selector.includes("dialog")) return [dialog];
     return [metric];
   },
 };
@@ -36,6 +51,8 @@ async function main() {
   const diagnostic = probe.activityDomDiagnostic();
   assert.equal(diagnostic.visibleActivityLabels, 1);
   assert.equal(diagnostic.exactValueFound, true);
+  assert.equal(diagnostic.metricNodes.some((node) =>
+    node.kind === "EXACT_INTEGER" && node.value === 88386), true);
   assert.equal(Object.hasOwn(diagnostic, "text"), false);
   let response;
   assert.equal(listener(
