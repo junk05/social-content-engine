@@ -1,0 +1,25 @@
+{
+  "verification_id": "M4-FU03-INITIAL-COHORT-AUDIT-V1",
+  "observed_at": "2026-08-22",
+  "cohort": {
+    "collected_after": "2026-08-22T11:22:56.125Z",
+    "root_count": 130
+  },
+  "latest_search_extractor_versions": {
+    "threads_search_card_extractor_v2": 130
+  },
+  "latest_detail_extractor_versions": {},
+  "v6_detail_processed_roots": 0,
+  "v6_root_only_sequence_roots": 0,
+  "v6_roots_with_self_reply": 0,
+  "thread_sequence_statuses": {
+    "NOT_OBSERVED": 130
+  },
+  "self_reply_count_distribution": {
+    "0": 130
+  },
+  "detail_queue_statuses": {
+    "DETAIL_PENDING": 130
+  },
+  "conclusion": "V6_NOT_RUN_FOR_COHORT"
+}

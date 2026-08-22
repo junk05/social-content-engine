@@ -234,6 +234,16 @@ rounded Views and clean Thread evidence therefore have 0% coverage in that
 cohort. Read-only all-root and post-S8 CSV exports were generated locally and
 remain Git-ignored. M5 remains unauthorized.
 
+### M4-FU03 — Post-S8 Thread Coverage Diagnostic
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU03_THREAD_COVERAGE_DIAGNOSTIC.md`
+(`CR-0020`). Thread Structural Pattern refresh is paused while the isolated
+post-S8 cohort is audited and one to three human-confirmed self-reply roots are
+diagnosed with branch evidence intact. First-Line and Post results remain
+unchanged. M5 remains unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

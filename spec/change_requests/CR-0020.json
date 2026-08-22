@@ -1,0 +1,21 @@
+{
+  "id": "CR-0020",
+  "title": "Audit post-S8 Thread Sequence coverage and diagnose false negatives",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-22",
+  "approved_decision": "Pause Thread Structural Pattern refresh, isolate the 130 post-S8 roots, and diagnose up to three human-confirmed self-reply roots without weakening branch relationship evidence.",
+  "scope": [
+    "report v6 detail and Thread Sequence coverage for only the post-S8 130-root cohort",
+    "add privacy-bounded read-only candidate and exclusion diagnostics",
+    "support multiple observed conversation DOM forms while requiring branch evidence",
+    "repeat v6 Detail Enrichment on one to three human-confirmed roots",
+    "preserve First-Line and Post Structural results and defer Thread Pattern regeneration"
+  ],
+  "forbidden": [
+    "promoting same-author matches without branch evidence",
+    "regenerating Thread Structural Patterns before repaired live verification",
+    "committing live post text, URLs, usernames, or credentials",
+    "starting M5"
+  ]
+}
