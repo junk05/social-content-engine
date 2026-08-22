@@ -22,6 +22,7 @@ def observation(
     view_count: int = None,
     source_post_id: str = None,
     metric_statuses: bool = False,
+    approximate_views: dict = None,
 ) -> dict:
     surface = (
         "threads_search_card"
@@ -101,6 +102,8 @@ def observation(
             name: "OBSERVED" if value is not None else "NOT_PRESENT"
             for name, value in values["public_counters"].items()
         }
+    if approximate_views is not None:
+        values["approximate_views"] = dict(approximate_views)
     values["payload_sha256"] = browser_observation_payload_sha256(values)
     return values
 
@@ -108,6 +111,8 @@ def observation(
 def downgrade_before_migration_8(path: Path) -> None:
     connection = sqlite3.connect(path)
     for table in (
+        "browser_approximate_view_observations",
+        "browser_metric_observation_statuses",
         "browser_observed_fields",
         "browser_normalized_versions",
         "browser_observations",
@@ -233,13 +238,58 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 invalid["payload_sha256"] = browser_observation_payload_sha256(invalid)
                 with self.assertRaisesRegex(ValueError, "value and observation status disagree"):
                     repository.add_browser_observation(invalid)
-
                 invalid = observation(
                     observation_type="POST_DETAIL", view_count=0, metric_statuses=True
                 )
                 invalid["metric_observation_statuses"]["view_count"] = "NOT_PRESENT"
                 invalid["payload_sha256"] = browser_observation_payload_sha256(invalid)
                 with self.assertRaisesRegex(ValueError, "value and observation status disagree"):
+                    repository.add_browser_observation(invalid)
+
+    def test_rounded_views_are_separate_immutable_source_evidence(self) -> None:
+        rounded = {
+            "display": "12万",
+            "normalized_approx": 120000,
+            "precision": "ROUNDED",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "100K_1M",
+            "observed_at": "2026-08-16T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "rounded-views-normalizer-v1",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "approximate-views.sqlite3") as repository:
+                value = observation(
+                    observation_type="POST_DETAIL",
+                    view_count=None,
+                    metric_statuses=True,
+                    approximate_views=rounded,
+                )
+                result = repository.add_browser_observation(value)
+                row = repository.connection.execute(
+                    "SELECT * FROM browser_approximate_view_observations"
+                ).fetchone()
+                self.assertEqual("12万", row["display"])
+                self.assertEqual(120000, row["normalized_approx"])
+                self.assertEqual("100K_1M", row["view_band"])
+                self.assertIsNone(
+                    json.loads(repository.connection.execute(
+                        """SELECT canonical_payload_json FROM browser_observations
+                        WHERE id = ?""",
+                        (result["browser_observation_id"],),
+                    ).fetchone()[0])["public_counters"]["view_count"]
+                )
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                    repository.connection.execute(
+                        "UPDATE browser_approximate_view_observations SET normalized_approx=1"
+                    )
+                repository.connection.rollback()
+
+                invalid = observation(
+                    observation_type="POST_DETAIL",
+                    approximate_views={**rounded, "view_band": "LT_1K"},
+                )
+                with self.assertRaisesRegex(ValueError, "band disagrees"):
                     repository.add_browser_observation(invalid)
 
     def test_hash_mismatch_and_browser_or_credential_leakage_are_rejected(self) -> None:

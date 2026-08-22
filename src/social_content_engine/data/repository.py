@@ -1226,6 +1226,36 @@ def _migration_19_browser_metric_observation_statuses(
         )
 
 
+def _migration_20_browser_approximate_view_observations(
+    connection: sqlite3.Connection,
+) -> None:
+    """Store replayable rounded detail-page Views apart from exact counters."""
+    connection.execute(
+        """CREATE TABLE browser_approximate_view_observations (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL UNIQUE REFERENCES browser_observations(id),
+          display TEXT NOT NULL,
+          normalized_approx INTEGER NOT NULL CHECK(normalized_approx >= 0),
+          precision TEXT NOT NULL CHECK(precision = 'ROUNDED'),
+          source TEXT NOT NULL CHECK(source = 'POST_DETAIL_PAGE'),
+          view_band TEXT NOT NULL CHECK(view_band IN (
+            'LT_1K', '1K_10K', '10K_100K', '100K_1M', '1M_PLUS'
+          )),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          normalizer_version TEXT NOT NULL
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_approximate_view_observations_{0}
+            BEFORE {0} ON browser_approximate_view_observations
+            BEGIN SELECT RAISE(ABORT, 'browser approximate Views evidence is immutable'); END""".format(
+                operation.lower()
+            )
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1249,6 +1279,11 @@ MIGRATIONS: Tuple[Migration, ...] = (
         19,
         "browser-metric-observation-statuses-v1",
         _migration_19_browser_metric_observation_statuses,
+    ),
+    (
+        20,
+        "browser-approximate-view-observations-v1",
+        _migration_20_browser_approximate_view_observations,
     ),
 )
 
@@ -1836,6 +1871,26 @@ class Repository:
                             observation["extractor_version"],
                         ),
                     )
+            approximate_views = observation.get("approximate_views")
+            if approximate_views is not None:
+                self.connection.execute(
+                    """INSERT INTO browser_approximate_view_observations
+                    (browser_observation_id, display, normalized_approx, precision,
+                     source, view_band, observed_at, extractor_version,
+                     normalizer_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        observation_id,
+                        approximate_views["display"],
+                        approximate_views["normalized_approx"],
+                        approximate_views["precision"],
+                        approximate_views["source"],
+                        approximate_views["view_band"],
+                        approximate_views["observed_at"],
+                        approximate_views["extractor_version"],
+                        approximate_views["normalizer_version"],
+                    ),
+                )
             version = self.connection.execute(
                 """SELECT id, version FROM browser_normalized_versions
                 WHERE browser_post_identity_id = ? AND payload_sha256 = ?""",
@@ -2666,6 +2721,7 @@ class Repository:
             "browser_observations",
             "browser_observed_fields",
             "browser_metric_observation_statuses",
+            "browser_approximate_view_observations",
             "browser_normalized_versions",
             "browser_detail_attempts",
             "browser_detail_failures",

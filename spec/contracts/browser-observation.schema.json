@@ -53,6 +53,24 @@
         "share_count": {"enum": ["OBSERVED", "NOT_PRESENT", "NOT_OBSERVED", "EXTRACTION_FAILED"]}
       }
     },
+    "approximate_views": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display", "normalized_approx", "precision", "source", "view_band",
+        "observed_at", "extractor_version", "normalizer_version"
+      ],
+      "properties": {
+        "display": {"type": "string", "minLength": 1, "maxLength": 32},
+        "normalized_approx": {"type": "integer", "minimum": 0},
+        "precision": {"const": "ROUNDED"},
+        "source": {"const": "POST_DETAIL_PAGE"},
+        "view_band": {"enum": ["LT_1K", "1K_10K", "10K_100K", "100K_1M", "1M_PLUS"]},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "extractor_version": {"type": "string", "minLength": 1},
+        "normalizer_version": {"type": "string", "minLength": 1}
+      }
+    },
     "media_type": {"type": ["string", "null"], "minLength": 1},
     "has_image": {"type": ["boolean", "null"]},
     "has_video": {"type": ["boolean", "null"]},

@@ -88,6 +88,11 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
         "text": observation.get("text"),
         "timestamp": observation.get("timestamp"),
         "public_counters": dict(observation.get("public_counters", {})),
+        "approximate_views": (
+            dict(observation["approximate_views"])
+            if isinstance(observation.get("approximate_views"), dict)
+            else None
+        ),
         "media_type": observation.get("media_type"),
         "has_image": observation.get("has_image"),
         "has_video": observation.get("has_video"),
@@ -116,6 +121,18 @@ def _observed_value(observation: Dict[str, Any], field: str) -> Any:
     return observation.get(field)
 
 
+def approximate_view_band(value: int) -> str:
+    if value < 1_000:
+        return "LT_1K"
+    if value < 10_000:
+        return "1K_10K"
+    if value < 100_000:
+        return "10K_100K"
+    if value < 1_000_000:
+        return "100K_1M"
+    return "1M_PLUS"
+
+
 def validate_browser_observation(observation: Dict[str, Any]) -> str:
     """Enforce semantic rules beyond JSON Schema and return the canonical post URL."""
     _reject_forbidden(observation)
@@ -139,7 +156,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "extractor_version",
         "payload_sha256",
     }
-    optional_keys = {"metric_observation_statuses"}
+    optional_keys = {"metric_observation_statuses", "approximate_views"}
     if not required_keys.issubset(observation) or not set(observation).issubset(
         required_keys | optional_keys
     ):
@@ -205,6 +222,49 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
             status_value = metric_statuses[name]
             if (value is not None) != (status_value == "OBSERVED"):
                 raise ValueError("metric value and observation status disagree")
+    approximate_views = observation.get("approximate_views")
+    if approximate_views is not None:
+        expected_approximate_keys = {
+            "display",
+            "normalized_approx",
+            "precision",
+            "source",
+            "view_band",
+            "observed_at",
+            "extractor_version",
+            "normalizer_version",
+        }
+        if observation_type != "POST_DETAIL" or not isinstance(approximate_views, dict):
+            raise ValueError("approximate Views require a POST_DETAIL observation")
+        if set(approximate_views) != expected_approximate_keys:
+            raise ValueError("approximate Views do not match the closed contract")
+        display = approximate_views["display"]
+        normalized_approx = approximate_views["normalized_approx"]
+        if not isinstance(display, str) or not display or len(display) > 32:
+            raise ValueError("approximate Views display is invalid")
+        if (
+            isinstance(normalized_approx, bool)
+            or not isinstance(normalized_approx, int)
+            or normalized_approx < 0
+        ):
+            raise ValueError("approximate Views normalized value is invalid")
+        if approximate_views["precision"] != "ROUNDED":
+            raise ValueError("approximate Views precision is invalid")
+        if approximate_views["source"] != "POST_DETAIL_PAGE":
+            raise ValueError("approximate Views source is invalid")
+        if approximate_views["view_band"] not in {
+            "LT_1K", "1K_10K", "10K_100K", "100K_1M", "1M_PLUS"
+        }:
+            raise ValueError("approximate Views band is invalid")
+        if approximate_views["view_band"] != approximate_view_band(normalized_approx):
+            raise ValueError("approximate Views band disagrees with normalized value")
+        if approximate_views["extractor_version"] != observation.get("extractor_version"):
+            raise ValueError("approximate Views extractor provenance is invalid")
+        if not all(
+            isinstance(approximate_views[key], str) and approximate_views[key]
+            for key in ("observed_at", "normalizer_version")
+        ):
+            raise ValueError("approximate Views provenance is invalid")
     canonical_url = canonical_threads_post_url(str(observation.get("post_url", "")))
     if observation.get("post_url") != canonical_url:
         raise ValueError("post_url must already be canonical")
