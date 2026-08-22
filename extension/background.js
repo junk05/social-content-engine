@@ -13,6 +13,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
   const DETAIL_QUEUE_COMPLETE_URL = RECEIVER_URL + "/detail-queue/complete";
   const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
   const NATIVE_INPUT_SPIKE_URL = RECEIVER_URL + "/native-input-spike";
+  const NATIVE_INPUT_DIAGNOSTIC_URL = RECEIVER_URL + "/native-input-diagnostic";
   const TIMEOUT_MILLISECONDS = 5000;
   const FORBIDDEN_KEYS = new Set([
     "authorization", "cookie", "cookies", "access_token", "token", "password", "headers",
@@ -464,6 +465,14 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
     } catch (_error) { return { accepted: false, outcome: "NATIVE_INPUT_FAILED" }; }
     finally { try { await chrome.tabs.remove(tab.id); } catch (_error) {} }
   }
+  async function runNativeInputDiagnostic() {
+    const origin = extensionOrigin();
+    try {
+      const response = await fetch(NATIVE_INPUT_DIAGNOSTIC_URL, { method: "POST", headers: { "Content-Type": "application/json", "X-SCE-Extension-Origin": origin }, body: JSON.stringify({ action: "diagnose" }), credentials: "omit", cache: "no-store" });
+      const value = await response.json();
+      return value && typeof value.status === "string" ? { accepted: value.status === "accessibility_allowed", outcome: value.status } : { accepted: false, outcome: "bridge_failed" };
+    } catch (_error) { return { accepted: false, outcome: "bridge_failed" }; }
+  }
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message && message.type === "SCE_BATCH_WORKER_RESULT" && workerResultBroker) {
@@ -516,6 +525,7 @@ if (typeof importScripts === "function") importScripts("batch_controller.js", "d
       return true;
     }
     if (message && message.type === "SCE_START_NATIVE_INPUT_SPIKE") { runNativeInputSpike().then(sendResponse); return true; }
+    if (message && message.type === "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC") { runNativeInputDiagnostic().then(sendResponse); return true; }
     return false;
   });
 })(globalThis);

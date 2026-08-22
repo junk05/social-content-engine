@@ -30,6 +30,7 @@ DETAIL_QUEUE_CLAIM_PATH = INGEST_PATH + "/detail-queue/claim"
 DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
 NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
+NATIVE_INPUT_DIAGNOSTIC_PATH = INGEST_PATH + "/native-input-diagnostic"
 DEFAULT_PENDING_LIMIT = 50
 MAX_PENDING_LIMIT = 100
 
@@ -123,6 +124,7 @@ class BrowserIngestService:
                 DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
                 DETAIL_QUEUE_FAIL_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
+                NATIVE_INPUT_DIAGNOSTIC_PATH,
             },
         )
         return error or IngestResponse(204, {"status": "preflight_ok"}, request_origin)
@@ -183,6 +185,7 @@ class BrowserIngestService:
                 DETAIL_BATCHES_PATH, DETAIL_QUEUE_CLAIM_PATH,
                 DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
+                NATIVE_INPUT_DIAGNOSTIC_PATH,
             },
         )
         if error:
@@ -211,6 +214,8 @@ class BrowserIngestService:
             return self._handle_thread_sequence(decoded, request_origin)
         if path == NATIVE_INPUT_SPIKE_PATH:
             return self._handle_native_input_spike(decoded, request_origin)
+        if path == NATIVE_INPUT_DIAGNOSTIC_PATH:
+            return self._handle_native_input_diagnostic(decoded, request_origin)
         if next(self.validator.iter_errors(decoded), None) is not None:
             return IngestResponse(422, {"error": "invalid_observation"}, request_origin)
         try:
@@ -312,6 +317,23 @@ class BrowserIngestService:
             status = "failed"
         if status not in {"clicked", "accessibility_permission_required", "unavailable", "failed"}:
             status = "failed"
+        return IngestResponse(200, {"status": status}, origin)
+
+    @staticmethod
+    def _run_native_diagnostic() -> str:
+        helper = Path(__file__).parents[3] / "scripts" / "macos_native_click.swift"
+        if sys.platform != "darwin" or not helper.is_file():
+            return "helper_unavailable"
+        completed = subprocess.run(["/usr/bin/swift", str(helper), "--diagnose"], capture_output=True, text=True, timeout=20, check=False)
+        return "accessibility_allowed" if completed.returncode == 0 else ("accessibility_permission_required" if completed.returncode == 77 else "helper_launch_failed")
+
+    def _handle_native_input_diagnostic(self, decoded: Dict[str, Any], origin: Optional[str]) -> IngestResponse:
+        if decoded != {"action": "diagnose"}:
+            return IngestResponse(422, {"status": "invalid_diagnostic"}, origin)
+        try:
+            status = self._run_native_diagnostic()
+        except (OSError, subprocess.SubprocessError):
+            status = "helper_launch_failed"
         return IngestResponse(200, {"status": status}, origin)
 
     def _handle_detail_batch(

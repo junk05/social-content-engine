@@ -5,6 +5,10 @@ import Foundation
 // coordinates and emits exactly one left-down / left-up pair; no keyboard,
 // clipboard, application inspection, or network capability exists here.
 let values = CommandLine.arguments.dropFirst()
+if values.count == 1 && values[values.startIndex] == "--diagnose" {
+  // Non-input probe: this must never create or post an event.
+  exit(AXIsProcessTrusted() ? 0 : 77)
+}
 guard values.count == 2,
       let x = Double(values[values.startIndex]), let y = Double(values[values.index(after: values.startIndex)]),
       x.isFinite, y.isFinite, x >= 0, y >= 0, x <= 10000, y <= 10000 else {

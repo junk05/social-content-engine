@@ -23,6 +23,7 @@ const nodes = {
   "#run-debugger-spike": new Node("button"), "#debugger-spike-status": new Node(),
   "#run-debugger-foreground-spike": new Node("button"), "#debugger-foreground-spike-status": new Node(),
   "#run-native-input-spike": new Node("button"), "#native-input-spike-status": new Node(),
+  "#run-native-input-diagnostic": new Node("button"), "#native-input-diagnostic-status": new Node(),
   "#batch-status": new Node(),
   "#queue-summary": new Node(),
 };
@@ -103,3 +104,8 @@ pendingResponse = { accepted: false, outcome: "ACCESSIBILITY_PERMISSION_REQUIRED
 nodes["#run-native-input-spike"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_START_NATIVE_INPUT_SPIKE" });
 assert.equal(nodes["#native-input-spike-status"].textContent, "macOSのアクセシビリティ許可が必要です。");
+
+pendingResponse = { accepted: true, outcome: "accessibility_allowed" };
+nodes["#run-native-input-diagnostic"].listeners.click();
+assert.deepEqual(messages[messages.length - 1], { type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" });
+assert.equal(nodes["#native-input-diagnostic-status"].textContent, "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK");

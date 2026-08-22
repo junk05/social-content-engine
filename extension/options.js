@@ -14,6 +14,8 @@ const runDebuggerForegroundSpike = document.querySelector("#run-debugger-foregro
 const debuggerForegroundSpikeStatus = document.querySelector("#debugger-foreground-spike-status");
 const runNativeInputSpike = document.querySelector("#run-native-input-spike");
 const nativeInputSpikeStatus = document.querySelector("#native-input-spike-status");
+const runNativeInputDiagnostic = document.querySelector("#run-native-input-diagnostic");
+const nativeInputDiagnosticStatus = document.querySelector("#native-input-diagnostic-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
@@ -145,5 +147,10 @@ runNativeInputSpike.addEventListener("click", () => {
     runNativeInputSpike.disabled = false;
     const labels = { NATIVE_INPUT_SHEET_OBSERVED: "Activity sheetと閲覧数を確認しました。", NATIVE_INPUT_SHEET_NOT_OBSERVED: "Activity sheetの表示を確認できませんでした。", ACCESSIBILITY_PERMISSION_REQUIRED: "macOSのアクセシビリティ許可が必要です。", TARGET_NOT_FOUND: "Activityボタンを確認できませんでした。" };
     nativeInputSpikeStatus.textContent = labels[response && response.outcome] || "macOS実マウス入力を検証できませんでした。";
+  });
+});
+runNativeInputDiagnostic.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "SCE_RUN_NATIVE_INPUT_DIAGNOSTIC" }, (response) => {
+    nativeInputDiagnosticStatus.textContent = response && response.outcome === "accessibility_allowed" ? "HELPER_LAUNCH_OK / ACCESSIBILITY_ALLOWED / BRIDGE_OK" : "helper診断に失敗しました。";
   });
 });
