@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU01-S8-FALSE-POSITIVE-AUDIT-V1",
+  "result": "REVISION_REQUIRED",
+  "live_values_committed": false,
+  "stored_sequence_nodes": 6,
+  "eligible_root_nodes": 1,
+  "eligible_root_author_self_replies": 3,
+  "excluded_root_author_replies_below_other_author_branches": 2,
+  "duplicate_urls": 0,
+  "root_text_fragments_misidentified": 0,
+  "other_author_nodes_stored": 0,
+  "root_author_identity_used_without_relationship_evidence": true,
+  "bad_observation_physically_deleted": false,
+  "sensitive_source_data_committed": false
+}

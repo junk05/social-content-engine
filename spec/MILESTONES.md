@@ -2,7 +2,7 @@
 
 ## M0 — Real Threads data capture
 
-Status: `COMPLETE`
+Status: `IN_PROGRESS / BRANCH-AWARE REVISION`
 
 Definition of Done:
 
@@ -197,10 +197,9 @@ One selected root may append only visible same-author reply details and existing
 Thread Sequence evidence. General reply crawling, inferred edges, generation,
 and M5 remain out of scope.
 
-HG-03 passed with one live root and five visible same-author self replies. All
-child details and the compact six-node sequence were stored without inferred
-parent edges; sanitized evidence is recorded in
-`spec/evidence/M4_FU01_S8_LIVE_VERIFICATION.json`.
+The initial HG-03 result was rejected after human review found two root-author
+replies below other-author branches. CR-0017 requires branch-aware traversal and
+a repeat live result of exactly one root plus three eligible self replies.
 
 ## Deferred until later milestones
 

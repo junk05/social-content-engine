@@ -19,7 +19,14 @@ model. Every observed node stores `root_post_id`, `sequence_position`,
 `reply_to_post_id`, and `same_author_as_root` only when those values are visible
 in the already-open detail surface. Missing values remain `UNKNOWN`.
 
-M4 may aggregate only observed chains such as `Root -> Self Reply 1 -> Self
+Self-reply membership additionally requires versioned relationship evidence that
+the node belongs to the root-author-owned conversation branch. Traversal starts
+at the root and may continue through consecutive root-author nodes. Once the
+visible conversation order enters another author, that branch is closed: a
+later root-author reply is not allowed to rejoin the Pattern Thread Sequence.
+Username equality, page co-presence, and timestamp proximity are insufficient.
+
+M4 may aggregate only eligible observed chains such as `Root -> Self Reply 1 -> Self
 Reply 2`. It derives the abstract sequence `Hook -> Open Loop -> Self Reply
 Transition -> Explanation/Escalation -> Payoff -> CTA` only when each relevant
 edge and node evidence exists. Original wording, URLs, and usernames remain

@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0017",
+  "status": "APPROVED",
+  "title": "Require an observed root-author branch for self-reply sequence membership",
+  "risk": "MEDIUM",
+  "affected_components": ["detail extractor", "Thread Sequence observation", "browser Source Store", "Structural Analyzer"],
+  "approved_decision": "Traverse the root-author-owned contiguous conversation branch and stop permanently when the visible branch enters another author; same-author identity alone is not relationship evidence.",
+  "unchanged_boundaries": ["preserve false-positive audit evidence", "no general reply crawl", "no timestamp inference", "analysis-only source text", "generation-safe isolation", "no M5"]
+}

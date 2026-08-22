@@ -1,8 +1,8 @@
 # M4-FU01-S8 — Self-Reply Content Collection
 
-STATUS: `COMPLETE`
+STATUS: `APPROVED / REVISION IN_PROGRESS`
 
-Contract version: `M4-FU01-SELF-REPLY-COLLECTION-V1`
+Contract version: `M4-FU01-SELF-REPLY-COLLECTION-V2`
 
 ## Scope
 
@@ -14,9 +14,12 @@ M4-FU01 Thread Sequence path, not a new crawler or pipeline.
 The collector:
 
 - emits the root at sequence position 0;
-- compares visible permalink usernames as direct same-author evidence;
-- appends only distinct same-author reply details in visible DOM order at positions
-  1, 2, 3, and beyond;
+- requires both root-author identity and observed membership in the contiguous
+  root-author-owned conversation branch;
+- traverses from the root in visible conversation order, appending consecutive
+  root-author nodes at positions 1, 2, 3, and beyond;
+- stops the branch permanently at the first other-author node and never rejoins
+  a later root-author reply below that branch;
 - stores each reply as an immutable `POST_DETAIL` observation with the existing
   source identity, text, timestamp, counters, observed time, extractor version,
   field provenance, and payload hash contract;
@@ -28,6 +31,7 @@ The collector:
 - deduplicates visible permalinks within extraction and reuses existing identity
   and normalized-version semantics across repeated collection.
 
+Username equality or timestamp proximity alone is not relationship evidence.
 `source_post_id`, an explicit parent edge, or another field that is not visible
 remains null/unknown. Absence is not inferred as false.
 
@@ -77,9 +81,10 @@ observed full-DOM ordinals; new v5 observations use compact self-reply positions
 Only aggregate sanitized evidence is committed in
 `spec/evidence/M4_FU01_S8_EXISTING_EVIDENCE_AUDIT.json`.
 
-HG-03 live verification observed one root plus five visible same-author self
-replies. All five self replies were saved as v5 `POST_DETAIL` observations before
-the six-node compact Thread Sequence was accepted. No explicit parent edge was
-visible, so none was inferred. Database and foreign-key integrity passed. The
-committed evidence contains no text, URL, author identity, or live identifier:
-`spec/evidence/M4_FU01_S8_LIVE_VERIFICATION.json`.
+The first HG-03 result is superseded. Human review established that the stored
+six-node observation contained one root, three true root-author continuations,
+and two later root-author replies below other-author branches. The immutable bad
+observation remains audit evidence but is ineligible for clean Thread Sequence
+analysis. Sanitized findings are recorded in
+`spec/evidence/M4_FU01_S8_FALSE_POSITIVE_AUDIT.json`. S8 returns to COMPLETE only
+after a v2 live result contains exactly one root and three eligible self replies.
