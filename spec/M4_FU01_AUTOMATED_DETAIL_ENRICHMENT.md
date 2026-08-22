@@ -1,6 +1,6 @@
 # M4-FU01 — Automated Detail Enrichment
 
-STATUS: `IN_PROGRESS / ACTIVITY EXTRACTION FOLLOW-UP`
+STATUS: `IN_PROGRESS / LIVE DATA QUALITY REPAIR`
 
 Contract version: `M4-FU01-AUTOMATED-DETAIL-ENRICHMENT-V1`
 
@@ -43,6 +43,25 @@ The content worker reuses the versioned M3 detail extractor and thread sequence
 contract. Activity UI recognition combines visible text, ARIA semantics, role,
 and local DOM context rather than generated class names. Dialog extraction
 reads only visible public values. Zero and not-observed remain distinct.
+
+### Deterministic pacing
+
+Batch pacing exists only for Chrome rendering stability, DOM readiness,
+resource control, and complete ingestion. It does not imitate human timing or
+attempt detection avoidance.
+
+- page-load timeout, DOM-ready timeout, extraction timeout, and inter-item
+  interval are separate configuration values;
+- page-ready and DOM-ready conditions precede extraction;
+- the default minimum interval between one item's processing start and the next
+  navigation start is 4,000 ms;
+- the interval is fixed and contains no jitter or random wait;
+- successful completion or closed failure state is persisted before waiting and
+  before the next navigation;
+- the durable claim/resume contract remains authoritative if Chrome or the
+  extension is interrupted during processing or waiting;
+- progress may expose processed/total, status, waiting, success, and failure
+  counts, but never source text or identity.
 
 ## Observations and analysis integration
 
@@ -93,7 +112,7 @@ authorize M5.
 - the loopback receiver exposes the closed batch/claim/complete/fail protocol;
 - completed batches can create a clean finalized delta snapshot through
   `sce-prepare-detail-batch` without exposing source text, URL, or author;
-- local regression passes with 170 Python tests and 8 JavaScript suites.
+- local full Python regression and relevant JavaScript suites pass.
 
 Live Threads data, credentials, and browser state are intentionally absent from
 repository evidence. GitHub Actions must pass at the current commit before HG-03.
