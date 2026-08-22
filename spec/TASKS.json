@@ -134,5 +134,10 @@
     ,{"id":"M4-FU01-S5-003","owner":"DATA","title":"Ingest extracted POST_DETAIL and verify DETAIL_ENRICHED","status":"COMPLETE","depends_on":["M4-FU01-S5-002"]}
     ,{"id":"M4-FU01-S5-004","owner":"QA_REVIEWER","title":"Verify diagnostic privacy boundary and regression","status":"COMPLETE","depends_on":["M4-FU01-S5-003"]}
     ,{"id":"M4-FU01-S5-005","owner":"ORCHESTRATOR","title":"Run one-post HG-03 Activity extraction spike","status":"FAILED_REEVALUATION_REQUIRED","depends_on":["M4-FU01-S5-004"]}
+    ,{"id":"M4-FU01-S6-001","owner":"ORCHESTRATOR","title":"Approve nullable per-metric observation contract","status":"COMPLETE","depends_on":["M4-FU01-S5-005"]}
+    ,{"id":"M4-FU01-S6-002","owner":"DATA","title":"Persist immutable per-metric observation statuses","status":"IN_PROGRESS","depends_on":["M4-FU01-S6-001"]}
+    ,{"id":"M4-FU01-S6-003","owner":"COLLECTOR","title":"Extract all rendered Activity metrics and enrich nullable Views","status":"PENDING","depends_on":["M4-FU01-S6-002"]}
+    ,{"id":"M4-FU01-S6-004","owner":"QA_REVIEWER","title":"Verify missing-zero separation, provenance, retry, resume, and regression","status":"PENDING","depends_on":["M4-FU01-S6-003"]}
+    ,{"id":"M4-FU01-S6-005","owner":"ORCHESTRATOR","title":"Run nullable Views and exact Views HG-03 capability verification","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S6-004"]}
   ]
 }

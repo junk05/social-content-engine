@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "change_request_id": "CR-0014",
+  "status": "APPROVED",
+  "title": "Separate detail success from per-metric observation status",
+  "risk": "MEDIUM",
+  "affected_components": ["browser observation contract", "detail extractor", "Source Store migration", "native one-post ingest"],
+  "approved_decision": "Allow DETAIL_ENRICHED with nullable metrics and persist OBSERVED, NOT_PRESENT, NOT_OBSERVED, or EXTRACTION_FAILED independently for every public metric.",
+  "unchanged_boundaries": ["no metric inference", "zero differs from missing", "append-only provenance", "existing Quartz click", "retry and resume isolation", "no M5"]
+}

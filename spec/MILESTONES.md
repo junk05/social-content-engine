@@ -153,6 +153,15 @@ sheet diagnosis, exact view extraction, and one-post ingest verification. The
 live sheet rendered engagement metrics but no Views field; missing Views remain
 unavailable. Native input stays viable but is not yet adopted for batch use.
 
+### M4-FU01-S6 — Nullable Metric Observation Model
+
+Status: `APPROVED / IN_PROGRESS`
+
+Approved specification: `spec/M4_FU01_METRIC_OBSERVATION_MODEL.md`
+(`CR-0014`). `DETAIL_ENRICHED` no longer requires Views. Per-metric observed,
+absent, unobserved, and extraction-failure states remain independent and
+provenance-backed. Exact Views capability still requires separate live proof.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
