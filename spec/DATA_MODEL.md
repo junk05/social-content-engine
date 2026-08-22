@@ -46,6 +46,10 @@ in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
   envelopes. Recollection always creates another observation.
 - `browser_observed_fields`: field-level value, surface, time, and extractor
   provenance linked to one immutable observation.
+- `browser_metric_observation_statuses`: immutable per-counter availability
+  evidence for detail observations. `OBSERVED` includes exact zero;
+  `NOT_PRESENT`, `NOT_OBSERVED`, and `EXTRACTION_FAILED` remain distinct and
+  never synthesize a counter value.
 - `browser_normalized_versions`: immutable canonical projections. An identical
   payload hash reuses a version; a changed observed payload creates version
   `N+1`.

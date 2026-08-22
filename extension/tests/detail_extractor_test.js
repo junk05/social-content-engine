@@ -82,7 +82,7 @@ async function main() {
   assert.match(source, /visiblePostText\(postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v1");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v2");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -99,7 +99,8 @@ async function main() {
   assert.equal(complete.observation_type, "POST_DETAIL");
   assert.deepEqual(Object.keys(complete).sort(), [
     "author_name", "collected_at", "collection_context", "extractor_version",
-    "has_image", "has_video", "media_type", "observation_type", "observed_fields",
+    "has_image", "has_video", "media_type", "metric_observation_statuses",
+    "observation_type", "observed_fields",
     "payload_sha256", "post_url", "public_counters", "schema_version", "source",
     "source_post_id", "text", "timestamp", "username",
   ]);
@@ -111,6 +112,11 @@ async function main() {
   assert.deepEqual(complete.public_counters, {
     view_count: 0, like_count: 1234, reply_count: 2,
     repost_count: null, quote_count: null, share_count: 0,
+  });
+  assert.deepEqual(complete.metric_observation_statuses, {
+    view_count: "OBSERVED", like_count: "OBSERVED", reply_count: "OBSERVED",
+    repost_count: "NOT_OBSERVED", quote_count: "NOT_OBSERVED",
+    share_count: "OBSERVED",
   });
   assert.equal(complete.media_type, "IMAGE");
   assert.equal(complete.collection_context.surface, "threads_post_detail");
@@ -133,6 +139,8 @@ async function main() {
   const missing = await extractor.extractPostDetail(fixturePage("post_detail_missing_view.html"), missingContext);
   assert.equal(missing.public_counters.view_count, null);
   assert.equal(missing.public_counters.like_count, 0);
+  assert.equal(missing.metric_observation_statuses.view_count, "NOT_OBSERVED");
+  assert.equal(missing.metric_observation_statuses.like_count, "OBSERVED");
   assert.equal(missing.observed_fields.some((item) => item.field === "public_counters.view_count"), false);
   assert.equal(missing.observed_fields.find((item) => item.field === "public_counters.like_count").value, 0);
 
@@ -151,6 +159,8 @@ async function main() {
     { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/ActivityExact" },
   );
   assert.equal(activityExact.public_counters.view_count, 64123);
+  assert.equal(activityExact.metric_observation_statuses.view_count, "OBSERVED");
+  assert.equal(activityExact.metric_observation_statuses.like_count, "NOT_PRESENT");
   assert.equal(
     activityExact.observed_fields.find((item) => item.field === "public_counters.view_count").value,
     64123,
@@ -179,6 +189,12 @@ async function main() {
   };
   assert.equal(extractor.activityViewCount(splitRoot), 88386,
     "a visible Activity label and adjacent exact integer are structurally paired");
+  splitLabel.innerText = "いいね";
+  splitLabel.textContent = "いいね";
+  splitValue.innerText = "1,265";
+  splitValue.textContent = "1,265";
+  assert.equal(extractor.activityMetricValue(splitRoot, "like_count"), 1265,
+    "engagement metrics use the same exact label/value pairing");
 
   assert.equal(extractor.exactNonnegativeInteger("Views 12K"), null);
   assert.equal(extractor.exactNonnegativeInteger("1.2K views"), null);

@@ -3,12 +3,20 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v1";
+  const VERSION = "threads_post_detail_extractor_v2";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
     view_count: ["表示", "view"], like_count: ["いいね", "like"],
     reply_count: ["返信", "reply"], repost_count: ["再投稿", "repost"],
     quote_count: ["引用", "quote"], share_count: ["シェア", "share"],
+  });
+  const ACTIVITY_LABELS = Object.freeze({
+    view_count: /^(?:閲覧数|ビュー|views?|表示)$/i,
+    like_count: /^(?:いいね|likes?)$/i,
+    reply_count: /^(?:返信|リプライ|repl(?:y|ies))$/i,
+    repost_count: /^(?:再投稿|reposts?)$/i,
+    quote_count: /^(?:引用|quotes?)$/i,
+    share_count: /^(?:シェア|shares?)$/i,
   });
 
   function canonicalPostUrl(value, baseUrl) {
@@ -21,7 +29,11 @@
     return "https://www.threads.net/@" + match[1].toLowerCase() + "/post/" + match[2];
   }
 
-  function isVisible(element) { return !element.hidden && element.getAttribute("aria-hidden") !== "true"; }
+  function isVisible(element) {
+    return Boolean(element) && !element.hidden
+      && (typeof element.getAttribute !== "function"
+        || element.getAttribute("aria-hidden") !== "true");
+  }
   function cleanText(value) {
     if (typeof value !== "string") return null;
     const cleaned = value.replace(/\s+/g, " ").trim();
@@ -141,14 +153,16 @@
     }
     return null;
   }
-  function activityViewCount(root) {
+  function activityMetricValue(root, counterName) {
     // Threads exposes a rounded page-header count (for example, "表示6.4万回")
     // and may expose the exact count only after the person opens Activity.  We
     // read the already-visible dialog; opening it remains a human action.
+    const labelPattern = ACTIVITY_LABELS[counterName];
+    if (!labelPattern) return null;
     const containers = Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'));
     containers.push(root);
     for (const container of containers) {
-      const elements = [
+      const elements = [container,
         ...container.querySelectorAll("span, div"),
         ...container.querySelectorAll("p"),
       ];
@@ -160,15 +174,15 @@
         // "表示 64,123 回".  The page header can be rounded ("表示6.4万回"),
         // so retain the exact-integer requirement rather than interpreting a
         // rounded header as an exact Activity value.
-        const match = label.match(/^(?:閲覧数|ビュー|views?|表示)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:回|views?)?$/i);
-        if (!match) continue;
-        const value = exactNonnegativeInteger(match[1]);
+        const match = label.match(/^(.+?)\s*[:：]?\s*([0-9][0-9,]*)\s*(?:件|回|views?)?$/i);
+        if (!match || !labelPattern.test(match[1])) continue;
+        const value = exactNonnegativeInteger(match[2]);
         if (value !== null) return value;
       }
       const labels = elements.filter((element) => {
         if (!isVisible(element)) return false;
         const label = renderedText(element);
-        return label !== null && /^(?:閲覧数|ビュー|views?|表示)$/i.test(label);
+        return label !== null && labelPattern.test(label);
       });
       for (const label of labels) {
         let neighborhood = label.parentElement;
@@ -191,6 +205,27 @@
       }
     }
     return null;
+  }
+  function activityViewCount(root) { return activityMetricValue(root, "view_count"); }
+  function visibleActivitySurface(root) {
+    if (Array.from(root.querySelectorAll('[role="dialog"], [aria-modal="true"]'))
+      .some(isVisible)) return true;
+    return activityViewCount(root) !== null;
+  }
+  function activityMetricPresent(root, counterName) {
+    const pattern = ACTIVITY_LABELS[counterName];
+    if (!pattern) return false;
+    for (const dialog of root.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
+      if (!isVisible(dialog)) continue;
+      for (const element of dialog.querySelectorAll("span, div, p")) {
+        if (!isVisible(element)) continue;
+        const text = renderedText(element);
+        if (text && (pattern.test(text) || text.split(/\s+/).some((part) => pattern.test(part)))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
   function visibleActivityDialogViewCount(root) {
     for (const dialog of root.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
@@ -258,7 +293,17 @@
     const profile = profileValues(postRoot, post.canonical);
     const counters = visibleCounters(postRoot);
     if (counters.view_count === null) counters.view_count = pageViewCount(postRoot);
-    if (counters.view_count === null) counters.view_count = visibleActivityViewCount(root);
+    for (const name of Object.keys(counters)) {
+      if (counters[name] === null) counters[name] = activityMetricValue(root, name);
+    }
+    const activityVisible = visibleActivitySurface(root);
+    const metricStatuses = {};
+    for (const [name, value] of Object.entries(counters)) {
+      metricStatuses[name] = value !== null ? "OBSERVED"
+        : activityVisible
+          ? (activityMetricPresent(root, name) ? "EXTRACTION_FAILED" : "NOT_PRESENT")
+          : "NOT_OBSERVED";
+    }
     const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const text = visiblePostText(postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels]);
     const media = mediaValues(postRoot);
@@ -272,7 +317,8 @@
       schema_version: 1, observation_type: "POST_DETAIL", source: "threads",
       post_url: post.canonical, source_post_id: null,
       author_name: profile.authorName, username: profile.username, text, timestamp,
-      public_counters: counters, media_type: media.mediaType, has_image: media.hasImage, has_video: media.hasVideo,
+      public_counters: counters, metric_observation_statuses: metricStatuses,
+      media_type: media.mediaType, has_image: media.hasImage, has_video: media.hasVideo,
       collection_context: { surface: SURFACE, page_url: post.canonical, query: null, position: null },
       observed_fields: observed, collected_at: collectedAt, extractor_version: VERSION,
     };
@@ -293,7 +339,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
-    visibleActivityViewCount,
+    activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, extractVisibleThreadNodes, extractPostDetail,
     extractVisibleThreadDetails,
   });
