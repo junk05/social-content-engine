@@ -2,7 +2,7 @@
 
 ## M0 — Real Threads data capture
 
-Status: `IN_PROGRESS / BRANCH-AWARE REVISION`
+Status: `COMPLETE`
 
 Definition of Done:
 
@@ -200,6 +200,10 @@ and M5 remain out of scope.
 The initial HG-03 result was rejected after human review found two root-author
 replies below other-author branches. CR-0017 requires branch-aware traversal and
 a repeat live result of exactly one root plus three eligible self replies.
+
+The repeat HG-03 passed: extractor v6 stored one root plus three eligible
+root-author continuation nodes and excluded both conversation-branch replies.
+Historical v5 evidence remains immutable and ineligible for clean analysis.
 
 ## Deferred until later milestones
 

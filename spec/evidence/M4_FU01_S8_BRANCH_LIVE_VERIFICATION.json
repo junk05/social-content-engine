@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "verification_id": "M4-FU01-S8-BRANCH-LIVE-E2E-V1",
+  "result": "PASS",
+  "live_values_committed": false,
+  "extractor_version": "threads_post_detail_extractor_v6",
+  "thread_sequence_nodes": 4,
+  "root_nodes": 1,
+  "eligible_self_reply_nodes": 3,
+  "self_reply_post_detail_observations": 3,
+  "root_author_replies_below_other_author_branches": 0,
+  "sequence_positions_compact": true,
+  "root_relationship_evidence": "ROOT_DETAIL_PAGE",
+  "self_reply_relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+  "historical_false_positive_rows_preserved": 6,
+  "historical_false_positive_rows_eligible": 0,
+  "database_integrity": "PASS",
+  "foreign_key_integrity": "PASS",
+  "sensitive_source_data_committed": false
+}

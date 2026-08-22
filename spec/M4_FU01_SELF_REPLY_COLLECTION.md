@@ -1,6 +1,6 @@
 # M4-FU01-S8 — Self-Reply Content Collection
 
-STATUS: `APPROVED / REVISION IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Contract version: `M4-FU01-SELF-REPLY-COLLECTION-V2`
 
@@ -94,3 +94,10 @@ Extractor v6 emits `ROOT_DETAIL_PAGE` for the root and
 `DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN` only for the contiguous root-author prefix.
 Migration 23 leaves historical rows nullable, so v5 username-only observations
 remain immutable but are excluded from clean structural self-reply eligibility.
+
+The repeated HG-03 live E2E passed with exactly one root and three eligible
+self replies. All three child details were stored, positions were compact, and
+no root-author replies below other-author branches entered the sequence. The six
+historical v5 rows remain immutable with null relationship evidence and are not
+eligible. Sanitized evidence is in
+`spec/evidence/M4_FU01_S8_BRANCH_LIVE_VERIFICATION.json`.
