@@ -7,9 +7,9 @@
     if (!target) return null;
     const rect = target.getBoundingClientRect();
     if (!(rect.width > 0 && rect.height > 0)) return null;
-    const chromeTop = Math.max(0, window.outerHeight - window.innerHeight);
-    const x = window.screenX + rect.x + rect.width / 2;
-    const y = window.screenY + chromeTop + rect.y + rect.height / 2;
+    const viewport = window.visualViewport;
+    const x = window.screenX + rect.x + rect.width / 2 + (viewport ? viewport.offsetLeft : 0);
+    const y = window.screenY + rect.y + rect.height / 2 + (viewport ? viewport.offsetTop : 0);
     return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
   }
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
