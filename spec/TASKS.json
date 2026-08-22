@@ -142,8 +142,8 @@
     ,{"id":"M4-FU01-S7-001","owner":"ORCHESTRATOR","title":"Approve separate rounded detail-page Views contract","status":"COMPLETE","depends_on":["M4-FU01-S6-004"]}
     ,{"id":"M4-FU01-S7-002","owner":"DATA","title":"Persist immutable approximate Views with replayable provenance","status":"COMPLETE","depends_on":["M4-FU01-S7-001"]}
     ,{"id":"M4-FU01-S7-003","owner":"COLLECTOR","title":"Extract rounded detail-page Views without Activity dependency","status":"COMPLETE","depends_on":["M4-FU01-S7-002"]}
-    ,{"id":"M4-FU01-S7-004","owner":"INTELLIGENCE","title":"Expose descriptive approximate-view pattern distributions","status":"IN_PROGRESS","depends_on":["M4-FU01-S7-002"]}
-    ,{"id":"M4-FU01-S7-005","owner":"QA_REVIEWER","title":"Verify exact-approx separation, optional Activity, provenance, and regression","status":"PENDING","depends_on":["M4-FU01-S7-003","M4-FU01-S7-004"]}
+    ,{"id":"M4-FU01-S7-004","owner":"INTELLIGENCE","title":"Expose descriptive approximate-view pattern distributions","status":"COMPLETE","depends_on":["M4-FU01-S7-002"]}
+    ,{"id":"M4-FU01-S7-005","owner":"QA_REVIEWER","title":"Verify exact-approx separation, optional Activity, provenance, and regression","status":"IN_PROGRESS","depends_on":["M4-FU01-S7-003","M4-FU01-S7-004"]}
     ,{"id":"M4-FU01-S7-006","owner":"ORCHESTRATOR","title":"Run one selected-post approximate Views HG-03 live verification","status":"HUMAN_GATE_REQUIRED","depends_on":["M4-FU01-S7-005"]}
   ]
 }

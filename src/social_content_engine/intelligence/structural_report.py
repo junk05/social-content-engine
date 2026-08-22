@@ -56,6 +56,35 @@ def build_structural_pattern_report(
             str(metric["field_name"]) + "_observed": int(metric["observed_count"])
             for metric in metric_rows
         }
+        approximate_rows = repository.connection.execute(
+            """SELECT browser_approximate_view_observations.view_band,
+                      COUNT(*) AS observed_count
+               FROM structural_pattern_members
+               JOIN structural_feature_instances
+                 ON structural_feature_instances.id =
+                    structural_pattern_members.structural_feature_instance_id
+               JOIN browser_normalized_bridges
+                 ON browser_normalized_bridges.normalized_post_version_id =
+                    structural_feature_instances.normalized_post_version_id
+               JOIN browser_normalized_versions
+                 ON browser_normalized_versions.id =
+                    browser_normalized_bridges.browser_normalized_version_id
+               JOIN browser_approximate_view_observations
+                 ON browser_approximate_view_observations.browser_observation_id =
+                    browser_normalized_versions.source_observation_id
+               WHERE structural_pattern_members.structural_pattern_id = ?
+               GROUP BY browser_approximate_view_observations.view_band
+               ORDER BY browser_approximate_view_observations.view_band""",
+            (int(row["id"]),),
+        ).fetchall()
+        if approximate_rows:
+            performance_statistics["approximate_views_observed"] = sum(
+                int(metric["observed_count"]) for metric in approximate_rows
+            )
+            for metric in approximate_rows:
+                performance_statistics[
+                    "approximate_views_band_" + str(metric["view_band"])
+                ] = int(metric["observed_count"])
         item = GenerationSafePattern.from_aggregate({
             "pattern_kind": str(row["pattern_kind"]), "component_sequence": sequence,
             "abstract_formula": _formula(sequence), "support_count": int(row["member_count"]),
@@ -106,6 +135,13 @@ def build_structural_pattern_report(
         "selected_text_quality": {
             str(row["quality_status"]): int(row["count"]) for row in quality_rows
         },
+        "approximate_views_semantics": {
+            "use": "DESCRIPTIVE_BAND_DISTRIBUTION_ONLY",
+            "precision": "ROUNDED",
+            "exact_ranking": False,
+            "causal_inference": False,
+            "missing_is_zero": False,
+        },
         "top_first_line_component_patterns": patterns["FIRST_LINE"],
         "top_post_structure_patterns": patterns["POST"],
         "observed_thread_structure_patterns": patterns["THREAD"],
@@ -128,6 +164,16 @@ def render_structural_pattern_report(report: Dict[str, Any]) -> str:
         lines.append("- Selection contract: " + str(selection.get("contract_version", "UNKNOWN")))
     for key, value in report.get("selected_text_quality", {}).items():
         lines.append("- {0}: {1}".format(key, value))
+    semantics = report.get("approximate_views_semantics", {})
+    if semantics:
+        lines.extend([
+            "", "## Approximate Views semantics", "",
+            "- Use: " + str(semantics.get("use", "UNSPECIFIED")),
+            "- Precision: " + str(semantics.get("precision", "UNSPECIFIED")),
+            "- Exact ranking: false",
+            "- Causal inference: false",
+            "- Missing is zero: false",
+        ])
     sections = (
         ("Top First-Line Component Patterns", "top_first_line_component_patterns"),
         ("Top Post Structure Patterns", "top_post_structure_patterns"),

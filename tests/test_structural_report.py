@@ -14,16 +14,28 @@ class StructuralReportTest(unittest.TestCase):
             "coverage": {"instances": 2, "first_line_unavailable": 0},
             "dataset_selection": {"contract_version": "m4-clean-browser-text-v1"},
             "selected_text_quality": {"VALID_TEXT": 2},
+            "approximate_views_semantics": {
+                "use": "DESCRIPTIVE_BAND_DISTRIBUTION_ONLY",
+                "precision": "ROUNDED",
+                "exact_ranking": False,
+                "causal_inference": False,
+                "missing_is_zero": False,
+            },
             "top_first_line_component_patterns": [{
                 "abstract_formula": "TARGET_READER -> QUESTION", "support_count": 2,
                 "evidence_count": 2, "distinct_source_count": 2, "confidence": "LOW",
-                "performance_statistics": {},
+                "performance_statistics": {
+                    "approximate_views_observed": 2,
+                    "approximate_views_band_10K_100K": 2,
+                },
             }],
             "top_post_structure_patterns": [], "observed_thread_structure_patterns": [],
         }
         rendered = render_structural_pattern_report(report)
         self.assertIn("TARGET_READER -> QUESTION", rendered)
         self.assertIn("VALID_TEXT: 2", rendered)
+        self.assertIn("DESCRIPTIVE_BAND_DISTRIBUTION_ONLY", rendered)
+        self.assertIn('"approximate_views_band_10K_100K": 2', rendered)
         self.assertIn("INSUFFICIENT_EVIDENCE", rendered)
         self.assertNotIn("https://", rendered)
         self.assertNotIn("source_post_id", rendered)
