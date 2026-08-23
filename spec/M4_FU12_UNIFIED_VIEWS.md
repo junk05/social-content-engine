@@ -1,6 +1,6 @@
 # M4-FU12 — Unified Views Observation History
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0029`.
 
@@ -16,3 +16,11 @@ Human Review exports project only the latest Views record as
 rounded values must not be used for precision ranking against each other.
 
 M5 remains out of scope.
+
+## Completion evidence
+
+Migration 28 bridges legacy exact and rounded tables into the immutable unified
+Views history. New observations are dual-written into their legacy provenance
+table and the unified history. Human Review now exposes latest Views columns
+and `threads_views_history.csv`; both are local, read-only exports. Exact and
+rounded observations retain their distinct precision and display formats.

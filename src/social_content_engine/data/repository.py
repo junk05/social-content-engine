@@ -1489,7 +1489,7 @@ def _migration_27_thread_extraction_assessments(connection: sqlite3.Connection) 
 def _migration_28_unified_browser_view_observations(connection: sqlite3.Connection) -> None:
     """Bridge immutable legacy exact/rounded evidence into one Views history."""
     connection.execute(
-        """CREATE TABLE browser_view_observations (
+        """CREATE TABLE IF NOT EXISTS browser_view_observations (
           id INTEGER PRIMARY KEY,
           browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
           raw_display TEXT NOT NULL,
@@ -1537,7 +1537,7 @@ def _migration_28_unified_browser_view_observations(connection: sqlite3.Connecti
     )
     for operation in ("UPDATE", "DELETE"):
         connection.execute(
-            """CREATE TRIGGER immutable_browser_view_observations_{0}
+            """CREATE TRIGGER IF NOT EXISTS immutable_browser_view_observations_{0}
             BEFORE {0} ON browser_view_observations
             BEGIN SELECT RAISE(ABORT, 'browser Views evidence is immutable'); END""".format(
                 operation.lower()
