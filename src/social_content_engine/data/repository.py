@@ -1486,6 +1486,65 @@ def _migration_27_thread_extraction_assessments(connection: sqlite3.Connection) 
         )
 
 
+def _migration_28_unified_browser_view_observations(connection: sqlite3.Connection) -> None:
+    """Bridge immutable legacy exact/rounded evidence into one Views history."""
+    connection.execute(
+        """CREATE TABLE browser_view_observations (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          raw_display TEXT NOT NULL,
+          normalized_value INTEGER NOT NULL CHECK(normalized_value >= 0),
+          precision TEXT NOT NULL CHECK(precision IN ('DISPLAY_EXACT', 'ROUNDED')),
+          display_format TEXT NOT NULL CHECK(display_format IN (
+            'INTEGER', 'JAPANESE_MAN', 'JAPANESE_OKU', 'OTHER_MAGNITUDE'
+          )),
+          source TEXT NOT NULL CHECK(source = 'POST_DETAIL_PAGE'),
+          view_band TEXT NOT NULL CHECK(view_band IN (
+            'LT_1K', '1K_10K', '10K_100K', '100K_1M', '1M_PLUS'
+          )),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          normalizer_version TEXT NOT NULL,
+          legacy_source_table TEXT NOT NULL CHECK(legacy_source_table IN (
+            'browser_approximate_view_observations', 'browser_display_view_observations'
+          )),
+          legacy_source_id INTEGER NOT NULL,
+          UNIQUE(legacy_source_table, legacy_source_id)
+        )"""
+    )
+    connection.execute(
+        """INSERT INTO browser_view_observations
+        (browser_observation_id, raw_display, normalized_value, precision,
+         display_format, source, view_band, observed_at, extractor_version,
+         normalizer_version, legacy_source_table, legacy_source_id)
+        SELECT browser_observation_id, display, normalized_approx, precision,
+          CASE WHEN display LIKE '%億%' THEN 'JAPANESE_OKU'
+               WHEN display LIKE '%万%' THEN 'JAPANESE_MAN'
+               ELSE 'OTHER_MAGNITUDE' END,
+          source, view_band, observed_at, extractor_version, normalizer_version,
+          'browser_approximate_view_observations', id
+        FROM browser_approximate_view_observations"""
+    )
+    connection.execute(
+        """INSERT INTO browser_view_observations
+        (browser_observation_id, raw_display, normalized_value, precision,
+         display_format, source, view_band, observed_at, extractor_version,
+         normalizer_version, legacy_source_table, legacy_source_id)
+        SELECT browser_observation_id, display, normalized_value, precision,
+          'INTEGER', source, view_band, observed_at, extractor_version,
+          normalizer_version, 'browser_display_view_observations', id
+        FROM browser_display_view_observations"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_view_observations_{0}
+            BEFORE {0} ON browser_view_observations
+            BEGIN SELECT RAISE(ABORT, 'browser Views evidence is immutable'); END""".format(
+                operation.lower()
+            )
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1538,6 +1597,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (25, "browser-topic-tag-text-quality-v1", _migration_25_topic_tag_text_quality),
     (26, "browser-display-view-observations-v1", _migration_26_browser_display_view_observations),
     (27, "browser-thread-extraction-assessments-v1", _migration_27_thread_extraction_assessments),
+    (28, "unified-browser-view-observations-v1", _migration_28_unified_browser_view_observations),
 )
 
 
@@ -2164,7 +2224,7 @@ class Repository:
                     )
             approximate_views = observation.get("approximate_views")
             if approximate_views is not None:
-                self.connection.execute(
+                cursor = self.connection.execute(
                     """INSERT INTO browser_approximate_view_observations
                     (browser_observation_id, display, normalized_approx, precision,
                      source, view_band, observed_at, extractor_version,
@@ -2182,9 +2242,26 @@ class Repository:
                         approximate_views["normalizer_version"],
                     ),
                 )
+                self.connection.execute(
+                    """INSERT INTO browser_view_observations
+                    (browser_observation_id, raw_display, normalized_value, precision,
+                     display_format, source, view_band, observed_at, extractor_version,
+                     normalizer_version, legacy_source_table, legacy_source_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        observation_id, approximate_views["display"], approximate_views["normalized_approx"],
+                        approximate_views["precision"],
+                        "JAPANESE_OKU" if "億" in approximate_views["display"] else
+                        "JAPANESE_MAN" if "万" in approximate_views["display"] else "OTHER_MAGNITUDE",
+                        approximate_views["source"], approximate_views["view_band"],
+                        approximate_views["observed_at"], approximate_views["extractor_version"],
+                        approximate_views["normalizer_version"],
+                        "browser_approximate_view_observations", int(cursor.lastrowid),
+                    ),
+                )
             display_views = observation.get("display_views")
             if display_views is not None:
-                self.connection.execute(
+                cursor = self.connection.execute(
                     """INSERT INTO browser_display_view_observations
                     (browser_observation_id, display, normalized_value, precision,
                      source, view_band, observed_at, extractor_version,
@@ -2200,6 +2277,20 @@ class Repository:
                         display_views["observed_at"],
                         display_views["extractor_version"],
                         display_views["normalizer_version"],
+                    ),
+                )
+                self.connection.execute(
+                    """INSERT INTO browser_view_observations
+                    (browser_observation_id, raw_display, normalized_value, precision,
+                     display_format, source, view_band, observed_at, extractor_version,
+                     normalizer_version, legacy_source_table, legacy_source_id)
+                    VALUES (?, ?, ?, ?, 'INTEGER', ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        observation_id, display_views["display"], display_views["normalized_value"],
+                        display_views["precision"], display_views["source"], display_views["view_band"],
+                        display_views["observed_at"], display_views["extractor_version"],
+                        display_views["normalizer_version"],
+                        "browser_display_view_observations", int(cursor.lastrowid),
                     ),
                 )
             version = self.connection.execute(

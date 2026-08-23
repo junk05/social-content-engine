@@ -40,6 +40,11 @@ POST_COLUMNS = [
     "detail_status",
     "detail_attempt_count",
     "detail_last_error",
+    "views_latest_raw",
+    "views_latest_value",
+    "views_latest_precision",
+    "views_latest_display_format",
+    "views_latest_observed_at",
     "rounded_views_raw",
     "rounded_views_normalized",
     "rounded_views_band",
@@ -281,6 +286,24 @@ def _latest_display_views(
     )
 
 
+def _latest_views(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3.Row]:
+    try:
+        return cast(
+            Optional[sqlite3.Row],
+            connection.execute(
+                """SELECT views.* FROM browser_view_observations views
+                JOIN browser_observations observation
+                  ON observation.id = views.browser_observation_id
+                WHERE observation.browser_post_identity_id = ?
+                ORDER BY views.observed_at DESC, views.id DESC LIMIT 1""",
+                (identity_id,),
+            ).fetchone(),
+        )
+    except sqlite3.OperationalError:
+        # Isolated legacy export fixtures intentionally predate migration 28.
+        return None
+
+
 def _rounded_missing_reason(queue: Optional[sqlite3.Row]) -> str:
     if queue is None or str(queue["status"]) == "DETAIL_PENDING":
         return "DETAIL_NOT_RUN"
@@ -507,6 +530,7 @@ def build_post_rows(
             continue
         rounded = _latest_rounded(connection, identity_id)
         displayed = _latest_display_views(connection, identity_id)
+        views = _latest_views(connection, identity_id)
         text = payload.get("text")
         topic_tags = _topic_tags(payload)
         timing = _publication_timing(payload)
@@ -532,6 +556,11 @@ def build_post_rows(
             "detail_status": detail_status,
             "detail_attempt_count": int(queue["attempt_count"]) if queue is not None else 0,
             "detail_last_error": queue["last_error_code"] if queue is not None else None,
+            "views_latest_raw": views["raw_display"] if views is not None else None,
+            "views_latest_value": views["normalized_value"] if views is not None else None,
+            "views_latest_precision": views["precision"] if views is not None else None,
+            "views_latest_display_format": views["display_format"] if views is not None else None,
+            "views_latest_observed_at": views["observed_at"] if views is not None else None,
             "rounded_views_raw": rounded["display"] if rounded is not None else None,
             "rounded_views_normalized": rounded["normalized_approx"]
             if rounded is not None
