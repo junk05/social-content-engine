@@ -18,6 +18,7 @@ assert.equal(optionsHtml.includes('id="start-detail-batch"'), true);
 assert.equal(optionsHtml.includes('id="collected-posts"'), true);
 assert.equal(optionsHtml.includes('id="export-posts-csv"'), true);
 assert.equal(optionsHtml.includes('id="export-thread-csv"'), true);
+assert.equal(optionsHtml.includes('id="requeue-missing-engagement"'), true);
 
 class Node {
   constructor(tag = "div") {
@@ -45,6 +46,7 @@ const nodes = {
   "#select-all-collected": new Node("button"),
   "#clear-collected-selection": new Node("button"),
   "#requeue-selected": new Node("button"),
+  "#requeue-missing-engagement": new Node("button"),
   "#collected-posts": new Node("tbody"),
   "#export-posts-csv": new Node("button"), "#export-thread-csv": new Node("button"),
   "#export-status": new Node(),
@@ -117,6 +119,10 @@ assert.equal(nodes["#requeue-selected"].disabled, false);
 assert.equal(nodes["#requeue-selected"].textContent, "選択分を再補完対象にする（1件）");
 nodes["#clear-collected-selection"].listeners.click();
 assert.equal(nodes["#requeue-selected"].disabled, true);
+nodes["#requeue-missing-engagement"].listeners.click();
+assert.equal(messages.some(
+  (message) => message.type === "SCE_REQUEUE_MISSING_ENGAGEMENT_METRICS",
+), true);
 nodes["#export-posts-csv"].listeners.click();
 nodes["#collected-filter"].value = "DETAIL_FAILED";
 nodes["#export-thread-csv"].listeners.click();

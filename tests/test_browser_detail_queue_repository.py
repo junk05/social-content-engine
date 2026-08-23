@@ -36,6 +36,28 @@ def prepare_before_assignment_reconciliation(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_requeue_only_enriched_roots_missing_currently_observable_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "missing-engagement.sqlite3") as repository:
+                repository.add_browser_observation(rich_observation())
+                repository.add_browser_observation(
+                    rich_observation(observation_type="POST_DETAIL", metric_statuses=True)
+                )
+                repository.connection.execute(
+                    "UPDATE browser_detail_enrichment_queue SET status = 'DETAIL_ENRICHED'"
+                )
+                repository.connection.commit()
+                result = repository.requeue_missing_browser_engagement_metrics(
+                    requeued_at="2026-08-23T08:00:00Z"
+                )
+                self.assertEqual(1, result["count"])
+                self.assertEqual({"like_count": 0, "reply_count": 1, "repost_count": 1},
+                                 result["missing_by_metric"])
+                self.assertEqual("DETAIL_PENDING", repository.connection.execute(
+                    "SELECT status FROM browser_detail_enrichment_queue"
+                ).fetchone()[0])
+                self.assertEqual(0, repository.requeue_missing_browser_engagement_metrics()["count"])
+
     def test_topic_tag_candidate_requeue_does_not_assert_invalidity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "topic-candidate.sqlite3") as repository:

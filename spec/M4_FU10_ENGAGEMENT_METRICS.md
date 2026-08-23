@@ -46,8 +46,10 @@ record is `spec/evidence/M4_FU10_ENGAGEMENT_DOM_AUDIT.json`.
 ## Recovery
 
 Existing observations remain immutable. Roots already detail-enriched but with
-one or more required engagement metrics unobserved are selected by an explicit,
-non-destructive re-enrichment candidate path. No all-root refresh is implied;
+one or more currently observable (`Like`, `Reply`, `Repost`) engagement metrics
+unobserved are selected by an explicit, non-destructive re-enrichment candidate
+path. Quote and Share do not make a root a retry candidate until a numeric
+detail-control form is actually observed. No all-root refresh is implied;
 excluded roots remain excluded and existing queue/resume/failure isolation
 semantics remain intact.
 

@@ -210,7 +210,7 @@
     ,{"id":"M4-FU10-002","owner":"COLLECTOR","title":"Add privacy-bounded read-only engagement control DOM diagnostic","status":"COMPLETE","depends_on":["M4-FU10-001"]}
     ,{"id":"M4-FU10-003","owner":"ORCHESTRATOR","title":"Run one-to-three-post live DOM audit","status":"COMPLETE","depends_on":["M4-FU10-002"]}
     ,{"id":"M4-FU10-004","owner":"COLLECTOR","title":"Repair deterministic engagement metric extraction and provenance","status":"COMPLETE","depends_on":["M4-FU10-003"]}
-    ,{"id":"M4-FU10-005","owner":"DATA","title":"Select only missing-engagement roots for non-destructive re-enrichment","status":"PENDING","depends_on":["M4-FU10-004"]}
+    ,{"id":"M4-FU10-005","owner":"DATA","title":"Select only missing-engagement roots for non-destructive re-enrichment","status":"COMPLETE","depends_on":["M4-FU10-004"]}
     ,{"id":"M4-FU10-006","owner":"QA_REVIEWER","title":"Verify export, regression, and bounded live metric comparison","status":"PENDING","depends_on":["M4-FU10-005"]}
   ]
 }

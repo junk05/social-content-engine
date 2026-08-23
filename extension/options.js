@@ -14,6 +14,7 @@ const refreshCollected = document.querySelector("#refresh-collected");
 const selectAllCollected = document.querySelector("#select-all-collected");
 const clearCollectedSelection = document.querySelector("#clear-collected-selection");
 const requeueSelected = document.querySelector("#requeue-selected");
+const requeueMissingEngagement = document.querySelector("#requeue-missing-engagement");
 const collectedStatus = document.querySelector("#collected-status");
 const collectedPosts = document.querySelector("#collected-posts");
 const exportPostsCsv = document.querySelector("#export-posts-csv");
@@ -206,6 +207,20 @@ requeueSelected.addEventListener("click", async () => {
   collectedStatus.textContent = completed === urls.length
     ? `${completed}件を再補完対象にしました。`
     : `${completed} / ${urls.length}件を再補完対象にしました。`;
+});
+requeueMissingEngagement.addEventListener("click", () => {
+  requeueMissingEngagement.disabled = true;
+  collectedStatus.textContent = "Like・返信・再投稿が未観測の投稿を確認しています。";
+  chrome.runtime.sendMessage({ type: "SCE_REQUEUE_MISSING_ENGAGEMENT_METRICS" }, (response) => {
+    requeueMissingEngagement.disabled = false;
+    if (chrome.runtime.lastError || !response || !response.accepted) {
+      collectedStatus.textContent = "指標未観測の再補完対象化に失敗しました。";
+      return;
+    }
+    collectedStatus.textContent = `${response.count}件を指標再補完対象にしました。`;
+    refreshQueueSummary();
+    loadCollectedPosts();
+  });
 });
 loadCollectedPosts();
 

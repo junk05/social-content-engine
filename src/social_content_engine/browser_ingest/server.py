@@ -34,6 +34,7 @@ DETAIL_QUEUE_COMPLETE_PATH = INGEST_PATH + "/detail-queue/complete"
 DETAIL_QUEUE_FAIL_PATH = INGEST_PATH + "/detail-queue/fail"
 COLLECTED_POSTS_PATH = INGEST_PATH + "/collected-posts"
 DETAIL_EXCLUSION_PATH = INGEST_PATH + "/detail-exclusion"
+METRICS_REENRICH_PATH = INGEST_PATH + "/metrics-reenrich"
 REVIEW_EXPORT_PATH = INGEST_PATH + "/review-export"
 NATIVE_INPUT_SPIKE_PATH = INGEST_PATH + "/native-input-spike"
 NATIVE_INPUT_DIAGNOSTIC_PATH = INGEST_PATH + "/native-input-diagnostic"
@@ -139,6 +140,7 @@ class BrowserIngestService:
                 DETAIL_QUEUE_CLAIM_PATH, DETAIL_QUEUE_COMPLETE_PATH,
                 DETAIL_QUEUE_FAIL_PATH,
                 COLLECTED_POSTS_PATH, DETAIL_EXCLUSION_PATH,
+                METRICS_REENRICH_PATH,
                 REVIEW_EXPORT_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
@@ -250,6 +252,7 @@ class BrowserIngestService:
                 DETAIL_BATCHES_PATH, DETAIL_QUEUE_CLAIM_PATH,
                 DETAIL_QUEUE_COMPLETE_PATH, DETAIL_QUEUE_FAIL_PATH,
                 DETAIL_EXCLUSION_PATH,
+                METRICS_REENRICH_PATH,
                 NATIVE_INPUT_SPIKE_PATH,
                 NATIVE_INPUT_DIAGNOSTIC_PATH,
                 NATIVE_INPUT_MOVE_PATH,
@@ -277,6 +280,8 @@ class BrowserIngestService:
             return self._handle_detail_queue_fail(decoded, request_origin)
         if path == DETAIL_EXCLUSION_PATH:
             return self._handle_detail_exclusion(decoded, request_origin)
+        if path == METRICS_REENRICH_PATH:
+            return self._handle_metrics_reenrich(decoded, request_origin)
         if path == DETAIL_FAILURE_PATH:
             return self._handle_detail_failure(decoded, request_origin)
         if path == THREAD_SEQUENCE_PATH:
@@ -556,6 +561,22 @@ class BrowserIngestService:
                 "changed": bool(result["changed"]),
                 "enrichment_excluded": bool(result["excluded"]),
             },
+            origin,
+        )
+
+    def _handle_metrics_reenrich(
+        self, decoded: Dict[str, Any], origin: Optional[str]
+    ) -> IngestResponse:
+        if decoded:
+            return IngestResponse(422, {"error": "invalid_metrics_reenrich"}, origin)
+        try:
+            result = self.repository.requeue_missing_browser_engagement_metrics()
+        except (TypeError, ValueError, sqlite3.DatabaseError):
+            return IngestResponse(422, {"error": "invalid_metrics_reenrich"}, origin)
+        return IngestResponse(
+            200,
+            {"status": "accepted", "count": int(result["count"]),
+             "missing_by_metric": result["missing_by_metric"]},
             origin,
         )
 

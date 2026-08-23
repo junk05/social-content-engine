@@ -16,6 +16,7 @@ if (typeof importScripts === "function") {
   const DETAIL_QUEUE_FAIL_URL = RECEIVER_URL + "/detail-queue/fail";
   const COLLECTED_POSTS_URL = RECEIVER_URL + "/collected-posts";
   const DETAIL_EXCLUSION_URL = RECEIVER_URL + "/detail-exclusion";
+  const METRICS_REENRICH_URL = RECEIVER_URL + "/metrics-reenrich";
   const NATIVE_INPUT_SPIKE_URL = RECEIVER_URL + "/native-input-spike";
   const NATIVE_INPUT_DIAGNOSTIC_URL = RECEIVER_URL + "/native-input-diagnostic";
   const NATIVE_INPUT_MOVE_URL = RECEIVER_URL + "/native-input-move";
@@ -740,6 +741,16 @@ if (typeof importScripts === "function") {
     }
     if (message && message.type === "SCE_UPDATE_DETAIL_EXCLUSION") {
       updateDetailExclusion(message.action, message.postUrl).then(sendResponse);
+      return true;
+    }
+    if (message && message.type === "SCE_REQUEUE_MISSING_ENGAGEMENT_METRICS") {
+      durableRequest(METRICS_REENRICH_URL, "POST", {}).then((result) => {
+        const payload = result.payload;
+        sendResponse(result.accepted && payload && payload.status === "accepted"
+          && Number.isInteger(payload.count) && payload.missing_by_metric
+          ? { accepted: true, count: payload.count, missingByMetric: payload.missing_by_metric }
+          : { accepted: false });
+      });
       return true;
     }
     if (message && message.type === "SCE_DETAIL_FAILURE") {

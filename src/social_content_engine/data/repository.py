@@ -3148,6 +3148,72 @@ class Repository:
             )
         return len(queue_ids)
 
+    def requeue_missing_browser_engagement_metrics(
+        self, *, requeued_at: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Requeue only enriched roots missing a currently observable control metric.
+
+        Quote and Share are deliberately excluded from this candidate rule: the
+        bounded live audit did not observe numeric detail-control forms for them.
+        Requeueing every root for a metric unavailable on that surface would be
+        an unconditional refresh disguised as recovery.
+        """
+        timestamp = requeued_at or _utc_now()
+        required_metrics = ("like_count", "reply_count", "repost_count")
+        with self.connection:
+            rows = self.connection.execute(
+                """SELECT queue.id AS queue_id, identity.id AS identity_id,
+                          identity.current_observation_id AS observation_id
+                   FROM browser_detail_enrichment_queue queue
+                   JOIN browser_post_identities identity
+                     ON identity.id = queue.browser_post_identity_id
+                   JOIN browser_observations observation
+                     ON observation.id = identity.current_observation_id
+                    AND observation.browser_post_identity_id = identity.id
+                    AND observation.observation_type = 'POST_DETAIL'
+                   WHERE queue.status = 'DETAIL_ENRICHED'
+                     AND queue.enrichment_excluded = 0
+                   ORDER BY queue.id"""
+            ).fetchall()
+            queue_ids = []
+            identity_ids = []
+            missing_by_metric = {name: 0 for name in required_metrics}
+            for row in rows:
+                statuses = {
+                    str(status["field_name"]).split(".", 1)[1]: str(status["observation_status"])
+                    for status in self.connection.execute(
+                        """SELECT field_name, observation_status
+                           FROM browser_metric_observation_statuses
+                           WHERE browser_observation_id = ?""",
+                        (row["observation_id"],),
+                    ).fetchall()
+                }
+                missing = [name for name in required_metrics if statuses.get(name) != "OBSERVED"]
+                if not missing:
+                    continue
+                queue_ids.append(int(row["queue_id"]))
+                identity_ids.append(int(row["identity_id"]))
+                for name in missing:
+                    missing_by_metric[name] += 1
+            if not queue_ids:
+                return {"count": 0, "missing_by_metric": missing_by_metric}
+            queue_marks = ",".join("?" for _ in queue_ids)
+            identity_marks = ",".join("?" for _ in identity_ids)
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                   status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+                   last_error_code = NULL, last_error_type = NULL,
+                   last_error_reason = NULL, updated_at = ?
+                   WHERE id IN ({0})""".format(queue_marks),
+                (timestamp, *queue_ids),
+            )
+            self.connection.execute(
+                """UPDATE browser_post_identities SET status = 'DETAIL_PENDING', updated_at = ?
+                   WHERE id IN ({0})""".format(identity_marks),
+                (timestamp, *identity_ids),
+            )
+        return {"count": len(queue_ids), "missing_by_metric": missing_by_metric}
+
     def requeue_browser_topic_tag_candidates(
         self, candidate_texts: Sequence[str], *, requeued_at: Optional[str] = None
     ) -> int:
