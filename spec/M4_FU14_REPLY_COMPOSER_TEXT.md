@@ -13,9 +13,9 @@ or shorter, the longest-candidate rule promoted the composer text to `text`.
 
 ## Contract
 
-Extractor v17 excludes candidates inside semantic input/composer surfaces:
-`textarea`, `input`, `role=textbox`, `contenteditable=true`, and explicit
-placeholder-bearing ancestors. Wording alone is not an exclusion rule, so an
+Extractor v18 excludes candidates inside semantic input/composer surfaces:
+`textarea`, `input`, `role=textbox`, any `contenteditable` form, Lexical editor
+markers, multiline editor markers, and explicit placeholder-bearing ancestors. Wording alone is not an exclusion rule, so an
 author can still publish text containing the word `返信`.
 
 Confirmed historical observations receive append-only
@@ -39,6 +39,9 @@ over a newer non-invalid detail observation. M5 remains unauthorized.
 Five canonical roots selected an identical reply-composer placeholder from
 extractor v14. All five immutable observations now have append-only confirmed
 invalid quality evidence and all five roots are `DETAIL_PENDING` for an
-extractor-v17 reobservation. Aggregate, source-free evidence is recorded in
+extractor-v18 reobservation. The first v17 pass repaired three roots and exposed
+a second composer DOM form on two roots; those two v17 observations remain as
+audit evidence and are requeued after the semantic editor selector was widened.
+Aggregate, source-free evidence is recorded in
 `spec/evidence/M4_FU14_REPLY_COMPOSER_AUDIT.json`. HG-03 live reobservation and
 CSV verification remain pending.

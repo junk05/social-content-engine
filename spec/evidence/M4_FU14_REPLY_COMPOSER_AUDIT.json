@@ -6,8 +6,12 @@
   "extractor_version_distribution": {
     "threads_post_detail_extractor_v14": 5
   },
-  "quality_assessments_appended": 5,
-  "roots_requeued": 5,
+  "quality_assessments_appended": 7,
+  "roots_requeued": 7,
+  "v17_live_result": {
+    "repaired_roots": 3,
+    "still_composer_metadata": 2
+  },
   "source_observations_deleted": 0,
   "live_source_content_stored": false,
   "live_verification_status": "HG_03_PENDING"

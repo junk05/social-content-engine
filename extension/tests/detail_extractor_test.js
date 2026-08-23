@@ -25,11 +25,15 @@ class Element {
       || href.includes("/topic/") || href.includes("/t/");
     if (topic && selector.includes("topic")) return this;
     const composer = this.getAttribute("role") === "textbox"
-      || this.getAttribute("contenteditable") === "true"
+      || this.getAttribute("contenteditable") !== null
+      || this.getAttribute("data-lexical-editor") !== null
+      || this.getAttribute("aria-multiline") !== null
       || this.getAttribute("aria-placeholder") !== null
       || this.getAttribute("data-placeholder") !== null;
     return composer && (selector.includes('role="textbox"')
-      || selector.includes('contenteditable="true"')
+      || selector.includes("contenteditable")
+      || selector.includes("data-lexical-editor")
+      || selector.includes("aria-multiline")
       || selector.includes("aria-placeholder")
       || selector.includes("data-placeholder")) ? this : null;
   }
@@ -149,7 +153,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v17");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v18");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",

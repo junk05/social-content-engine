@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v17";
+  const VERSION = "threads_post_detail_extractor_v18";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -735,7 +735,8 @@
         if (!isVisible(candidate)) continue;
         if (candidate.closest([
           'a[href^="/@"]', 'a[href*="/post/"]', "time", "button", '[role="button"]',
-          "textarea", "input", '[role="textbox"]', '[contenteditable="true"]',
+          "textarea", "input", '[role="textbox"]', "[contenteditable]",
+          "[data-lexical-editor]", "[aria-multiline]",
           "[aria-placeholder]", "[data-placeholder]",
         ].join(", "))) continue;
         if (isTopicElement(candidate)) continue;
