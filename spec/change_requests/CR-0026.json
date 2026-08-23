@@ -1,0 +1,22 @@
+{
+  "id": "CR-0026",
+  "title": "Preserve browser-observed publication timestamps for timing analysis",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Use the existing visible time[datetime] attribute as the preferred exact publication-time source; retain raw and normalized values with explicit timezone basis, and add read-only Human Review CSV timing columns.",
+  "scope": [
+    "direct semantic publication-time extraction",
+    "append-only source observation provenance",
+    "normalized timing fields and local derivations",
+    "Human Review CSV timing columns",
+    "fixtures, regression, and bounded HG-03 verification"
+  ],
+  "forbidden": [
+    "treating relative time text as an exact timestamp",
+    "inferring a timezone when absent",
+    "hover or input automation when a direct semantic attribute is available",
+    "mixing collected_at with published_at",
+    "starting M5"
+  ]
+}

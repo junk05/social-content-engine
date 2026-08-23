@@ -318,6 +318,15 @@ HG-03 passed with extractor v12: six current qualifying indicator roots reached
 complete observed chains; zero current root-only or incomplete candidates
 remained. Historical incomplete assessments are retained as audit evidence.
 
+### M4-FU09 — Publication-Time Observation
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU09_PUBLICATION_TIMING.md` (`CR-0026`).
+Direct semantic `time[datetime]` observation is the preferred exact source;
+relative UI time is never upgraded to a timestamp and hover is out of scope
+while that attribute remains available. M5 remains unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
