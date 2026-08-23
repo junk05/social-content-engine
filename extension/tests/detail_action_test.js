@@ -123,7 +123,12 @@ async function main() {
   assert.equal(messages[1].type, "SCE_THREAD_SEQUENCE_READY");
   assert.equal(messages[1].sequence.detail_observation_id, 1);
   assert.equal(successButton.textContent, "✓ 詳細収集済み");
-  assert.match(successRoot.card.children[1].textContent, /thread_candidate_diagnostic_v1/);
+  assert.equal(successRoot.card.children.some(
+    (child) => child.attributes["data-sce-engagement-diagnostic-action"] === "true",
+  ), true, "the audit control remains a local read-only action");
+  assert.match(successRoot.card.children.find(
+    (child) => child.attributes["data-sce-thread-diagnostic"] === "true",
+  ).textContent, /thread_candidate_diagnostic_v1/);
 
   const childObservation = {
     observation_type: "POST_DETAIL",
@@ -175,7 +180,8 @@ async function main() {
   assert.equal(observedRoot.card.children.length, 0, "no action before SPA detail DOM is ready");
   ready = true;
   FakeObserver.instance.trigger();
-  assert.equal(observedRoot.card.children.length, 1, "detail DOM insertion injects one explicit action");
+  assert.equal(observedRoot.card.children.length, 2,
+    "detail DOM insertion injects collection and local read-only diagnostic actions");
   stop();
   assert.equal(FakeObserver.instance.disconnected, true);
   globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR.recognizePostDetail = originalRecognize;

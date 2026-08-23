@@ -3,6 +3,7 @@
 (function exposeDetailAction(scope) {
   const BUTTON_ATTRIBUTE = "data-sce-detail-action";
   const ACTIVITY_BUTTON_ATTRIBUTE = "data-sce-detail-activity-action";
+  const ENGAGEMENT_DIAGNOSTIC_ATTRIBUTE = "data-sce-engagement-diagnostic-action";
   const CONTRACT_VERSION = "M3_BROWSER_DETAIL_ATTEMPT_V1";
   const MAX_CONTAINER_ASCENT = 12;
 
@@ -133,6 +134,26 @@
     return button;
   }
 
+  function createEngagementDiagnosticButton(root, pageUrl) {
+    const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
+    const button = root.createElement("button");
+    button.type = "button";
+    button.setAttribute(ENGAGEMENT_DIAGNOSTIC_ATTRIBUTE, "true");
+    button.textContent = "指標DOM診断";
+    button.addEventListener("click", () => {
+      const diagnostic = extractor.auditEngagementControls(root, pageUrl);
+      let output = root.querySelector("[data-sce-engagement-diagnostic-output]");
+      if (!output) {
+        output = root.createElement("pre");
+        output.setAttribute("data-sce-engagement-diagnostic-output", "true");
+        output.style.cssText = "white-space:pre-wrap;font:12px/1.4 monospace;margin:8px;padding:8px;border:1px solid currentColor";
+        button.parentElement.append(output);
+      }
+      output.textContent = "Engagement DOM診断: " + JSON.stringify(diagnostic);
+    });
+    return button;
+  }
+
   function installActivityAction(root, pageUrl) {
     const extractor = scope.SCE_THREADS_POST_DETAIL_EXTRACTOR;
     for (const dialog of root.querySelectorAll('[role="dialog"], [aria-modal="true"]')) {
@@ -161,6 +182,7 @@
       if (anchor) {
         cardButton = createActionButton(root, pageUrl, BUTTON_ATTRIBUTE, "詳細収集");
         anchor.append(cardButton);
+        anchor.append(createEngagementDiagnosticButton(root, pageUrl));
       }
     }
     return installActivityAction(root, pageUrl) || cardButton;
@@ -191,5 +213,6 @@
 
   scope.SCE_DETAIL_ACTION = Object.freeze({
     install, observe, resolveDetailContainer, installActivityAction, renderThreadDiagnostic,
+    createEngagementDiagnosticButton,
   });
 })(globalThis);

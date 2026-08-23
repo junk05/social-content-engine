@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v13";
+  const VERSION = "threads_post_detail_extractor_v14";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -21,6 +21,13 @@
     repost_count: /^(?:再投稿|reposts?)$/i,
     quote_count: /^(?:引用|quotes?)$/i,
     share_count: /^(?:シェア|shares?)$/i,
+  });
+  const ENGAGEMENT_LABELS = Object.freeze({
+    like_count: /(?:^|\s)(?:いいね|likes?)(?:\s|$)/i,
+    reply_count: /(?:^|\s)(?:返信|リプライ|comments?|repl(?:y|ies))(?:\s|$)/i,
+    repost_count: /(?:^|\s)(?:再投稿|reposts?)(?:\s|$)/i,
+    quote_count: /(?:^|\s)(?:引用|quotes?)(?:\s|$)/i,
+    share_count: /(?:^|\s)(?:シェア|shares?)(?:\s|$)/i,
   });
 
   function canonicalPostUrl(value, baseUrl) {
@@ -131,6 +138,109 @@
     if (!/^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(token)) return null;
     const value = Number(token.replaceAll(",", ""));
     return Number.isSafeInteger(value) ? value : null;
+  }
+  function metricHint(value) {
+    const text = cleanText(value);
+    if (!text) return null;
+    for (const [name, pattern] of Object.entries(ENGAGEMENT_LABELS)) {
+      if (pattern.test(text)) return name;
+    }
+    return null;
+  }
+  function numericDisplayShape(value) {
+    const text = cleanText(value);
+    if (!text) return null;
+    const ascii = asciiNumericDisplay(text);
+    if (/^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(ascii)) return "DISPLAY_EXACT";
+    if (/^[0-9]+(?:\.[0-9]+)?\s*(?:千|万|億|[KMB])$/i.test(ascii)) return "ROUNDED";
+    return null;
+  }
+  function diagnosticNode(element) {
+    if (!element) return null;
+    const tag = typeof element.tagName === "string" ? element.tagName : null;
+    const role = typeof element.getAttribute === "function" ? element.getAttribute("role") : null;
+    const aria = typeof element.getAttribute === "function" ? cleanText(element.getAttribute("aria-label")) : null;
+    const text = renderedText(element);
+    const rawDisplay = numericDisplayShape(text) ? text : null;
+    const labelHint = metricHint(aria) || metricHint(text);
+    return {
+      tag, role, metric_hint: labelHint,
+      raw_display: rawDisplay,
+      display_shape: rawDisplay ? numericDisplayShape(rawDisplay) : null,
+      aria_label: (labelHint || rawDisplay) ? aria : null,
+      has_svg_descendant: typeof element.querySelector === "function" && Boolean(element.querySelector("svg")),
+    };
+  }
+  function directDiagnosticChildren(element) {
+    if (!element || typeof element.querySelectorAll !== "function") return [];
+    const values = [];
+    const seen = new Set();
+    for (const child of element.querySelectorAll("span, div, button, [role=button], [aria-label]")) {
+      if (!isVisible(child)) continue;
+      const node = diagnosticNode(child);
+      if (!node || (!node.metric_hint && !node.raw_display)) continue;
+      const key = JSON.stringify(node);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(node);
+      if (values.length >= 12) break;
+    }
+    return values;
+  }
+  function auditEngagementControls(root, pageUrl) {
+    const readiness = postDetailReadiness(root, pageUrl);
+    if (!readiness.postRootFound) {
+      return { diagnostic_version: "engagement_control_diagnostic_v1",
+        canonical_detail: readiness.canonicalPage && readiness.permalinkFound,
+        control_candidates: [], numeric_candidates: [] };
+    }
+    const postRoot = rootPostContainer(root, pageUrl);
+    const controls = [];
+    const numericCandidates = [];
+    const controlSeen = new Set();
+    const numericSeen = new Set();
+    for (const element of postRoot.querySelectorAll("button, [role=button], [aria-label]")) {
+      if (!isVisible(element)) continue;
+      const node = diagnosticNode(element);
+      if (!node || (!node.metric_hint && !node.raw_display && !node.has_svg_descendant)) continue;
+      const parent = diagnosticNode(element.parentElement);
+      const record = { control_index: controls.length, ...node,
+        parent: parent ? { tag: parent.tag, role: parent.role, has_svg_descendant: parent.has_svg_descendant } : null,
+        nearby_metric_or_numeric_nodes: directDiagnosticChildren(element.parentElement) };
+      const key = JSON.stringify(record);
+      if (controlSeen.has(key)) continue;
+      controlSeen.add(key);
+      controls.push(record);
+    }
+    for (const element of postRoot.querySelectorAll("span, div")) {
+      if (!isVisible(element)) continue;
+      const node = diagnosticNode(element);
+      if (!node || !node.raw_display) continue;
+      let surface = element.parentElement;
+      let engagementContext = false;
+      for (let depth = 0; surface && depth < 3; depth += 1) {
+        const context = diagnosticNode(surface);
+        if (context && (context.has_svg_descendant || context.metric_hint)) {
+          engagementContext = true;
+          break;
+        }
+        surface = surface.parentElement;
+      }
+      if (!engagementContext) continue;
+      const parent = diagnosticNode(element.parentElement);
+      const record = { candidate_index: numericCandidates.length,
+        raw_display: node.raw_display, display_shape: node.display_shape,
+        metric_hint: node.metric_hint || (parent && parent.metric_hint) || null,
+        parent: parent ? { tag: parent.tag, role: parent.role, has_svg_descendant: parent.has_svg_descendant } : null,
+        nearby_metric_or_numeric_nodes: directDiagnosticChildren(element.parentElement) };
+      const key = JSON.stringify(record);
+      if (numericSeen.has(key)) continue;
+      numericSeen.add(key);
+      numericCandidates.push(record);
+    }
+    return { diagnostic_version: "engagement_control_diagnostic_v1",
+      canonical_detail: readiness.canonicalPage && readiness.permalinkFound,
+      control_candidates: controls, numeric_candidates: numericCandidates };
   }
   function findPermalink(root, pageUrl, expectedCanonical = null) {
     let fallback = null;
@@ -676,6 +786,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
+    auditEngagementControls,
     semanticPublicationTime,
     approximatePageViews, exactDisplayPageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,

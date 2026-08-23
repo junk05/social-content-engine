@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v13");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v14");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -116,6 +116,11 @@ async function main() {
   assert.deepEqual(extractor.postDetailReadiness(page, context.pageUrl), {
     canonicalPage: true, permalinkFound: true, postRootFound: true, timestampFound: true,
   });
+  assert.deepEqual(extractor.auditEngagementControls(page, context.pageUrl), {
+    diagnostic_version: "engagement_control_diagnostic_v1",
+    canonical_detail: true,
+    control_candidates: [], numeric_candidates: [],
+  }, "the audit exposes no post body or identity when no engagement-control context is present");
   const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
   assert.deepEqual(nodes.map((node) => node.post_url), [
     "https://www.threads.net/@sample.user/post/AbC_123",
