@@ -592,6 +592,17 @@ class BrowserIngestServerTest(unittest.TestCase):
             "detail_observation_id": detail.payload["observation_id"],
             "observed_at": "2026-08-16T04:00:00Z",
             "extractor_version": "fixture-sequence-v1",
+            "thread_extraction": {
+                "diagnostic_version": "fixture-thread-diagnostic-v1",
+                "visible_post_nodes": 2,
+                "discovered_candidates": 2,
+                "direct_root_author_candidates": 1,
+                "other_author_candidates": 0,
+                "root_author_after_other_boundary": 0,
+                "final_eligible_nodes": 2,
+                "excluded_candidates": 0,
+                "exclusion_reasons": {},
+            },
             "nodes": [
                 {
                     "post_url": root["post_url"],
@@ -616,7 +627,10 @@ class BrowserIngestServerTest(unittest.TestCase):
             json.dumps(payload).encode("utf-8"),
         )
         self.assertEqual(201, accepted.status)
-        self.assertEqual({"status": "accepted", "node_count": 2}, accepted.payload)
+        self.assertEqual(
+            {"status": "accepted", "node_count": 2,
+             "thread_extraction_status": "NOT_APPLICABLE"}, accepted.payload
+        )
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
         child_identity = self.repository.connection.execute(
             "SELECT id FROM browser_post_identities WHERE post_url = ?", (child["post_url"],)

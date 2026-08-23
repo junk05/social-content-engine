@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v10";
+  const VERSION = "threads_post_detail_extractor_v11";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -259,6 +259,20 @@
       relationship_evidence: Array.from(new Set(candidates
         .map((item) => item.relationship_evidence).filter(Boolean))),
       candidates,
+    };
+  }
+  function threadExtractionDiagnostic(root, pageUrl) {
+    const diagnostic = diagnoseVisibleThread(root, pageUrl);
+    return {
+      diagnostic_version: diagnostic.diagnostic_version,
+      visible_post_nodes: diagnostic.visible_post_nodes,
+      discovered_candidates: diagnostic.discovered_candidates,
+      direct_root_author_candidates: diagnostic.direct_root_author_candidates,
+      other_author_candidates: diagnostic.other_author_candidates,
+      root_author_after_other_boundary: diagnostic.root_author_after_other_boundary,
+      final_eligible_nodes: diagnostic.final_eligible_nodes,
+      excluded_candidates: diagnostic.excluded_candidates,
+      exclusion_reasons: diagnostic.exclusion_reasons,
     };
   }
   function rootPostContainer(root, pageUrl) {
@@ -630,7 +644,7 @@
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
     visibleTopicTags, visibleSequenceIndicator, extractVisibleThreadNodes,
-    diagnoseVisibleThread, extractPostDetail,
+    diagnoseVisibleThread, threadExtractionDiagnostic, extractPostDetail,
     extractVisibleThreadDetails,
   });
 })(globalThis);

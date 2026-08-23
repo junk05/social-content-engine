@@ -3,12 +3,13 @@
   "title": "Browser Thread Sequence Observation",
   "type": "object",
   "additionalProperties": false,
-  "required": ["root_post_url", "nodes", "detail_observation_id", "observed_at", "extractor_version"],
+  "required": ["root_post_url", "nodes", "detail_observation_id", "observed_at", "extractor_version", "thread_extraction"],
   "properties": {
     "root_post_url": {"type": "string", "pattern": "^https://www\\.threads\\.net/@[A-Za-z0-9._-]+/post/[A-Za-z0-9._-]+$"},
     "detail_observation_id": {"type": "integer", "minimum": 1},
     "observed_at": {"type": "string", "format": "date-time"},
     "extractor_version": {"type": "string", "minLength": 1},
+    "thread_extraction": {"type": "object", "additionalProperties": false, "required": ["diagnostic_version", "visible_post_nodes", "discovered_candidates", "direct_root_author_candidates", "other_author_candidates", "root_author_after_other_boundary", "final_eligible_nodes", "excluded_candidates", "exclusion_reasons"], "properties": {"diagnostic_version": {"type": "string", "minLength": 1}, "visible_post_nodes": {"type": "integer", "minimum": 0}, "discovered_candidates": {"type": "integer", "minimum": 0}, "direct_root_author_candidates": {"type": "integer", "minimum": 0}, "other_author_candidates": {"type": "integer", "minimum": 0}, "root_author_after_other_boundary": {"type": "integer", "minimum": 0}, "final_eligible_nodes": {"type": "integer", "minimum": 0}, "excluded_candidates": {"type": "integer", "minimum": 0}, "exclusion_reasons": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 1}}}},
     "nodes": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["post_url", "sequence_position", "reply_to_post_url", "same_author_as_root", "relationship_evidence"], "properties": {"post_url": {"type": "string"}, "sequence_position": {"type": "integer", "minimum": 0}, "reply_to_post_url": {"type": ["string", "null"]}, "same_author_as_root": {"type": ["boolean", "null"]}, "relationship_evidence": {"enum": ["ROOT_DETAIL_PAGE", "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN"]}}}}
   }
 }

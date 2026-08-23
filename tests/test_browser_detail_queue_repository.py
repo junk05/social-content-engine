@@ -12,6 +12,7 @@ from tests.test_browser_observation_repository import observation as rich_observ
 
 def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE browser_thread_extraction_assessments")
     connection.execute("DROP TABLE browser_display_view_observations")
     connection.execute("DROP TABLE browser_detail_enrichment_exclusion_actions")
     connection.execute("DROP TABLE browser_detail_batch_assignments")

@@ -118,6 +118,46 @@ async function main() {
   assert.equal(sequenceEvents[0][0], "complete",
     "missing optional sequence leaves relationships unknown without failing valid detail");
 
+  const incompleteEvents = [];
+  let incompleteClaimed = false;
+  const indicatorIncomplete = globalThis.SCE_DETAIL_BATCH.createController({
+    transport: { ...transport,
+      async startBatch() { return { accepted: true, batchId: 11 }; },
+      async claimNext() {
+        if (incompleteClaimed) return { accepted: true, claim: null };
+        incompleteClaimed = true;
+        return { accepted: true, claim: {
+          queue_item_id: 21, batch_id: 11, attempt: 1, lease_version: 1, post_url: u1,
+        } };
+      },
+      async sendObservation(observation) {
+        return { accepted: true, observationId: 201, observationStatus: observation.post_url ? "DETAIL_ENRICHED" : null };
+      },
+      async sendThreadSequence() {
+        return { accepted: true, threadExtractionStatus: "THREAD_CHILDREN_NOT_CAPTURED" };
+      },
+      async failClaim(value) { incompleteEvents.push(["fail", value]); return { accepted: true }; },
+      async completeClaim(value) { incompleteEvents.push(["complete", value]); return { accepted: true }; },
+    },
+    tabWorker: { ...tabWorker,
+      async extract(_id, url) {
+        return { ok: true, observation: { post_url: url, collected_at: "2026-08-16T00:00:00Z",
+          thread_position: 1, thread_total: 4 }, childObservations: [], nodes: [{
+          post_url: url, sequence_position: 0, reply_to_post_url: null,
+          same_author_as_root: true, relationship_evidence: "ROOT_DETAIL_PAGE",
+        }], threadDiagnostic: { diagnostic_version: "fixture-v1", visible_post_nodes: 1,
+          discovered_candidates: 1, direct_root_author_candidates: 0, other_author_candidates: 0,
+          root_author_after_other_boundary: 0, final_eligible_nodes: 1,
+          excluded_candidates: 0, exclusion_reasons: {} } };
+      },
+    }, storage, minimumInterItemIntervalMs: 0,
+  });
+  assert.equal((await indicatorIncomplete.start(1)).accepted, true);
+  assert.deepEqual(incompleteEvents, [["fail", {
+    queue_item_id: 21, batch_id: 11, attempt: 1, lease_version: 1,
+    error_code: "THREAD_SEQUENCE_NOT_OBSERVED",
+  }]], "a root 1/N indicator never completes as a root-only sequence");
+
   saved[globalThis.SCE_DETAIL_BATCH.storageKey] = { batch_id: 8, worker_tab_id: 77 };
   const resumeTransport = { ...transport,
     async resumeBatch(batchId) { return { accepted: true, batchId }; },

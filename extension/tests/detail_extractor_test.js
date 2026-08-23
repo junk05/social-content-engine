@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v10");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v11");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -255,6 +255,10 @@ async function main() {
   assert.equal(sequenced.raw_sequence_indicator, "1 / 4");
   assert.equal(sequenced.thread_position, 1);
   assert.equal(sequenced.thread_total, 4);
+  assert.deepEqual(extractor.threadExtractionDiagnostic(
+    fixturePage("post_detail_sequence_indicator.html"),
+    "https://www.threads.net/@sample.user/post/Sequenced",
+  ).exclusion_reasons, {});
   assert.equal(sequenced.observed_fields.some(
     (item) => item.field === "raw_sequence_indicator" && item.value === "1 / 4"
   ), true);

@@ -83,8 +83,8 @@
     }));
     const childObservations = typeof extractor.extractVisibleThreadDetails === "function"
       ? await extractor.extractVisibleThreadDetails(document, url, collectedAt) : [];
-    const threadDiagnostic = typeof extractor.diagnoseVisibleThread === "function"
-      ? extractor.diagnoseVisibleThread(document, url) : null;
+    const threadDiagnostic = typeof extractor.threadExtractionDiagnostic === "function"
+      ? extractor.threadExtractionDiagnostic(document, url) : null;
     return { ok: true, observation, childObservations, nodes, threadDiagnostic };
   }
 

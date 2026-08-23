@@ -683,10 +683,21 @@ class BrowserIngestService:
                 detail_observation_id=int(decoded["detail_observation_id"]),
                 extractor_version=str(decoded["extractor_version"]), entries=entries,
             )
+            assessment = self.repository.assess_browser_thread_extraction(
+                root_identity_id=int(root["id"]),
+                detail_observation_id=int(decoded["detail_observation_id"]),
+                extractor_version=str(decoded["extractor_version"]),
+                diagnostic=decoded["thread_extraction"],
+                assessed_at=str(decoded["observed_at"]),
+            )
             count = len(entries)
         except (TypeError, ValueError, sqlite3.DatabaseError):
             return IngestResponse(422, {"error": "invalid_thread_sequence"}, origin)
-        return IngestResponse(201, {"status": "accepted", "node_count": count}, origin)
+        return IngestResponse(
+            201,
+            {"status": "accepted", "node_count": count,
+             "thread_extraction_status": assessment["assessment_status"]}, origin,
+        )
 
     def _handle_detail_failure(
         self, decoded: Dict[str, Any], origin: Optional[str]

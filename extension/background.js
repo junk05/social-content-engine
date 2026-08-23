@@ -56,7 +56,7 @@ if (typeof importScripts === "function") {
 
   function isSafeThreadSequence(sequence) {
     const required = [
-      "root_post_url", "nodes", "detail_observation_id", "observed_at", "extractor_version",
+      "root_post_url", "nodes", "detail_observation_id", "observed_at", "extractor_version", "thread_extraction",
     ];
     if (!sequence || typeof sequence !== "object" || containsForbiddenKey(sequence)
         || Object.keys(sequence).length !== required.length
@@ -64,9 +64,25 @@ if (typeof importScripts === "function") {
         || !isCanonicalThreadsPostUrl(sequence.root_post_url)
         || !Array.isArray(sequence.nodes) || sequence.nodes.length < 1
         || !Number.isInteger(sequence.detail_observation_id) || sequence.detail_observation_id < 1
-        || typeof sequence.observed_at !== "string" || typeof sequence.extractor_version !== "string") {
+        || typeof sequence.observed_at !== "string" || typeof sequence.extractor_version !== "string"
+        || !sequence.thread_extraction || typeof sequence.thread_extraction !== "object") {
       return false;
     }
+    const diagnosticKeys = ["diagnostic_version", "visible_post_nodes", "discovered_candidates",
+      "direct_root_author_candidates", "other_author_candidates", "root_author_after_other_boundary",
+      "final_eligible_nodes", "excluded_candidates", "exclusion_reasons"];
+    if (Object.keys(sequence.thread_extraction).length !== diagnosticKeys.length
+        || diagnosticKeys.some((key) => !(key in sequence.thread_extraction))
+        || typeof sequence.thread_extraction.diagnostic_version !== "string"
+        || !sequence.thread_extraction.diagnostic_version
+        || !["visible_post_nodes", "discovered_candidates", "direct_root_author_candidates",
+          "other_author_candidates", "root_author_after_other_boundary", "final_eligible_nodes",
+          "excluded_candidates"].every((key) => Number.isInteger(sequence.thread_extraction[key])
+            && sequence.thread_extraction[key] >= 0)
+        || !sequence.thread_extraction.exclusion_reasons
+        || typeof sequence.thread_extraction.exclusion_reasons !== "object"
+        || Array.isArray(sequence.thread_extraction.exclusion_reasons)
+        || Object.values(sequence.thread_extraction.exclusion_reasons).some((value) => !Number.isInteger(value) || value < 1)) return false;
     return sequence.nodes.every((node) => {
       const nodeKeys = ["post_url", "sequence_position", "reply_to_post_url", "same_author_as_root", "relationship_evidence"];
       return node && typeof node === "object" && Object.keys(node).length === nodeKeys.length
@@ -206,7 +222,7 @@ if (typeof importScripts === "function") {
       let payload;
       try { payload = await response.json(); } catch (_error) { return { accepted: false, reason: "invalid_receiver_response" }; }
       return payload && payload.status === "accepted"
-        ? { accepted: true }
+        ? { accepted: true, threadExtractionStatus: payload.thread_extraction_status }
         : { accepted: false, reason: "invalid_receiver_response" };
     } catch (_error) { return { accepted: false, reason: "network_error" }; }
   }

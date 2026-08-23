@@ -1456,6 +1456,33 @@ def _migration_26_browser_display_view_observations(
         )
 
 
+def _migration_27_thread_extraction_assessments(connection: sqlite3.Connection) -> None:
+    """Append-only indicator-backed Thread completeness evidence."""
+    connection.execute(
+        """CREATE TABLE browser_thread_extraction_assessments (
+          id INTEGER PRIMARY KEY,
+          root_browser_post_identity_id INTEGER NOT NULL REFERENCES browser_post_identities(id),
+          detail_observation_id INTEGER NOT NULL UNIQUE REFERENCES browser_observations(id),
+          expected_node_count INTEGER,
+          captured_node_count INTEGER NOT NULL CHECK(captured_node_count >= 1),
+          assessment_status TEXT NOT NULL CHECK(assessment_status IN (
+            'NOT_APPLICABLE', 'COMPLETE', 'THREAD_CHILDREN_NOT_CAPTURED',
+            'INCOMPLETE_THREAD_EXTRACTION'
+          )),
+          diagnostic_json TEXT NOT NULL,
+          diagnostic_sha256 TEXT NOT NULL,
+          assessed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_thread_extraction_assessments_{0}
+            BEFORE {0} ON browser_thread_extraction_assessments
+            BEGIN SELECT RAISE(ABORT, 'browser Thread extraction assessment is immutable'); END""".format(operation.lower())
+        )
+
+
 MIGRATIONS: Tuple[Migration, ...] = (
     (1, "activate-m1-analyzer-tables-v1", _migration_1_activate_analyzer_tables),
     (2, "normalized-post-version-history-v1", _migration_2_normalized_versions),
@@ -1507,6 +1534,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     ),
     (25, "browser-topic-tag-text-quality-v1", _migration_25_topic_tag_text_quality),
     (26, "browser-display-view-observations-v1", _migration_26_browser_display_view_observations),
+    (27, "browser-thread-extraction-assessments-v1", _migration_27_thread_extraction_assessments),
 )
 
 
@@ -2465,6 +2493,139 @@ class Repository:
                     raise RuntimeError("SQLite did not return a thread sequence observation id")
                 inserted.append(int(cursor.lastrowid))
         return tuple(inserted)
+
+    def assess_browser_thread_extraction(
+        self, *, root_identity_id: int, detail_observation_id: int,
+        extractor_version: str, diagnostic: Mapping[str, Any], assessed_at: str,
+    ) -> Dict[str, Any]:
+        """Append a completeness result; indicators never create relationship evidence."""
+        required = {
+            "diagnostic_version", "visible_post_nodes", "discovered_candidates",
+            "direct_root_author_candidates", "other_author_candidates",
+            "root_author_after_other_boundary", "final_eligible_nodes",
+            "excluded_candidates", "exclusion_reasons",
+        }
+        if set(diagnostic) != required or not _is_contract_identifier(extractor_version):
+            raise ValueError("invalid Thread extraction diagnostic")
+        if not isinstance(diagnostic["diagnostic_version"], str) or not diagnostic["diagnostic_version"]:
+            raise ValueError("invalid Thread extraction diagnostic")
+        numeric_keys = required - {"diagnostic_version", "exclusion_reasons"}
+        if any(isinstance(diagnostic[key], bool) or not isinstance(diagnostic[key], int)
+               or diagnostic[key] < 0 for key in numeric_keys):
+            raise ValueError("invalid Thread extraction diagnostic")
+        reasons = diagnostic["exclusion_reasons"]
+        if not isinstance(reasons, Mapping) or any(
+            not isinstance(key, str) or not key or isinstance(value, bool)
+            or not isinstance(value, int) or value < 1 for key, value in reasons.items()
+        ):
+            raise ValueError("invalid Thread extraction diagnostic")
+        detail = self.connection.execute(
+            """SELECT canonical_payload_json FROM browser_observations
+            WHERE id = ? AND browser_post_identity_id = ? AND observation_type = 'POST_DETAIL'""",
+            (detail_observation_id, root_identity_id),
+        ).fetchone()
+        if detail is None:
+            raise ValueError("Thread assessment requires matching root detail")
+        payload = json.loads(str(detail["canonical_payload_json"]))
+        position = payload.get("thread_position") if isinstance(payload, dict) else None
+        total = payload.get("thread_total") if isinstance(payload, dict) else None
+        expected = total if position == 1 and isinstance(total, int) and total > 1 else None
+        captured = int(diagnostic["final_eligible_nodes"])
+        if captured < 1:
+            raise ValueError("Thread assessment must include root")
+        if expected is None:
+            status = "NOT_APPLICABLE"
+        elif captured >= expected:
+            status = "COMPLETE"
+        elif captured == 1:
+            status = "THREAD_CHILDREN_NOT_CAPTURED"
+        else:
+            status = "INCOMPLETE_THREAD_EXTRACTION"
+        diagnostic_json = _canonical_json(dict(diagnostic))
+        diagnostic_sha256 = hashlib.sha256(diagnostic_json.encode("utf-8")).hexdigest()
+        with self.connection:
+            existing = self.connection.execute(
+                "SELECT id FROM browser_thread_extraction_assessments WHERE detail_observation_id = ?",
+                (detail_observation_id,),
+            ).fetchone()
+            if existing is not None:
+                row = self.connection.execute(
+                    "SELECT * FROM browser_thread_extraction_assessments WHERE id = ?", (existing["id"],)
+                ).fetchone()
+                return dict(row)
+            cursor = self.connection.execute(
+                """INSERT INTO browser_thread_extraction_assessments
+                (root_browser_post_identity_id, detail_observation_id, expected_node_count,
+                 captured_node_count, assessment_status, diagnostic_json, diagnostic_sha256,
+                 assessed_at, extractor_version)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (root_identity_id, detail_observation_id, expected, captured, status,
+                 diagnostic_json, diagnostic_sha256, assessed_at, extractor_version),
+            )
+            if cursor.lastrowid is None:
+                raise RuntimeError("SQLite did not return a Thread assessment id")
+        return {"id": int(cursor.lastrowid), "assessment_status": status,
+                "expected_node_count": expected, "captured_node_count": captured}
+
+    def requeue_incomplete_browser_thread_extractions(
+        self, *, requeued_at: Optional[str] = None
+    ) -> int:
+        """Requeue only eligible roots whose latest qualifying indicator is incomplete."""
+        timestamp = requeued_at or _utc_now()
+        with self.connection:
+            rows = self.connection.execute(
+                """SELECT queue.id AS queue_id, identity.id AS identity_id
+                FROM browser_detail_enrichment_queue queue
+                JOIN browser_post_identities identity ON identity.id = queue.browser_post_identity_id
+                JOIN browser_observations detail ON detail.id = identity.current_observation_id
+                  AND detail.observation_type = 'POST_DETAIL'
+                LEFT JOIN browser_thread_extraction_assessments assessment
+                  ON assessment.detail_observation_id = detail.id
+                WHERE queue.enrichment_excluded = 0 AND queue.status != 'DETAIL_PROCESSING'
+                  AND json_extract(detail.canonical_payload_json, '$.thread_position') = 1
+                  AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
+                  AND (assessment.id IS NULL OR assessment.assessment_status IN (
+                    'THREAD_CHILDREN_NOT_CAPTURED', 'INCOMPLETE_THREAD_EXTRACTION'))
+                ORDER BY queue.id"""
+            ).fetchall()
+            for row in rows:
+                self.connection.execute(
+                    """UPDATE browser_detail_enrichment_queue SET status = 'DETAIL_PENDING',
+                    active_batch_id = NULL, claimed_at = NULL, last_error_code = NULL,
+                    last_error_type = NULL, last_error_reason = NULL,
+                    updated_at = ? WHERE id = ?""", (timestamp, row["queue_id"]),
+                )
+                self.connection.execute(
+                    "UPDATE browser_post_identities SET status = 'DETAIL_PENDING', updated_at = ? WHERE id = ?",
+                    (timestamp, row["identity_id"]),
+                )
+        return len(rows)
+
+    def audit_browser_thread_extraction_completeness(self) -> Dict[str, int]:
+        """Aggregate only; never expose source content in Thread completeness audits."""
+        rows = self.connection.execute(
+            "SELECT assessment_status, COUNT(*) AS count FROM browser_thread_extraction_assessments GROUP BY assessment_status"
+        ).fetchall()
+        counts = {str(row["assessment_status"]): int(row["count"]) for row in rows}
+        candidates = self.connection.execute(
+            """SELECT COUNT(*) FROM browser_detail_enrichment_queue queue
+            JOIN browser_post_identities identity ON identity.id = queue.browser_post_identity_id
+            JOIN browser_observations detail ON detail.id = identity.current_observation_id
+             AND detail.observation_type = 'POST_DETAIL'
+            LEFT JOIN browser_thread_extraction_assessments assessment ON assessment.detail_observation_id = detail.id
+            WHERE queue.enrichment_excluded = 0
+              AND json_extract(detail.canonical_payload_json, '$.thread_position') = 1
+              AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
+              AND (assessment.id IS NULL OR assessment.assessment_status IN ('THREAD_CHILDREN_NOT_CAPTURED', 'INCOMPLETE_THREAD_EXTRACTION'))"""
+        ).fetchone()
+        return {
+            "indicator_root_count": sum(counts.get(key, 0) for key in (
+                "COMPLETE", "THREAD_CHILDREN_NOT_CAPTURED", "INCOMPLETE_THREAD_EXTRACTION")),
+            "complete_count": counts.get("COMPLETE", 0),
+            "incomplete_count": counts.get("INCOMPLETE_THREAD_EXTRACTION", 0),
+            "self_reply_count_zero_candidates": counts.get("THREAD_CHILDREN_NOT_CAPTURED", 0),
+            "reenrichment_candidate_count": int(candidates[0]),
+        }
 
     def add_browser_dataset_member(
         self,

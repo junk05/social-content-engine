@@ -179,18 +179,41 @@
                     last_item_started_at_ms: lastItemStartedAt });
                   continue;
                 }
+                const requiresThreadChildren = extracted.observation.thread_position === 1
+                  && Number.isInteger(extracted.observation.thread_total)
+                  && extracted.observation.thread_total > 1;
+                let threadExtractionStatus = "NOT_APPLICABLE";
                 if (observableNodes.length > 0) {
                   try {
-                    await transport.sendThreadSequence({
+                    const threadSequence = await transport.sendThreadSequence({
                       root_post_url: extracted.observation.post_url,
                       nodes: observableNodes,
                       detail_observation_id: accepted.observationId,
                       observed_at: extracted.observation.collected_at,
                       extractor_version: extracted.observation.extractor_version,
+                      thread_extraction: extracted.threadDiagnostic,
                     });
+                    if (!threadSequence.accepted) throw new Error("thread_sequence_rejected");
+                    threadExtractionStatus = threadSequence.threadExtractionStatus
+                      || (requiresThreadChildren ? "THREAD_CHILDREN_NOT_CAPTURED" : "NOT_APPLICABLE");
                   } catch (_sequenceError) {
-                    // Sequence evidence is optional; never infer it or fail valid root detail.
+                    threadExtractionStatus = requiresThreadChildren
+                      ? "THREAD_CHILDREN_NOT_CAPTURED" : "NOT_APPLICABLE";
                   }
+                }
+                if (["THREAD_CHILDREN_NOT_CAPTURED", "INCOMPLETE_THREAD_EXTRACTION"].includes(threadExtractionStatus)) {
+                  const failure = await transport.failClaim({
+                    ...correlation(claim), error_code: "THREAD_SEQUENCE_NOT_OBSERVED",
+                  });
+                  if (!failure.accepted) return failure;
+                  failed += 1;
+                  processed += 1;
+                  report({ batch_id: batchId, status: "THREAD_REENRICH_PENDING", processed, total,
+                    succeeded, failed, wait_ms: 0 });
+                  await persist({ batch_id: batchId, worker_tab_id: tabId, total,
+                    processed, succeeded, failed, status: "THREAD_REENRICH_PENDING",
+                    last_item_started_at_ms: lastItemStartedAt });
+                  continue;
                 }
                 const completed = await transport.completeClaim({
                   ...correlation(claim), detail_observation_id: accepted.observationId,

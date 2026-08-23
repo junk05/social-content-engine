@@ -212,14 +212,22 @@ async function main() {
     detail_observation_id: 42,
     observed_at: "2026-08-16T04:00:00Z",
     extractor_version: "threads_detail_sequence_extractor_v1",
+    thread_extraction: {
+      diagnostic_version: "thread_candidate_diagnostic_v1",
+      visible_post_nodes: 1, discovered_candidates: 1,
+      direct_root_author_candidates: 0, other_author_candidates: 0,
+      root_author_after_other_boundary: 0, final_eligible_nodes: 1,
+      excluded_candidates: 0, exclusion_reasons: {},
+    },
   };
   let sequenceRequest;
   assert.deepEqual(await transport.sendThreadSequence(threadSequence, {
     fetch: async (url, options) => {
       sequenceRequest = { url, options };
-      return response(201, { status: "accepted", node_count: 1 });
+      return response(201, { status: "accepted", node_count: 1,
+        thread_extraction_status: "NOT_APPLICABLE" });
     },
-  }), { accepted: true });
+  }), { accepted: true, threadExtractionStatus: "NOT_APPLICABLE" });
   assert.equal(sequenceRequest.url, transport.threadSequenceUrl);
   assert.equal(sequenceRequest.options.credentials, "omit");
   assert.equal(

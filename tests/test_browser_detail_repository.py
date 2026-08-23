@@ -10,7 +10,8 @@ from social_content_engine.data.repository import Repository
 
 
 def observation(
-    *, observation_type: str = "SEARCH_CARD", view_count: Optional[int] = None
+    *, observation_type: str = "SEARCH_CARD", view_count: Optional[int] = None,
+    thread_position: Optional[int] = None, thread_total: Optional[int] = None,
 ) -> Dict[str, Any]:
     surface = (
         "threads_post_detail"
@@ -66,6 +67,11 @@ def observation(
                 "extractor_version": "fixture-extractor-v1",
             }
         )
+    if thread_position is not None and thread_total is not None:
+        value.update({
+            "raw_sequence_indicator": f"{thread_position} / {thread_total}",
+            "thread_position": thread_position, "thread_total": thread_total,
+        })
     value["payload_sha256"] = browser_observation_payload_sha256(value)
     return value
 
@@ -80,6 +86,42 @@ def downgrade_before_migration_9(path: Path) -> None:
 
 
 class BrowserDetailRepositoryTest(unittest.TestCase):
+    def test_indicator_assessment_and_non_destructive_requeue(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "assessment.sqlite3") as repository:
+                root = repository.add_browser_observation(observation())
+                detail = repository.add_browser_observation(observation(
+                    observation_type="POST_DETAIL", thread_position=1, thread_total=4,
+                ))
+                diagnostic = {
+                    "diagnostic_version": "fixture-thread-diagnostic-v1",
+                    "visible_post_nodes": 1, "discovered_candidates": 1,
+                    "direct_root_author_candidates": 0, "other_author_candidates": 0,
+                    "root_author_after_other_boundary": 0, "final_eligible_nodes": 1,
+                    "excluded_candidates": 0, "exclusion_reasons": {},
+                }
+                assessment = repository.assess_browser_thread_extraction(
+                    root_identity_id=root["browser_post_identity_id"],
+                    detail_observation_id=detail["browser_observation_id"],
+                    extractor_version="fixture-thread-extractor-v1", diagnostic=diagnostic,
+                    assessed_at="2026-08-23T00:00:00Z",
+                )
+                self.assertEqual("THREAD_CHILDREN_NOT_CAPTURED", assessment["assessment_status"])
+                self.assertEqual(4, assessment["expected_node_count"])
+                self.assertEqual(1, assessment["captured_node_count"])
+                self.assertEqual(1, repository.requeue_incomplete_browser_thread_extractions(
+                    requeued_at="2026-08-23T00:01:00Z"
+                ))
+                queue = repository.connection.execute(
+                    "SELECT status, last_error_code FROM browser_detail_enrichment_queue"
+                ).fetchone()
+                self.assertEqual(("DETAIL_PENDING", None), tuple(queue))
+                self.assertEqual({
+                    "indicator_root_count": 1, "complete_count": 0,
+                    "incomplete_count": 0, "self_reply_count_zero_candidates": 1,
+                    "reenrichment_candidate_count": 1,
+                }, repository.audit_browser_thread_extraction_completeness())
+
     def test_thread_sequence_observation_is_append_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "sequence.sqlite3") as repository:

@@ -39,8 +39,9 @@ credentials, or raw DOM.
 
 Incomplete qualifying roots are not considered normal completed Thread
 extractions. Their already-saved detail observation remains immutable, while
-the queue is safely returned to `DETAIL_PENDING` with
-`THREAD_REENRICH_PENDING` for a later explicit batch. Excluded or currently
+the queue is safely returned to `DETAIL_PENDING`; its latest immutable
+assessment is the `THREAD_REENRICH_PENDING` equivalent for a later explicit
+batch. Excluded or currently
 processing roots are never altered.
 
 ## Recovery and audit
