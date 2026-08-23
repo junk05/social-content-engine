@@ -26,6 +26,9 @@
       "type": "array", "maxItems": 20, "uniqueItems": true,
       "items": {"type": "string", "minLength": 1, "maxLength": 100}
     },
+    "raw_sequence_indicator": {"type": ["string", "null"], "pattern": "^\\s*\\d+\\s*/\\s*\\d+\\s*$"},
+    "thread_position": {"type": ["integer", "null"], "minimum": 1},
+    "thread_total": {"type": ["integer", "null"], "minimum": 1},
     "timestamp": {"type": ["string", "null"], "format": "date-time"},
     "public_counters": {
       "type": "object",
@@ -100,6 +103,7 @@
             "enum": [
               "source_post_id", "author_name", "username", "text", "timestamp",
               "topic_tags",
+              "raw_sequence_indicator", "thread_position", "thread_total",
               "public_counters.view_count", "public_counters.like_count",
               "public_counters.reply_count", "public_counters.repost_count",
               "public_counters.quote_count", "public_counters.share_count", "media_type",

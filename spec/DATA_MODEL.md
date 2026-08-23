@@ -46,6 +46,9 @@ in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
   envelopes. Recollection always creates another observation.
 - Author body `text` is stored independently from structurally observed
   `topic_tags[]`; topic labels are Source metadata, never body components.
+- DOM-confirmed thread sequence UI is stored as `raw_sequence_indicator`,
+  `thread_position`, and `thread_total`; an identical author-written fraction
+  without indicator DOM evidence remains body text.
 - `browser_observed_fields`: field-level value, surface, time, and extractor
   provenance linked to one immutable observation.
 - `browser_metric_observation_statuses`: immutable per-counter availability

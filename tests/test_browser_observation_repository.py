@@ -227,6 +227,23 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
         invalid["payload_sha256"] = browser_observation_payload_sha256(invalid)
         self.assertTrue(list(validator.iter_errors(invalid)))
 
+        sequenced = observation(observation_type="POST_DETAIL", metric_statuses=True)
+        sequenced.update({
+            "raw_sequence_indicator": "1 / 3", "thread_position": 1,
+            "thread_total": 3,
+        })
+        for field, value in [
+            ("raw_sequence_indicator", "1 / 3"),
+            ("thread_position", 1), ("thread_total", 3),
+        ]:
+            sequenced["observed_fields"].append({
+                "field": field, "value": value, "surface": "threads_post_detail",
+                "observed_at": "2026-08-16T00:00:00+00:00",
+                "extractor_version": "fixture-extractor-v1",
+            })
+        sequenced["payload_sha256"] = browser_observation_payload_sha256(sequenced)
+        self.assertEqual([], list(validator.iter_errors(sequenced)))
+
     def test_repeated_observations_keep_one_identity_and_reuse_or_version_payload(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "test.sqlite3") as repository:

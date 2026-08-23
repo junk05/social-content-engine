@@ -1,0 +1,21 @@
+{
+  "id": "CR-0024",
+  "title": "Separate sequence UI and extend detail-page Views formats",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Store DOM-confirmed sequence indicators outside source text and distinguish exact integer Views displays from rounded magnitude displays.",
+  "scope": [
+    "root and self-reply sequence indicator extraction",
+    "display exact and rounded Views normalization",
+    "Source Store and Human Review CSV provenance",
+    "fixtures, regression, and HG-03"
+  ],
+  "forbidden": [
+    "removing author text from visual form alone",
+    "treating generated class as a permanent contract",
+    "treating rounded Views as exact",
+    "treating missing Views as zero",
+    "starting M5"
+  ]
+}

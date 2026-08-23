@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
 
@@ -14,6 +15,9 @@ OBSERVABLE_FIELDS = {
     "username",
     "text",
     "topic_tags",
+    "raw_sequence_indicator",
+    "thread_position",
+    "thread_total",
     "timestamp",
     "public_counters.view_count",
     "public_counters.like_count",
@@ -88,6 +92,9 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
         "username": observation.get("username"),
         "text": observation.get("text"),
         "topic_tags": list(observation.get("topic_tags", [])),
+        "raw_sequence_indicator": observation.get("raw_sequence_indicator"),
+        "thread_position": observation.get("thread_position"),
+        "thread_total": observation.get("thread_total"),
         "timestamp": observation.get("timestamp"),
         "public_counters": dict(observation.get("public_counters", {})),
         "approximate_views": (
@@ -158,7 +165,10 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "extractor_version",
         "payload_sha256",
     }
-    optional_keys = {"metric_observation_statuses", "approximate_views", "topic_tags"}
+    optional_keys = {
+        "metric_observation_statuses", "approximate_views", "topic_tags",
+        "raw_sequence_indicator", "thread_position", "thread_total",
+    }
     if not required_keys.issubset(observation) or not set(observation).issubset(
         required_keys | optional_keys
     ):
@@ -190,6 +200,20 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         or len(set(topic_tags)) != len(topic_tags)
     ):
         raise ValueError("browser observation topic tags are invalid")
+    sequence_values = (
+        observation.get("raw_sequence_indicator"),
+        observation.get("thread_position"), observation.get("thread_total"),
+    )
+    if any(value is not None for value in sequence_values):
+        raw_indicator, thread_position, thread_total = sequence_values
+        if (
+            not isinstance(raw_indicator, str)
+            or not re.fullmatch(r"\s*\d+\s*/\s*\d+\s*", raw_indicator)
+            or isinstance(thread_position, bool) or not isinstance(thread_position, int)
+            or isinstance(thread_total, bool) or not isinstance(thread_total, int)
+            or not 1 <= thread_position <= thread_total
+        ):
+            raise ValueError("thread sequence indicator is invalid")
     if any(
         observation.get(key) is not None
         and not isinstance(observation.get(key), bool)

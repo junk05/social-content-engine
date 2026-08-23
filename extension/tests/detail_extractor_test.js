@@ -58,6 +58,10 @@ function fixturePage(name) {
     html.matchAll(/<(div|span)\s+([^>]*(?:dir="auto"|data-testid="post-text")[^>]*)>([\s\S]*?)<\/\1>/g),
     (match) => new Element(attributes(match[2]), stripHiddenAndTags(match[3])),
   );
+  const sequenceIndicators = Array.from(
+    html.matchAll(/<(div|span)\s+([^>]*(?:x1rg5ohu|thread-sequence-indicator)[^>]*)>([^<]*)<\/\1>/g),
+    (match) => new Element(attributes(match[2]), stripTags(match[3])),
+  );
   const displayLabels = Array.from(
     html.matchAll(/<(?:div|span)(?:\s+[^>]*)?>([^<]+)<\/(?:div|span)>/g),
     (match) => new Element({}, stripTags(match[1])),
@@ -81,6 +85,7 @@ function fixturePage(name) {
         item.getAttribute("data-testid") === "topic-tag"
         || item.getAttribute("data-topic-tag") !== null
       ));
+      if (selector.includes("div.x1rg5ohu")) return sequenceIndicators;
       if (selector === "span, div") return displayLabels;
       if (selector === '[role="dialog"], [aria-modal="true"]') return dialogs;
       if (selector === "video") return media.filter((item) => item.tag === "video").map((item) => item.element);
@@ -98,10 +103,10 @@ async function main() {
   const extractor = globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR;
   const source = fs.readFileSync(path.join(__dirname, "..", "detail_extractor.js"), "utf8");
   assert.match(source, /visibleCounters\(postRoot\)/);
-  assert.match(source, /visiblePostText\(postRoot,/);
+  assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v7");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v8");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -151,8 +156,9 @@ async function main() {
     "author_name", "collected_at", "collection_context", "extractor_version",
     "has_image", "has_video", "media_type", "metric_observation_statuses",
     "observation_type", "observed_fields",
-    "payload_sha256", "post_url", "public_counters", "schema_version", "source",
-    "source_post_id", "text", "timestamp", "topic_tags", "username",
+    "payload_sha256", "post_url", "public_counters", "raw_sequence_indicator",
+    "schema_version", "source", "source_post_id", "text", "thread_position",
+    "thread_total", "timestamp", "topic_tags", "username",
   ]);
   assert.equal(complete.post_url, "https://www.threads.net/@sample.user/post/AbC_123");
   assert.equal(complete.source_post_id, null);
@@ -160,6 +166,7 @@ async function main() {
   assert.equal(complete.username, "sample.user");
   assert.equal(complete.text, "Sanitized detail post text.");
   assert.deepEqual(complete.topic_tags, ["Fixture Topic"]);
+  assert.equal(complete.raw_sequence_indicator, null);
   assert.deepEqual(complete.public_counters, {
     view_count: 0, like_count: 1234, reply_count: 2,
     repost_count: null, quote_count: null, share_count: 0,
@@ -235,6 +242,25 @@ async function main() {
   );
   assert.equal(genuineShort.text, "恋愛", "a structurally identified body may be one word");
   assert.deepEqual(genuineShort.topic_tags, ["恋愛"]);
+
+  const sequenced = await extractor.extractPostDetail(
+    fixturePage("post_detail_sequence_indicator.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/Sequenced" },
+  );
+  assert.equal(sequenced.text, "Sequence body remains author content.");
+  assert.equal(sequenced.raw_sequence_indicator, "1 / 4");
+  assert.equal(sequenced.thread_position, 1);
+  assert.equal(sequenced.thread_total, 4);
+  assert.equal(sequenced.observed_fields.some(
+    (item) => item.field === "raw_sequence_indicator" && item.value === "1 / 4"
+  ), true);
+  const authoredFraction = await extractor.extractPostDetail(
+    fixturePage("post_detail_user_fraction.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/AuthoredFraction" },
+  );
+  assert.equal(authoredFraction.text, "1 / 2",
+    "matching author content is preserved without sequence-indicator DOM evidence");
+  assert.equal(authoredFraction.raw_sequence_indicator, null);
 
   const headerExact = await extractor.extractPostDetail(
     fixturePage("post_detail_header_exact_view.html"),

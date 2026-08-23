@@ -168,6 +168,7 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("日本語の本文です。", root["first_line"])
         self.assertEqual("恋愛", root["topic_tags"])
         self.assertEqual("1", root["topic_tag_count"])
+        self.assertEqual("", root["raw_sequence_indicator"])
         self.assertEqual("0", root["like_count"])
         self.assertEqual("", root["repost_count"])
         self.assertEqual("https://www.threads.com/@a/post/root", root["post_url"])

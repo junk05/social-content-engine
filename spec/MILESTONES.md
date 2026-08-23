@@ -284,6 +284,15 @@ HG-03 passed for 30 reobserved roots. Every root stored body and topic metadata
 separately, none had body equal to an observed topic label, and all 30 confirmed
 legacy tag-only observations remain immutable with appended quality evidence.
 
+### M4-FU07 — Sequence Indicator and Display Views
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU07_SEQUENCE_AND_DISPLAY_VIEWS.md`
+(`CR-0024`). This follow-up separates DOM-confirmed `N / total` UI metadata
+from author text and stores integer detail-page Views as `DISPLAY_EXACT`, while
+preserving rounded magnitude displays as `ROUNDED`. M5 remains unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

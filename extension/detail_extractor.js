@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v7";
+  const VERSION = "threads_post_detail_extractor_v8";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -68,6 +68,31 @@
       values.push(value);
     }
     return values;
+  }
+  const SEQUENCE_INDICATOR_SELECTOR = [
+    'div.x1rg5ohu', '[data-testid="thread-sequence-indicator"]',
+    '[data-thread-sequence-indicator]', '[aria-label*="スレッド"][aria-label*="/"]',
+  ].join(", ");
+  function visibleSequenceIndicator(root) {
+    for (const element of root.querySelectorAll(SEQUENCE_INDICATOR_SELECTOR)) {
+      if (!isVisible(element)) continue;
+      const raw = renderedText(element);
+      const match = raw ? raw.match(/^\s*(\d+)\s*\/\s*(\d+)\s*$/) : null;
+      if (!match) continue;
+      const position = Number(match[1]);
+      const total = Number(match[2]);
+      if (!Number.isSafeInteger(position) || !Number.isSafeInteger(total)
+          || position < 1 || total < 1 || position > total) continue;
+      return { raw_sequence_indicator: raw, thread_position: position, thread_total: total };
+    }
+    return null;
+  }
+  function withoutObservedSequenceIndicator(value, sequenceIndicator) {
+    if (!value || !sequenceIndicator) return value;
+    const raw = sequenceIndicator.raw_sequence_indicator;
+    if (value === raw) return null;
+    if (!value.endsWith(raw)) return value;
+    return cleanText(value.slice(0, -raw.length));
   }
   function exactNonnegativeInteger(label) {
     if (typeof label !== "string") return null;
@@ -432,7 +457,7 @@
   function visibleActivityViewCount(root) {
     return visibleActivityDialogViewCount(root);
   }
-  function visiblePostText(root, excludedValues) {
+  function visiblePostText(root, excludedValues, sequenceIndicator = null) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
     const dateMetadata = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/;
     const relativeTimeMetadata = /^(?:\d+\s*(?:分|時間|日|週|ヶ月|か月|月|年|m|min|h|d|w|mo|y)|昨日|一昨日)$/i;
@@ -442,7 +467,9 @@
         if (!isVisible(candidate)) continue;
         if (candidate.closest('a[href^="/@"], a[href*="/post/"], time, button, [role="button"]')) continue;
         if (isTopicElement(candidate)) continue;
-        const value = renderedText(candidate);
+        const value = withoutObservedSequenceIndicator(
+          renderedText(candidate), sequenceIndicator,
+        );
         if (value && !excluded.has(value.toLowerCase())
             && !dateMetadata.test(value) && !relativeTimeMetadata.test(value)) {
           eligible.push({ value, order: eligible.length });
@@ -510,7 +537,11 @@
           : "NOT_OBSERVED";
     }
     const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
-    const text = visiblePostText(postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels]);
+    const sequenceIndicator = visibleSequenceIndicator(postRoot);
+    const text = visiblePostText(
+      postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels],
+      sequenceIndicator,
+    );
     const topicTags = visibleTopicTags(postRoot);
     const media = mediaValues(postRoot);
     const observed = [];
@@ -519,11 +550,19 @@
       ["timestamp", timestamp], ["media_type", media.mediaType], ["has_image", media.hasImage], ["has_video", media.hasVideo],
     ]) if (value !== null) observed.push(observationField(field, value, collectedAt));
     if (topicTags.length) observed.push(observationField("topic_tags", topicTags, collectedAt));
+    if (sequenceIndicator) {
+      for (const field of ["raw_sequence_indicator", "thread_position", "thread_total"]) {
+        observed.push(observationField(field, sequenceIndicator[field], collectedAt));
+      }
+    }
     for (const [name, value] of Object.entries(counters)) if (value !== null) observed.push(observationField("public_counters." + name, value, collectedAt));
     const observation = {
       schema_version: 1, observation_type: "POST_DETAIL", source: "threads",
       post_url: post.canonical, source_post_id: null,
       author_name: profile.authorName, username: profile.username, text, topic_tags: topicTags,
+      raw_sequence_indicator: sequenceIndicator?.raw_sequence_indicator ?? null,
+      thread_position: sequenceIndicator?.thread_position ?? null,
+      thread_total: sequenceIndicator?.thread_total ?? null,
       timestamp,
       public_counters: counters, metric_observation_statuses: metricStatuses,
       media_type: media.mediaType, has_image: media.hasImage, has_video: media.hasVideo,
@@ -551,7 +590,8 @@
     approximatePageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
-    visibleTopicTags, extractVisibleThreadNodes, diagnoseVisibleThread, extractPostDetail,
+    visibleTopicTags, visibleSequenceIndicator, extractVisibleThreadNodes,
+    diagnoseVisibleThread, extractPostDetail,
     extractVisibleThreadDetails,
   });
 })(globalThis);

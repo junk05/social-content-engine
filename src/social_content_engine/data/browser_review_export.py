@@ -18,7 +18,8 @@ _RELATIVE_TIME_METADATA = re.compile(
 
 POST_COLUMNS = [
     "canonical_post_id", "collected_at", "author_username", "post_url",
-    "source_text", "topic_tags", "topic_tag_count", "text_quality", "first_line", "detail_status",
+    "source_text", "topic_tags", "topic_tag_count", "raw_sequence_indicator",
+    "thread_position", "thread_total", "text_quality", "first_line", "detail_status",
     "detail_attempt_count", "detail_last_error", "rounded_views_raw",
     "rounded_views_normalized", "rounded_views_band", "rounded_views_status",
     "like_count", "reply_count", "repost_count", "quote_count",
@@ -29,7 +30,8 @@ POST_COLUMNS = [
 THREAD_COLUMNS = [
     "root_canonical_id", "sequence_position", "node_type", "author_username",
     "same_author_as_root", "source_post_id", "reply_to_post_id", "post_url",
-    "text", "topic_tags", "topic_tag_count", "text_quality", "observed_at", "extractor_version",
+    "text", "topic_tags", "topic_tag_count", "raw_sequence_indicator",
+    "thread_position", "thread_total", "text_quality", "observed_at", "extractor_version",
     "relationship_eligibility", "exclusion_reason",
 ]
 
@@ -358,6 +360,9 @@ def build_post_rows(
             "source_text": text,
             "topic_tags": _render_topic_tags(topic_tags),
             "topic_tag_count": len(topic_tags),
+            "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
+            "thread_position": payload.get("thread_position"),
+            "thread_total": payload.get("thread_total"),
             "text_quality": quality,
             "first_line": _first_line(text),
             "detail_status": detail_status,
@@ -475,6 +480,9 @@ def build_thread_rows(
                 "text": payload.get("text"),
                 "topic_tags": _render_topic_tags(topic_tags),
                 "topic_tag_count": len(topic_tags),
+                "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
+                "thread_position": payload.get("thread_position"),
+                "thread_total": payload.get("thread_total"),
                 "text_quality": quality,
                 "observed_at": node["observed_at"],
                 "extractor_version": node["extractor_version"],
