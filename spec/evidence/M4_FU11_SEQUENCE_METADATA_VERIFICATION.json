@@ -1,0 +1,28 @@
+{
+  "evidence_id": "M4-FU11-SEQUENCE-METADATA-VERIFICATION-2026-08-23",
+  "source_text_or_identity_retained": false,
+  "data_flow": {
+    "extractor_detects_dom_indicator": true,
+    "receiver_persists_payload_and_observed_fields": true,
+    "canonical_current_projection_has_indicator": true,
+    "csv_now_projects_latest_root_detail_metadata": true
+  },
+  "csv_presentation": {
+    "raw_source_observation_changed": false,
+    "indicator_display_format": "N of TOTAL",
+    "canonical_numeric_columns": [
+      "thread_position",
+      "thread_total",
+      "clean_sequence_node_count"
+    ]
+  },
+  "overcapture_audit": {
+    "roots_audited": 2,
+    "classification": "BUG_REQUIRES_FIX",
+    "cause": "contiguous same-author nodes after an observed root total were merged into the root sequence",
+    "repair": "cap eligible root-author chain at observed root thread_total",
+    "post_reenrichment_expected_equals_clean": 2,
+    "v15_live_verification_expected_equals_clean": 1
+  },
+  "boundary": "No source text, URL, author identity, or raw live metric is committed. No relationship is inferred from an indicator."
+}

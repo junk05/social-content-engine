@@ -214,6 +214,6 @@
     ,{"id":"M4-FU10-006","owner":"QA_REVIEWER","title":"Verify export, regression, and bounded live metric comparison","status":"COMPLETE","depends_on":["M4-FU10-005"]}
     ,{"id":"M4-FU11-001","owner":"ORCHESTRATOR","title":"Audit DOM-to-CSV sequence metadata flow without changing Thread extraction","status":"COMPLETE","depends_on":["M4-FU10-006"]}
     ,{"id":"M4-FU11-002","owner":"DATA","title":"Project latest root sequence metadata independently from source-text selection","status":"COMPLETE","depends_on":["M4-FU11-001"]}
-    ,{"id":"M4-FU11-003","owner":"QA_REVIEWER","title":"Verify expected sequence total against clean captured nodes and bounded live CSV output","status":"PENDING","depends_on":["M4-FU11-002"]}
+    ,{"id":"M4-FU11-003","owner":"QA_REVIEWER","title":"Verify expected sequence total against clean captured nodes and bounded live CSV output","status":"COMPLETE","depends_on":["M4-FU11-002"]}
   ]
 }

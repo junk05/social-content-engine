@@ -1,6 +1,6 @@
 # M4-FU11 — Sequence Metadata Export Projection
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0028`.
 
@@ -33,3 +33,14 @@ payload retains `1 / 2`, while `thread_position`, `thread_total`, and
 - Indicators remain UI metadata, not inferred edges.
 - Existing source observations and provenance stay immutable.
 - M5 remains out of scope.
+
+## Completion evidence
+
+The 2026-08-23 audit found two roots where a root `1 / 2` sequence had three
+captured clean nodes. Both were over-capture, not missing children: the second
+accepted child was outside the observed root total (one itself began `1 / 3`).
+The extractor now caps an already branch-safe root-author chain at its observed
+root total; it neither creates nodes nor relaxes author/branch checks. Both
+audited roots reached two clean nodes after re-enrichment, and one was repeated
+with extractor v15 to verify versioned provenance. The aggregate-only evidence
+is `spec/evidence/M4_FU11_SEQUENCE_METADATA_VERIFICATION.json`.
