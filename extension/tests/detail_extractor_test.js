@@ -211,6 +211,16 @@ async function main() {
     "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
     "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
   ]);
+  const capped = extractor.extractVisibleThreadNodes(
+    fixturePage("post_detail_sequence_cap.html"),
+    "https://www.threads.net/@sample.user/post/Root",
+  );
+  assert.deepEqual(capped.map((node) => node.sequence_position), [0, 1],
+    "a root indicator bounds the author-owned sequence without weakening branch checks");
+  assert.equal(extractor.threadExtractionDiagnostic(
+    fixturePage("post_detail_sequence_cap.html"),
+    "https://www.threads.net/@sample.user/post/Root",
+  ).exclusion_reasons.AFTER_EXPECTED_THREAD_TOTAL, 1);
   const diagnostic = extractor.diagnoseVisibleThread(page, context.pageUrl);
   assert.equal(diagnostic.diagnostic_version, "thread_candidate_diagnostic_v1");
   assert.equal(diagnostic.visible_post_nodes, 8);

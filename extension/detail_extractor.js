@@ -346,6 +346,9 @@
       post_url: rootUrl, root_post_url: rootUrl, reply_to_post_url: null,
       same_author_as_root: true, relationship_evidence: ROOT_RELATIONSHIP_EVIDENCE,
     }];
+    const indicator = visibleSequenceIndicator(rootPostContainer(root, pageUrl) || root);
+    const maxNodes = indicator && indicator.thread_position === 1 && indicator.thread_total > 1
+      ? indicator.thread_total : null;
     let rootObserved = false;
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
@@ -361,6 +364,10 @@
       if (typeof link.querySelector === "function" && !link.querySelector("time[datetime]")) {
         continue;
       }
+      // A root `1 / N` bounds this observed author-owned sequence. A later
+      // same-author post may begin another sequence; never merge it merely
+      // because the flat DOM order remains contiguous.
+      if (maxNodes !== null && nodes.length >= maxNodes) break;
       const nodeUsername = postUrl.match(/\/@([^/]+)\/post\//)[1].toLowerCase();
       // The author-owned continuation is the contiguous root-author prefix.
       // Once the conversation enters another author, that branch is closed and
@@ -397,6 +404,9 @@
     let rootNodes = 0;
     let otherAuthorBoundary = false;
     let eligiblePosition = 0;
+    const indicator = visibleSequenceIndicator(rootPostContainer(root, pageUrl) || root);
+    const maxNodes = indicator && indicator.thread_position === 1 && indicator.thread_total > 1
+      ? indicator.thread_total : null;
     for (const link of root.querySelectorAll('a[href*="/post/"]')) {
       if (!isVisible(link)) continue;
       const postUrl = canonicalPostUrl(link.getAttribute("href"), pageUrl);
@@ -424,6 +434,8 @@
         reason = "OTHER_AUTHOR_BOUNDARY";
       } else if (otherAuthorBoundary) {
         reason = "ROOT_AUTHOR_AFTER_OTHER_AUTHOR_BOUNDARY";
+      } else if (maxNodes !== null && eligiblePosition >= maxNodes - 1) {
+        reason = "AFTER_EXPECTED_THREAD_TOTAL";
       } else {
         eligiblePosition += 1;
         eligible = true;
