@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v9";
+  const VERSION = "threads_post_detail_extractor_v10";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -559,8 +559,13 @@
     for (const name of Object.keys(counters)) {
       if (counters[name] === null) counters[name] = activityMetricValue(root, name);
     }
-    const approximateViews = approximatePageViews(root, collectedAt);
-    const displayViews = exactDisplayPageViews(root, collectedAt);
+    // Header Views describe the canonical page root. Thread-child extraction
+    // reuses the same document, so it must not inherit root-level metrics.
+    const includePageMetrics = context.includePageMetrics !== false;
+    const approximateViews = includePageMetrics
+      ? approximatePageViews(root, collectedAt) : null;
+    const displayViews = includePageMetrics
+      ? exactDisplayPageViews(root, collectedAt) : null;
     const activityVisible = visibleActivitySurface(root);
     const metricStatuses = {};
     for (const [name, value] of Object.entries(counters)) {
@@ -613,7 +618,7 @@
     for (const node of extractVisibleThreadNodes(root, pageUrl)) {
       if (node.post_url === rootUrl || node.same_author_as_root !== true) continue;
       const observation = await extractPostDetail(root, {
-        pageUrl: node.post_url, collectedAt,
+        pageUrl: node.post_url, collectedAt, includePageMetrics: false,
       });
       if (observation) details.push(observation);
     }

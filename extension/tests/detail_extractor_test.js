@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v9");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v10");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -196,6 +196,10 @@ async function main() {
   assert.equal(selfReplyDetails.every((item) => item.text !== null), true);
   assert.equal(selfReplyDetails.every((item) => item.topic_tags[0] === "Fixture Topic"), true,
     "self-reply detail observations reuse the same body/topic separation");
+  assert.equal(selfReplyDetails.every((item) => item.approximate_views === undefined), true,
+    "self replies never inherit root-level rounded Views");
+  assert.equal(selfReplyDetails.every((item) => item.display_views === undefined), true,
+    "self replies never inherit root-level integer Views");
   const serialized = JSON.stringify(complete).toLowerCase();
   for (const forbidden of ["<main", "outerhtml", "cookie", "password", "access_token"]) assert.equal(serialized.includes(forbidden), false);
 

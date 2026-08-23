@@ -27,6 +27,10 @@ Both forms remain Source evidence with observed time, extractor, normalizer,
 surface, and view band. Rounded observations are descriptive only. M5 remains
 unauthorized.
 
+Page-header Views belong only to the canonical root displayed by the detail
+page. Self-reply observations extracted from that document must not inherit the
+root display.
+
 ## Definition of Done
 
 1. DOM-confirmed sequence UI is separated for roots and self replies;
