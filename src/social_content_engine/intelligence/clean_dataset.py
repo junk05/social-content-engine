@@ -171,6 +171,7 @@ def create_clean_browser_dataset_snapshot(
         "exclude_quality_statuses": [
             "INVALID_TEXT_DATE_METADATA",
             "INVALID_TEXT_TOPIC_TAG_METADATA",
+            "INVALID_TEXT_REPLY_COMPOSER_METADATA",
             "TEXT_UNAVAILABLE",
         ],
         "source": "threads_browser",
@@ -245,6 +246,7 @@ def create_clean_root_dataset_snapshot(
         "exclude_quality_statuses": [
             "INVALID_TEXT_DATE_METADATA",
             "INVALID_TEXT_TOPIC_TAG_METADATA",
+            "INVALID_TEXT_REPLY_COMPOSER_METADATA",
             "TEXT_UNAVAILABLE",
         ],
         "identity_scope": "CANONICAL_ROOT_WITH_SEARCH_CARD_EVIDENCE",

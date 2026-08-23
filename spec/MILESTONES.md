@@ -303,6 +303,15 @@ All ten named legacy roots now project their latest repaired detail evidence.
 The 266-root audit reports zero stale selections when newer non-invalid detail
 evidence exists and zero queue-state projection mismatches.
 
+### M4-FU14 — Reply Composer Text Exclusion
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU14_REPLY_COMPOSER_TEXT.md` (`CR-0031`).
+Semantic reply-composer input surfaces are excluded from shared detail body
+selection. Historical bad observations remain immutable and affected roots are
+re-enriched explicitly. M5 remains unauthorized.
+
 ### M4-FU07 — Sequence Indicator and Display Views
 
 Status: `COMPLETE`

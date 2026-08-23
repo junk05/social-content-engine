@@ -24,6 +24,7 @@ from .browser_observation import (
 from .browser_text_quality import (
     ASSESSOR_VERSION,
     INVALID_TEXT_DATE_METADATA,
+    INVALID_TEXT_REPLY_COMPOSER_METADATA,
     INVALID_TEXT_TOPIC_TAG_METADATA,
     TEXT_UNAVAILABLE,
     VALID_TEXT,
@@ -1125,6 +1126,46 @@ def _migration_25_topic_tag_text_quality(connection: sqlite3.Connection) -> None
         )
 
 
+def _migration_29_reply_composer_text_quality(connection: sqlite3.Connection) -> None:
+    """Represent confirmed reply-composer UI text without rewriting evidence."""
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            "DROP TRIGGER IF EXISTS immutable_browser_text_quality_assessments_{0}".format(
+                operation
+            )
+        )
+    connection.execute(
+        "ALTER TABLE browser_text_quality_assessments RENAME TO browser_text_quality_assessments_v2"
+    )
+    connection.execute(
+        """CREATE TABLE browser_text_quality_assessments (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL REFERENCES browser_observations(id),
+          quality_status TEXT NOT NULL CHECK(quality_status IN (
+            'VALID_TEXT', 'INVALID_TEXT_DATE_METADATA',
+            'INVALID_TEXT_TOPIC_TAG_METADATA',
+            'INVALID_TEXT_REPLY_COMPOSER_METADATA', 'TEXT_UNAVAILABLE'
+          )),
+          assessor_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          assessed_at TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        "INSERT INTO browser_text_quality_assessments SELECT * "
+        "FROM browser_text_quality_assessments_v2"
+    )
+    connection.execute("DROP TABLE browser_text_quality_assessments_v2")
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_text_quality_assessments_{0}
+            BEFORE {0} ON browser_text_quality_assessments
+            BEGIN SELECT RAISE(ABORT, 'browser text quality evidence is immutable'); END""".format(
+                operation
+            )
+        )
+
+
 def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
     """Add append-only, source-text-free deterministic structural derivatives."""
     connection.execute(
@@ -1598,6 +1639,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
     (26, "browser-display-view-observations-v1", _migration_26_browser_display_view_observations),
     (27, "browser-thread-extraction-assessments-v1", _migration_27_thread_extraction_assessments),
     (28, "unified-browser-view-observations-v1", _migration_28_unified_browser_view_observations),
+    (29, "browser-reply-composer-text-quality-v1", _migration_29_reply_composer_text_quality),
 )
 
 
@@ -1976,6 +2018,7 @@ class Repository:
         if quality_status not in {
             VALID_TEXT,
             INVALID_TEXT_DATE_METADATA,
+            INVALID_TEXT_REPLY_COMPOSER_METADATA,
             INVALID_TEXT_TOPIC_TAG_METADATA,
             TEXT_UNAVAILABLE,
         }:

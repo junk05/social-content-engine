@@ -7,6 +7,7 @@ from pathlib import Path
 from social_content_engine.data.browser_observation import browser_observation_payload_sha256
 from social_content_engine.data.browser_text_quality import (
     INVALID_TEXT_DATE_METADATA,
+    INVALID_TEXT_REPLY_COMPOSER_METADATA,
     TEXT_UNAVAILABLE,
     VALID_TEXT,
     classify_browser_text_quality,
@@ -52,6 +53,12 @@ class BrowserTextQualityTest(unittest.TestCase):
                     input_sha256=hashlib.sha256(b"input").hexdigest(),
                 )
                 self.assertEqual(1, assessment_id)
+                reply_composer_assessment_id = repository.assess_browser_text_quality(
+                    browser_observation_id=1,
+                    quality_status=INVALID_TEXT_REPLY_COMPOSER_METADATA,
+                    input_sha256=hashlib.sha256(b"reply-composer-input").hexdigest(),
+                )
+                self.assertEqual(2, reply_composer_assessment_id)
                 self.assertEqual(1, repository.count("browser_observations"))
                 with self.assertRaises(Exception):
                     repository.connection.execute(

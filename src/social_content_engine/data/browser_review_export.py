@@ -109,6 +109,7 @@ _SOURCE_SELECTION_ORDER_SQL = """
     CASE WHEN assessment.quality_status IN (
       'INVALID_TEXT_DATE_METADATA',
       'INVALID_TEXT_TOPIC_TAG_METADATA',
+      'INVALID_TEXT_REPLY_COMPOSER_METADATA',
       'TEXT_UNAVAILABLE'
     ) THEN 0 ELSE 1 END DESC,
     (observation.observation_type = 'POST_DETAIL') DESC,

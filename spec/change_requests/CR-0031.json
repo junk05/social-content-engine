@@ -1,0 +1,19 @@
+{
+  "id": "CR-0031",
+  "title": "Exclude reply composer UI from detail source text",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-24",
+  "approved_decision": "Repair the systematic extraction of the reply composer placeholder as source text, preserve bad observations, and re-enrich affected roots.",
+  "scope": [
+    "semantic reply-composer exclusion in the shared detail extractor",
+    "append-only reply-composer text quality evidence",
+    "affected-root audit and non-destructive re-enrichment",
+    "Human Review CSV verification"
+  ],
+  "forbidden": [
+    "deleting source observations",
+    "matching arbitrary authored text as invalid without composer DOM evidence",
+    "starting M5"
+  ]
+}

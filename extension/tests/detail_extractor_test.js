@@ -23,7 +23,15 @@ class Element {
       || this.getAttribute("data-testid") === "topic-tag"
       || href.includes("serp_type=tags") || href.includes("serp_type=tag")
       || href.includes("/topic/") || href.includes("/t/");
-    return topic && selector.includes("topic") ? this : null;
+    if (topic && selector.includes("topic")) return this;
+    const composer = this.getAttribute("role") === "textbox"
+      || this.getAttribute("contenteditable") === "true"
+      || this.getAttribute("aria-placeholder") !== null
+      || this.getAttribute("data-placeholder") !== null;
+    return composer && (selector.includes('role="textbox"')
+      || selector.includes('contenteditable="true"')
+      || selector.includes("aria-placeholder")
+      || selector.includes("data-placeholder")) ? this : null;
   }
   querySelector(selector) {
     return selector === "time[datetime]" && this.containsTime ? {} : null;
@@ -141,7 +149,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v16");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v17");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -348,6 +356,19 @@ async function main() {
   );
   assert.equal(genuineShort.text, "恋愛", "a structurally identified body may be one word");
   assert.deepEqual(genuineShort.topic_tags, ["恋愛"]);
+
+  const replyComposer = await extractor.extractPostDetail(
+    fixturePage("post_detail_reply_composer.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/ReplyComposer" },
+  );
+  assert.equal(replyComposer.text, "短い本文",
+    "reply-composer placeholder text is never promoted over author content");
+  const authoredReplyWording = await extractor.extractPostDetail(
+    fixturePage("post_detail_authored_reply_wording.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/AuthoredReplyWording" },
+  );
+  assert.equal(authoredReplyWording.text, "sample.userに返信…",
+    "wording alone never invalidates author content outside composer DOM");
 
   const sequenced = await extractor.extractPostDetail(
     fixturePage("post_detail_sequence_indicator.html"),
