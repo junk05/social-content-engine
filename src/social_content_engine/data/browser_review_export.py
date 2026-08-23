@@ -96,6 +96,12 @@ THREAD_COLUMNS = [
     "exclusion_reason",
 ]
 
+VIEWS_HISTORY_COLUMNS = [
+    "canonical_post_id", "post_url", "raw_display", "normalized_value", "precision",
+    "display_format", "observed_at", "extractor_version", "normalizer_version",
+    "view_band", "source", "legacy_source_table", "legacy_source_id",
+]
+
 EXPORT_KINDS = {"POSTS", "THREAD_NODES"}
 EXPORT_STATUS_FILTERS = {
     "ALL",
@@ -600,6 +606,36 @@ def build_post_rows(
     return result[:limit] if limit is not None else result
 
 
+def build_views_history_rows(
+    connection: sqlite3.Connection, root_ids: Set[int]
+) -> List[Dict[str, Any]]:
+    if not root_ids:
+        return []
+    try:
+        placeholders = ",".join("?" for _ in root_ids)
+        rows = connection.execute(
+            """SELECT identity.source_post_id, identity.post_url, views.*
+            FROM browser_view_observations views
+            JOIN browser_observations observation ON observation.id = views.browser_observation_id
+            JOIN browser_post_identities identity ON identity.id = observation.browser_post_identity_id
+            WHERE identity.id IN ({})
+            ORDER BY identity.id, views.observed_at, views.id""".format(placeholders),
+            tuple(sorted(root_ids)),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    return [{
+        "canonical_post_id": str(row["source_post_id"] or row["post_url"]),
+        "post_url": row["post_url"], "raw_display": row["raw_display"],
+        "normalized_value": row["normalized_value"], "precision": row["precision"],
+        "display_format": row["display_format"], "observed_at": row["observed_at"],
+        "extractor_version": row["extractor_version"],
+        "normalizer_version": row["normalizer_version"], "view_band": row["view_band"],
+        "source": row["source"], "legacy_source_table": row["legacy_source_table"],
+        "legacy_source_id": row["legacy_source_id"],
+    } for row in rows]
+
+
 def _node_source(
     connection: sqlite3.Connection, node_id: int
 ) -> Tuple[Optional[sqlite3.Row], str, Dict[str, Any]]:
@@ -802,13 +838,19 @@ def export_browser_posts(
             in {str(item["canonical_post_id"]) for item in post_rows}
         }
         thread_rows = build_thread_rows(connection, since=since, root_limit_ids=selected_ids)
+        views_history_rows = build_views_history_rows(connection, selected_ids)
     posts_path = output_dir / "threads_posts.csv"
     nodes_path = output_dir / "threads_thread_nodes.csv"
+    views_history_path = output_dir / "threads_views_history.csv"
     return {
         "posts_path": str(posts_path),
         "posts_rows": _write_csv(posts_path, POST_COLUMNS, post_rows),
         "thread_nodes_path": str(nodes_path),
         "thread_nodes_rows": _write_csv(nodes_path, THREAD_COLUMNS, thread_rows),
+        "views_history_path": str(views_history_path),
+        "views_history_rows": _write_csv(
+            views_history_path, VIEWS_HISTORY_COLUMNS, views_history_rows
+        ),
         "database_modified": False,
     }
 
