@@ -139,6 +139,16 @@ def _render_topic_tags(values: Sequence[str]) -> str:
     return ";".join(values)
 
 
+def _sequence_indicator_for_csv(value: Any) -> Optional[str]:
+    """Render UI metadata without an Excel date-like slash fraction."""
+    if not isinstance(value, str):
+        return None
+    match = re.fullmatch(r"\s*(\d+)\s*/\s*(\d+)\s*", value)
+    if match is None:
+        return value
+    return "{} of {}".format(match.group(1), match.group(2))
+
+
 def _publication_timing(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
     """Return export-only timing derivations from an explicit-offset source value."""
     raw = payload.get("published_at_raw")
@@ -511,7 +521,9 @@ def build_post_rows(
             "source_text": text,
             "topic_tags": _render_topic_tags(topic_tags),
             "topic_tag_count": len(topic_tags),
-            "raw_sequence_indicator": sequence_metadata.get("raw_sequence_indicator"),
+            "raw_sequence_indicator": _sequence_indicator_for_csv(
+                sequence_metadata.get("raw_sequence_indicator")
+            ),
             "thread_position": sequence_metadata.get("thread_position"),
             "thread_total": sequence_metadata.get("thread_total"),
             "clean_sequence_node_count": len(nodes),
@@ -649,7 +661,9 @@ def build_thread_rows(
                     "text": payload.get("text"),
                     "topic_tags": _render_topic_tags(topic_tags),
                     "topic_tag_count": len(topic_tags),
-                    "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
+                    "raw_sequence_indicator": _sequence_indicator_for_csv(
+                        payload.get("raw_sequence_indicator")
+                    ),
                     "thread_position": payload.get("thread_position"),
                     "thread_total": payload.get("thread_total"),
                     "text_quality": quality,

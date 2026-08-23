@@ -235,7 +235,7 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("日本語の本文です。", root["first_line"])
         self.assertEqual("恋愛", root["topic_tags"])
         self.assertEqual("1", root["topic_tag_count"])
-        self.assertEqual("1 / 4", root["raw_sequence_indicator"])
+        self.assertEqual("1 of 4", root["raw_sequence_indicator"])
         self.assertEqual("1", root["thread_position"])
         self.assertEqual("4", root["thread_total"])
         self.assertEqual("2", root["clean_sequence_node_count"])
