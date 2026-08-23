@@ -269,6 +269,17 @@ Sequence Human Review CSVs through an exact-origin loopback endpoint. The
 currently selected status filter is preserved, CSV rendering remains read-only
 and UTF-8 BOM compatible, and no Generation-facing or M5 scope is introduced.
 
+### M4-FU06 — Topic Tag Extraction Repair
+
+Status: `IN_PROGRESS / HG-03 PENDING`
+
+Approved specification: `spec/M4_FU06_TOPIC_TAG_EXTRACTION.md` (`CR-0023`).
+Detail extractor v7 separates author body text from structurally observed topic
+metadata for roots and self replies. Legacy tag-only text is retained, queued
+for reobservation without asserting invalidity, and only receives an append-only
+`INVALID_TEXT_TOPIC_TAG_METADATA` reassessment when a later DOM observation
+confirms the old text was a topic tag. M5 remains unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

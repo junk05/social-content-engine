@@ -18,7 +18,7 @@ _RELATIVE_TIME_METADATA = re.compile(
 
 POST_COLUMNS = [
     "canonical_post_id", "collected_at", "author_username", "post_url",
-    "source_text", "text_quality", "first_line", "detail_status",
+    "source_text", "topic_tags", "topic_tag_count", "text_quality", "first_line", "detail_status",
     "detail_attempt_count", "detail_last_error", "rounded_views_raw",
     "rounded_views_normalized", "rounded_views_band", "rounded_views_status",
     "like_count", "reply_count", "repost_count", "quote_count",
@@ -29,7 +29,7 @@ POST_COLUMNS = [
 THREAD_COLUMNS = [
     "root_canonical_id", "sequence_position", "node_type", "author_username",
     "same_author_as_root", "source_post_id", "reply_to_post_id", "post_url",
-    "text", "text_quality", "observed_at", "extractor_version",
+    "text", "topic_tags", "topic_tag_count", "text_quality", "observed_at", "extractor_version",
     "relationship_eligibility", "exclusion_reason",
 ]
 
@@ -64,6 +64,17 @@ def _first_line(text: Any) -> str:
         match = re.match(r"^.*?[。！？!?]|^.+$", line)
         return match.group(0).strip() if match else line
     return ""
+
+
+def _topic_tags(payload: Dict[str, Any]) -> List[str]:
+    values = payload.get("topic_tags", [])
+    if not isinstance(values, list):
+        return []
+    return [value for value in values if isinstance(value, str) and value]
+
+
+def _render_topic_tags(values: Sequence[str]) -> str:
+    return ";".join(values)
 
 
 def _root_ids(connection: sqlite3.Connection, since: Optional[str]) -> List[int]:
@@ -253,6 +264,9 @@ def _latest_source_row(
         FROM browser_observations observation
         LEFT JOIN browser_text_quality_assessments assessment
           ON assessment.browser_observation_id = observation.id
+         AND assessment.id = (SELECT MAX(latest.id)
+              FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id = observation.id)
         WHERE observation.browser_post_identity_id = ?
         ORDER BY (assessment.quality_status = 'VALID_TEXT') DESC,
                  observation.collected_at DESC, observation.id DESC LIMIT 1""",
@@ -334,6 +348,7 @@ def build_post_rows(
             continue
         rounded = _latest_rounded(connection, identity_id)
         text = payload.get("text")
+        topic_tags = _topic_tags(payload)
         row = {
             "canonical_post_id": _canonical_id(identity),
             "collected_at": source["collected_at"]
@@ -341,6 +356,8 @@ def build_post_rows(
             "author_username": payload.get("username"),
             "post_url": identity["post_url"],
             "source_text": text,
+            "topic_tags": _render_topic_tags(topic_tags),
+            "topic_tag_count": len(topic_tags),
             "text_quality": quality,
             "first_line": _first_line(text),
             "detail_status": detail_status,
@@ -382,6 +399,9 @@ def _node_source(
         FROM browser_observations observation
         LEFT JOIN browser_text_quality_assessments assessment
           ON assessment.browser_observation_id = observation.id
+         AND assessment.id = (SELECT MAX(latest.id)
+              FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id = observation.id)
         WHERE observation.browser_post_identity_id = ?
         ORDER BY (observation.observation_type = 'POST_DETAIL') DESC,
                  (assessment.quality_status = 'VALID_TEXT') DESC,
@@ -439,6 +459,7 @@ def build_thread_rows(
                     (int(node["reply_to_browser_post_identity_id"]),),
                 ).fetchone()
             source, quality, payload = _node_source(connection, node_id)
+            topic_tags = _topic_tags(payload)
             result.append({
                 "root_canonical_id": _canonical_id(root_identity),
                 "sequence_position": int(node["sequence_position"]),
@@ -452,6 +473,8 @@ def build_thread_rows(
                 if reply_identity is not None else None,
                 "post_url": identity["post_url"],
                 "text": payload.get("text"),
+                "topic_tags": _render_topic_tags(topic_tags),
+                "topic_tag_count": len(topic_tags),
                 "text_quality": quality,
                 "observed_at": node["observed_at"],
                 "extractor_version": node["extractor_version"],

@@ -23,6 +23,7 @@ def observation(
     source_post_id: str = None,
     metric_statuses: bool = False,
     approximate_views: dict = None,
+    topic_tags: list = None,
 ) -> dict:
     surface = (
         "threads_search_card"
@@ -38,6 +39,7 @@ def observation(
         "author_name": "Fixture Author",
         "username": "fixture",
         "text": text,
+        "topic_tags": list(topic_tags or []),
         "timestamp": "2026-08-16T00:00:00+00:00",
         "public_counters": {
             "view_count": view_count,
@@ -104,6 +106,12 @@ def observation(
         }
     if approximate_views is not None:
         values["approximate_views"] = dict(approximate_views)
+    if topic_tags:
+        values["observed_fields"].append({
+            "field": "topic_tags", "value": list(topic_tags), "surface": surface,
+            "observed_at": "2026-08-16T00:00:00+00:00",
+            "extractor_version": "fixture-extractor-v1",
+        })
     values["payload_sha256"] = browser_observation_payload_sha256(values)
     return values
 
@@ -125,6 +133,53 @@ def downgrade_before_migration_8(path: Path) -> None:
 
 
 class BrowserObservationRepositoryTest(unittest.TestCase):
+    def test_topic_tags_are_separate_versioned_source_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "topics.sqlite3") as repository:
+                old_payload = observation(
+                    observation_type="POST_DETAIL", text="恋愛", metric_statuses=True
+                )
+                old = repository.add_browser_observation(old_payload)
+                repository.assess_browser_text_quality(
+                    browser_observation_id=old["browser_observation_id"],
+                    quality_status="VALID_TEXT", input_sha256="0" * 64,
+                )
+                repaired = observation(
+                    observation_type="POST_DETAIL", text="本文です。",
+                    metric_statuses=True, topic_tags=["恋愛"],
+                )
+                repaired["collected_at"] = "2026-08-16T00:01:01+00:00"
+                repaired["payload_sha256"] = browser_observation_payload_sha256(repaired)
+                saved = repository.add_browser_observation(repaired)
+                normalized = json.loads(repository.connection.execute(
+                    """SELECT canonical_payload_json FROM browser_normalized_versions
+                    WHERE source_observation_id = ?""",
+                    (saved["browser_observation_id"],),
+                ).fetchone()[0])
+                self.assertEqual("本文です。", normalized["text"])
+                self.assertEqual(["恋愛"], normalized["topic_tags"])
+                statuses = [row[0] for row in repository.connection.execute(
+                    """SELECT quality_status FROM browser_text_quality_assessments
+                    WHERE browser_observation_id = ? ORDER BY id""",
+                    (old["browser_observation_id"],),
+                )]
+                self.assertEqual(
+                    ["VALID_TEXT", "INVALID_TEXT_TOPIC_TAG_METADATA"], statuses
+                )
+
+                genuine = observation(
+                    observation_type="POST_DETAIL", text="恋愛",
+                    metric_statuses=True, topic_tags=["恋愛"],
+                )
+                genuine["post_url"] = "https://www.threads.net/@fixture/post/Genuine"
+                genuine["payload_sha256"] = browser_observation_payload_sha256(genuine)
+                saved_genuine = repository.add_browser_observation(genuine)
+                self.assertEqual(0, repository.connection.execute(
+                    """SELECT COUNT(*) FROM browser_text_quality_assessments
+                    WHERE browser_observation_id = ?""",
+                    (saved_genuine["browser_observation_id"],),
+                ).fetchone()[0])
+
     def test_schema_and_canonical_url_contract(self) -> None:
         schema = json.loads(
             (ROOT / "spec/contracts/browser-observation.schema.json").read_text(

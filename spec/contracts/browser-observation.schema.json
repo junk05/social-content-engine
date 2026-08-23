@@ -22,6 +22,10 @@
     "author_name": {"type": ["string", "null"]},
     "username": {"type": ["string", "null"]},
     "text": {"type": ["string", "null"]},
+    "topic_tags": {
+      "type": "array", "maxItems": 20, "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 100}
+    },
     "timestamp": {"type": ["string", "null"], "format": "date-time"},
     "public_counters": {
       "type": "object",
@@ -95,13 +99,19 @@
           "field": {
             "enum": [
               "source_post_id", "author_name", "username", "text", "timestamp",
+              "topic_tags",
               "public_counters.view_count", "public_counters.like_count",
               "public_counters.reply_count", "public_counters.repost_count",
               "public_counters.quote_count", "public_counters.share_count", "media_type",
               "has_image", "has_video"
             ]
           },
-          "value": {"type": ["string", "integer", "boolean"]},
+          "value": {
+            "oneOf": [
+              {"type": "string"}, {"type": "integer"}, {"type": "boolean"},
+              {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1}
+            ]
+          },
           "surface": {"enum": ["threads_search_card", "threads_post_detail"]},
           "observed_at": {"type": "string", "format": "date-time"},
           "extractor_version": {"type": "string", "minLength": 1}

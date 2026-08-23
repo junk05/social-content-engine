@@ -24,6 +24,7 @@ This directory is the project SSOT.
 - `M4_FU02_COVERAGE_AUDIT_EXPORT.md`: post-S8 cohort audit and read-only human CSV export
 - `M4_FU04_COLLECTED_POST_MANAGEMENT.md`: local collected-root list and non-destructive detail exclusion controls
 - `M4_FU05_EXTENSION_CSV_EXPORT.md`: local Human Review CSV downloads reusing the read-only exporter
+- `M4_FU06_TOPIC_TAG_EXTRACTION.md`: body/topic metadata separation and legacy repair
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action

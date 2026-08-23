@@ -44,6 +44,8 @@ in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
   supplemental and nullable.
 - `browser_observations`: immutable accepted search-card or post-detail capture
   envelopes. Recollection always creates another observation.
+- Author body `text` is stored independently from structurally observed
+  `topic_tags[]`; topic labels are Source metadata, never body components.
 - `browser_observed_fields`: field-level value, surface, time, and extractor
   provenance linked to one immutable observation.
 - `browser_metric_observation_statuses`: immutable per-counter availability
@@ -56,6 +58,11 @@ in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
 - `browser_normalized_versions`: immutable canonical projections. An identical
   payload hash reuses a version; a changed observed payload creates version
   `N+1`.
+
+Legacy tag-only captures remain immutable. A later same-post detail observation
+may append `INVALID_TEXT_TOPIC_TAG_METADATA` only when its DOM evidence confirms
+the old text as a topic tag and observes a different body (or no body). Exact
+keyword matching alone may requeue a candidate but never declares it invalid.
 
 `browser_post_identities.status` records the latest workflow state:
 `COLLECTED`, `DETAIL_PENDING`, `DETAIL_ENRICHED`, or `DETAIL_FAILED`. Search-card

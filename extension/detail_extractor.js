@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v6";
+  const VERSION = "threads_post_detail_extractor_v7";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -46,6 +46,28 @@
     const rendered = cleanText(typeof element.innerText === "string" ? element.innerText : null);
     if (rendered) return rendered;
     return cleanText(typeof element.textContent === "string" ? element.textContent : null);
+  }
+  const TOPIC_SELECTOR = [
+    '[data-testid="topic-tag"]', '[data-topic-tag]',
+    'a[href*="serp_type=tags"]', 'a[href*="serp_type=tag"]',
+    'a[href*="/topic/"]', 'a[href*="/t/"]',
+    '[role="link"][aria-label*="トピック"]',
+  ].join(", ");
+  function isTopicElement(element) {
+    if (!element || typeof element.closest !== "function") return false;
+    return Boolean(element.closest(TOPIC_SELECTOR));
+  }
+  function visibleTopicTags(root) {
+    const values = [];
+    const seen = new Set();
+    for (const element of root.querySelectorAll(TOPIC_SELECTOR)) {
+      if (!isVisible(element)) continue;
+      const value = renderedText(element);
+      if (!value || value.length > 100 || seen.has(value)) continue;
+      seen.add(value);
+      values.push(value);
+    }
+    return values;
   }
   function exactNonnegativeInteger(label) {
     if (typeof label !== "string") return null;
@@ -415,12 +437,25 @@
     const dateMetadata = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/;
     const relativeTimeMetadata = /^(?:\d+\s*(?:分|時間|日|週|ヶ月|か月|月|年|m|min|h|d|w|mo|y)|昨日|一昨日)$/i;
     for (const selector of ['[data-testid="post-text"]', '[dir="auto"]']) {
+      const eligible = [];
       for (const candidate of root.querySelectorAll(selector)) {
         if (!isVisible(candidate)) continue;
         if (candidate.closest('a[href^="/@"], a[href*="/post/"], time, button, [role="button"]')) continue;
+        if (isTopicElement(candidate)) continue;
         const value = renderedText(candidate);
         if (value && !excluded.has(value.toLowerCase())
-            && !dateMetadata.test(value) && !relativeTimeMetadata.test(value)) return value;
+            && !dateMetadata.test(value) && !relativeTimeMetadata.test(value)) {
+          eligible.push({ value, order: eligible.length });
+        }
+      }
+      if (eligible.length) {
+        // Explicit content containers win. On the fallback surface, choose the
+        // richest remaining content node after structural metadata exclusion;
+        // never reject a genuine short body merely because its wording also
+        // resembles a topic label.
+        eligible.sort((left, right) => right.value.length - left.value.length
+          || left.order - right.order);
+        return eligible[0].value;
       }
     }
     return null;
@@ -476,17 +511,20 @@
     }
     const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const text = visiblePostText(postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels]);
+    const topicTags = visibleTopicTags(postRoot);
     const media = mediaValues(postRoot);
     const observed = [];
     for (const [field, value] of [
       ["author_name", profile.authorName], ["username", profile.username], ["text", text],
       ["timestamp", timestamp], ["media_type", media.mediaType], ["has_image", media.hasImage], ["has_video", media.hasVideo],
     ]) if (value !== null) observed.push(observationField(field, value, collectedAt));
+    if (topicTags.length) observed.push(observationField("topic_tags", topicTags, collectedAt));
     for (const [name, value] of Object.entries(counters)) if (value !== null) observed.push(observationField("public_counters." + name, value, collectedAt));
     const observation = {
       schema_version: 1, observation_type: "POST_DETAIL", source: "threads",
       post_url: post.canonical, source_post_id: null,
-      author_name: profile.authorName, username: profile.username, text, timestamp,
+      author_name: profile.authorName, username: profile.username, text, topic_tags: topicTags,
+      timestamp,
       public_counters: counters, metric_observation_statuses: metricStatuses,
       media_type: media.mediaType, has_image: media.hasImage, has_video: media.hasVideo,
       collection_context: { surface: SURFACE, page_url: post.canonical, query: null, position: null },
@@ -513,7 +551,7 @@
     approximatePageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
-    extractVisibleThreadNodes, diagnoseVisibleThread, extractPostDetail,
+    visibleTopicTags, extractVisibleThreadNodes, diagnoseVisibleThread, extractPostDetail,
     extractVisibleThreadDetails,
   });
 })(globalThis);

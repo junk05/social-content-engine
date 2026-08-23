@@ -118,7 +118,10 @@ def audit_latest_browser_data(
             FROM browser_text_quality_assessments assessments
             JOIN browser_observations observations
               ON observations.id = assessments.browser_observation_id
-            WHERE EXISTS (
+            WHERE assessments.id = (
+              SELECT MAX(latest.id) FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id = observations.id)
+              AND EXISTS (
               SELECT 1 FROM browser_observations roots
               WHERE roots.browser_post_identity_id = observations.browser_post_identity_id
                 AND roots.observation_type = 'SEARCH_CARD'

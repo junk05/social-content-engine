@@ -24,6 +24,7 @@ from .browser_observation import (
 from .browser_text_quality import (
     ASSESSOR_VERSION,
     INVALID_TEXT_DATE_METADATA,
+    INVALID_TEXT_TOPIC_TAG_METADATA,
     TEXT_UNAVAILABLE,
     VALID_TEXT,
 )
@@ -1086,6 +1087,45 @@ def _migration_24_detail_enrichment_exclusions(connection: sqlite3.Connection) -
         )
 
 
+def _migration_25_topic_tag_text_quality(connection: sqlite3.Connection) -> None:
+    """Allow evidence-confirmed topic metadata defects without rewriting history."""
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            "DROP TRIGGER IF EXISTS immutable_browser_text_quality_assessments_{0}".format(
+                operation
+            )
+        )
+    connection.execute(
+        "ALTER TABLE browser_text_quality_assessments "
+        "RENAME TO browser_text_quality_assessments_v1"
+    )
+    connection.execute(
+        """CREATE TABLE browser_text_quality_assessments (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL
+            REFERENCES browser_observations(id),
+          quality_status TEXT NOT NULL CHECK(quality_status IN (
+            'VALID_TEXT', 'INVALID_TEXT_DATE_METADATA',
+            'INVALID_TEXT_TOPIC_TAG_METADATA', 'TEXT_UNAVAILABLE'
+          )),
+          assessor_version TEXT NOT NULL,
+          input_sha256 TEXT NOT NULL,
+          assessed_at TEXT NOT NULL
+        )"""
+    )
+    connection.execute(
+        "INSERT INTO browser_text_quality_assessments "
+        "SELECT * FROM browser_text_quality_assessments_v1"
+    )
+    connection.execute("DROP TABLE browser_text_quality_assessments_v1")
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_text_quality_assessments_{0}
+            BEFORE {0} ON browser_text_quality_assessments
+            BEGIN SELECT RAISE(ABORT, 'browser text quality evidence is immutable'); END""".format(
+                operation
+            )
+        )
 def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
     """Add append-only, source-text-free deterministic structural derivatives."""
     connection.execute(
@@ -1436,6 +1476,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
         "browser-detail-enrichment-exclusions-v1",
         _migration_24_detail_enrichment_exclusions,
     ),
+    (25, "browser-topic-tag-text-quality-v1", _migration_25_topic_tag_text_quality),
 )
 
 
@@ -1814,7 +1855,8 @@ class Repository:
     ) -> int:
         """Append the quality state of one source observation; never alter the source."""
         if quality_status not in {
-            VALID_TEXT, INVALID_TEXT_DATE_METADATA, TEXT_UNAVAILABLE,
+            VALID_TEXT, INVALID_TEXT_DATE_METADATA, INVALID_TEXT_TOPIC_TAG_METADATA,
+            TEXT_UNAVAILABLE,
         }:
             raise ValueError("unsupported browser text quality status")
         if not _is_contract_identifier(assessor_version):
@@ -1985,6 +2027,40 @@ class Repository:
             if cursor.lastrowid is None:
                 raise RuntimeError("SQLite did not return a browser observation id")
             observation_id = int(cursor.lastrowid)
+            if observation["observation_type"] == "POST_DETAIL":
+                new_text = observation.get("text")
+                topic_tags = observation.get("topic_tags", [])
+                if isinstance(topic_tags, list):
+                    for previous in self.connection.execute(
+                        """SELECT old.id, old.canonical_payload_json
+                        FROM browser_observations old
+                        WHERE old.browser_post_identity_id = ? AND old.id != ?
+                          AND old.observation_type = 'POST_DETAIL'
+                          AND (SELECT quality_status
+                               FROM browser_text_quality_assessments quality
+                               WHERE quality.browser_observation_id = old.id
+                               ORDER BY quality.id DESC LIMIT 1) = 'VALID_TEXT'""",
+                        (identity_id, observation_id),
+                    ).fetchall():
+                        previous_payload = json.loads(previous["canonical_payload_json"])
+                        previous_text = previous_payload.get("text")
+                        if (
+                            isinstance(previous_text, str)
+                            and previous_text in topic_tags
+                            and previous_text != new_text
+                        ):
+                            self.connection.execute(
+                                """INSERT INTO browser_text_quality_assessments
+                                (browser_observation_id, quality_status, assessor_version,
+                                 input_sha256, assessed_at)
+                                VALUES (?, 'INVALID_TEXT_TOPIC_TAG_METADATA', ?, ?, ?)""",
+                                (
+                                    int(previous["id"]),
+                                    "m4-browser-topic-tag-quality-v1",
+                                    hashlib.sha256(previous_text.encode("utf-8")).hexdigest(),
+                                    observation["collected_at"],
+                                ),
+                            )
             for field in fields:
                 self.connection.execute(
                     """INSERT INTO browser_observed_fields
@@ -2754,6 +2830,10 @@ class Repository:
                         browser_observations.id
                     AND browser_text_quality_assessments.quality_status =
                         'INVALID_TEXT_DATE_METADATA'
+                    AND browser_text_quality_assessments.id = (
+                      SELECT MAX(latest.id)
+                      FROM browser_text_quality_assessments latest
+                      WHERE latest.browser_observation_id = browser_observations.id)
                    WHERE browser_detail_enrichment_queue.status = 'DETAIL_ENRICHED'
                    ORDER BY browser_detail_enrichment_queue.id"""
             ).fetchall()
@@ -2774,6 +2854,59 @@ class Repository:
             self.connection.execute(
                 """UPDATE browser_post_identities SET status = 'DETAIL_PENDING',
                    updated_at = ? WHERE id IN ({0})""".format(identity_placeholders),
+                (timestamp, *identity_ids),
+            )
+        return len(queue_ids)
+
+    def requeue_browser_topic_tag_candidates(
+        self, candidate_texts: Sequence[str], *, requeued_at: Optional[str] = None
+    ) -> int:
+        """Requeue possible legacy tag-only captures without declaring them invalid.
+
+        A later v7 detail observation supplies the structural topic evidence used to
+        confirm and append ``INVALID_TEXT_TOPIC_TAG_METADATA``. Exact text matching
+        here changes queue state only and never changes source quality by itself.
+        """
+        candidates = {value.strip() for value in candidate_texts if value.strip()}
+        if not candidates:
+            return 0
+        selected: List[sqlite3.Row] = []
+        for row in self.connection.execute(
+            """SELECT queue.id AS queue_id, identity.id AS identity_id,
+                      observation.canonical_payload_json
+               FROM browser_detail_enrichment_queue queue
+               JOIN browser_post_identities identity
+                 ON identity.id = queue.browser_post_identity_id
+               JOIN browser_observations observation
+                 ON observation.id = (
+                   SELECT MAX(detail.id) FROM browser_observations detail
+                   WHERE detail.browser_post_identity_id = identity.id
+                     AND detail.observation_type = 'POST_DETAIL')
+               WHERE queue.enrichment_excluded = 0
+               ORDER BY queue.id"""
+        ):
+            payload = json.loads(row["canonical_payload_json"])
+            if payload.get("text") in candidates:
+                selected.append(row)
+        if not selected:
+            return 0
+        timestamp = requeued_at or _utc_now()
+        queue_ids = [int(row["queue_id"]) for row in selected]
+        identity_ids = [int(row["identity_id"]) for row in selected]
+        with self.connection:
+            self.connection.execute(
+                """UPDATE browser_detail_enrichment_queue SET
+                   status = 'DETAIL_PENDING', active_batch_id = NULL, claimed_at = NULL,
+                   last_error_code = NULL, last_error_type = NULL,
+                   last_error_reason = NULL, updated_at = ?
+                   WHERE id IN ({0})""".format(",".join("?" for _ in queue_ids)),
+                (timestamp, *queue_ids),
+            )
+            self.connection.execute(
+                """UPDATE browser_post_identities SET status = 'DETAIL_PENDING',
+                   updated_at = ? WHERE id IN ({0})""".format(
+                    ",".join("?" for _ in identity_ids)
+                ),
                 (timestamp, *identity_ids),
             )
         return len(queue_ids)

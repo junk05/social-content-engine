@@ -34,6 +34,33 @@ def prepare_before_assignment_reconciliation(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_topic_tag_candidate_requeue_does_not_assert_invalidity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "topic-candidate.sqlite3") as repository:
+                repository.add_browser_observation(rich_observation())
+                detail = rich_observation(
+                    observation_type="POST_DETAIL", text="婚外恋愛",
+                    metric_statuses=True,
+                )
+                repository.add_browser_observation(detail)
+                repository.connection.execute(
+                    "UPDATE browser_detail_enrichment_queue SET status = 'DETAIL_ENRICHED'"
+                )
+                repository.connection.commit()
+                self.assertEqual(
+                    1,
+                    repository.requeue_browser_topic_tag_candidates(
+                        ["婚外恋愛"], requeued_at="2026-08-23T06:00:00Z"
+                    ),
+                )
+                self.assertEqual(
+                    "DETAIL_PENDING",
+                    repository.connection.execute(
+                        "SELECT status FROM browser_detail_enrichment_queue"
+                    ).fetchone()[0],
+                )
+                self.assertEqual(0, repository.count("browser_text_quality_assessments"))
+
     def test_collected_root_list_exposes_observed_views_and_self_replies(
         self,
     ) -> None:

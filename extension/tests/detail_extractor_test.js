@@ -16,7 +16,15 @@ class Element {
     this.excluded = excluded;
   }
   getAttribute(name) { return this.attributes[name] ?? null; }
-  closest() { return this.excluded ? this : null; }
+  closest(selector) {
+    if (this.excluded) return this;
+    const href = this.getAttribute("href") || "";
+    const topic = this.getAttribute("data-topic-tag") !== null
+      || this.getAttribute("data-testid") === "topic-tag"
+      || href.includes("serp_type=tags") || href.includes("serp_type=tag")
+      || href.includes("/topic/") || href.includes("/t/");
+    return topic && selector.includes("topic") ? this : null;
+  }
   querySelector(selector) {
     return selector === "time[datetime]" && this.containsTime ? {} : null;
   }
@@ -69,6 +77,10 @@ function fixturePage(name) {
       if (selector === "[aria-label]") return labelled;
       if (selector === '[data-testid="post-text"]') return candidates.filter((item) => item.getAttribute("data-testid") === "post-text");
       if (selector === '[dir="auto"]') return candidates.filter((item) => item.getAttribute("dir") === "auto");
+      if (selector.includes('[data-testid="topic-tag"]')) return candidates.filter((item) => (
+        item.getAttribute("data-testid") === "topic-tag"
+        || item.getAttribute("data-topic-tag") !== null
+      ));
       if (selector === "span, div") return displayLabels;
       if (selector === '[role="dialog"], [aria-modal="true"]') return dialogs;
       if (selector === "video") return media.filter((item) => item.tag === "video").map((item) => item.element);
@@ -89,7 +101,7 @@ async function main() {
   assert.match(source, /visiblePostText\(postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v6");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v7");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -140,13 +152,14 @@ async function main() {
     "has_image", "has_video", "media_type", "metric_observation_statuses",
     "observation_type", "observed_fields",
     "payload_sha256", "post_url", "public_counters", "schema_version", "source",
-    "source_post_id", "text", "timestamp", "username",
+    "source_post_id", "text", "timestamp", "topic_tags", "username",
   ]);
   assert.equal(complete.post_url, "https://www.threads.net/@sample.user/post/AbC_123");
   assert.equal(complete.source_post_id, null);
   assert.equal(complete.author_name, "Sample Author");
   assert.equal(complete.username, "sample.user");
   assert.equal(complete.text, "Sanitized detail post text.");
+  assert.deepEqual(complete.topic_tags, ["Fixture Topic"]);
   assert.deepEqual(complete.public_counters, {
     view_count: 0, like_count: 1234, reply_count: 2,
     repost_count: null, quote_count: null, share_count: 0,
@@ -174,6 +187,8 @@ async function main() {
   ]);
   assert.equal(selfReplyDetails.every((item) => item.observation_type === "POST_DETAIL"), true);
   assert.equal(selfReplyDetails.every((item) => item.text !== null), true);
+  assert.equal(selfReplyDetails.every((item) => item.topic_tags[0] === "Fixture Topic"), true,
+    "self-reply detail observations reuse the same body/topic separation");
   const serialized = JSON.stringify(complete).toLowerCase();
   for (const forbidden of ["<main", "outerhtml", "cookie", "password", "access_token"]) assert.equal(serialized.includes(forbidden), false);
 
@@ -197,6 +212,29 @@ async function main() {
   assert.equal(missing.metric_observation_statuses.like_count, "OBSERVED");
   assert.equal(missing.observed_fields.some((item) => item.field === "public_counters.view_count"), false);
   assert.equal(missing.observed_fields.find((item) => item.field === "public_counters.like_count").value, 0);
+
+  const tagged = await extractor.extractPostDetail(
+    fixturePage("post_detail_topic_tag.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/Tagged" },
+  );
+  assert.equal(tagged.text, "Topic-tagged body text remains the source body.");
+  assert.deepEqual(tagged.topic_tags, ["恋愛"]);
+  assert.deepEqual(
+    tagged.observed_fields.find((item) => item.field === "topic_tags").value,
+    ["恋愛"],
+  );
+  const tagOnly = await extractor.extractPostDetail(
+    fixturePage("post_detail_topic_tag_only.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/TagOnly" },
+  );
+  assert.equal(tagOnly.text, null, "topic metadata is never promoted to source text");
+  assert.deepEqual(tagOnly.topic_tags, ["夫婦関係"]);
+  const genuineShort = await extractor.extractPostDetail(
+    fixturePage("post_detail_genuine_short.html"),
+    { ...missingContext, pageUrl: "https://www.threads.net/@sample.user/post/GenuineShort" },
+  );
+  assert.equal(genuineShort.text, "恋愛", "a structurally identified body may be one word");
+  assert.deepEqual(genuineShort.topic_tags, ["恋愛"]);
 
   const headerExact = await extractor.extractPostDetail(
     fixturePage("post_detail_header_exact_view.html"),

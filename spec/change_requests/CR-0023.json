@@ -1,0 +1,22 @@
+{
+  "id": "CR-0023",
+  "title": "Separate Threads topic tags from author source text",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Repair detail body extraction, preserve topic tags as source metadata, and make confirmed legacy tag-only captures auditable and reobservable.",
+  "scope": [
+    "content-container based root and self-reply text extraction",
+    "versioned topic tag observation and provenance",
+    "append-only confirmed topic-tag metadata quality state",
+    "non-destructive candidate requeue",
+    "Human Review CSV topic columns and live HG-03 verification"
+  ],
+  "forbidden": [
+    "invalidating observations from keyword matching alone",
+    "copying topic tags into structural body components",
+    "deleting source evidence",
+    "exposing source tags to Generation-facing DTOs",
+    "starting M5"
+  ]
+}

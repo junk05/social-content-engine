@@ -183,5 +183,11 @@
     ,{"id":"M4-FU05-002","owner":"DATA","title":"Expose shared read-only filtered CSV rendering without duplicating exporter logic","status":"COMPLETE","depends_on":["M4-FU05-001"]}
     ,{"id":"M4-FU05-003","owner":"COLLECTOR","title":"Add exact-origin CSV endpoint and two Options download controls","status":"COMPLETE","depends_on":["M4-FU05-002"]}
     ,{"id":"M4-FU05-004","owner":"QA_REVIEWER","title":"Verify filter, BOM, Japanese, URL, database immutability, Extension, and regressions","status":"COMPLETE","depends_on":["M4-FU05-003"]}
+    ,{"id":"M4-FU06-001","owner":"ORCHESTRATOR","title":"Approve body and topic metadata separation contract","status":"COMPLETE","depends_on":["M4-FU01-009"]}
+    ,{"id":"M4-FU06-002","owner":"COLLECTOR","title":"Extract root and self-reply body content separately from topic tags","status":"COMPLETE","depends_on":["M4-FU06-001"]}
+    ,{"id":"M4-FU06-003","owner":"DATA","title":"Persist topic metadata and append confirmed legacy quality reassessments","status":"COMPLETE","depends_on":["M4-FU06-002"]}
+    ,{"id":"M4-FU06-004","owner":"DATA","title":"Expose topic tags in Human Review CSV and requeue audit candidates","status":"COMPLETE","depends_on":["M4-FU06-003"]}
+    ,{"id":"M4-FU06-005","owner":"QA_REVIEWER","title":"Verify body/tag separation, genuine short text, quality history, CSV, and full regression","status":"COMPLETE","depends_on":["M4-FU06-004"]}
+    ,{"id":"M4-FU06-006","owner":"ORCHESTRATOR","title":"Run known tagged-root HG-03 live verification","status":"PENDING","depends_on":["M4-FU06-005"]}
   ]
 }

@@ -13,6 +13,7 @@ OBSERVABLE_FIELDS = {
     "author_name",
     "username",
     "text",
+    "topic_tags",
     "timestamp",
     "public_counters.view_count",
     "public_counters.like_count",
@@ -86,6 +87,7 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
         "author_name": observation.get("author_name"),
         "username": observation.get("username"),
         "text": observation.get("text"),
+        "topic_tags": list(observation.get("topic_tags", [])),
         "timestamp": observation.get("timestamp"),
         "public_counters": dict(observation.get("public_counters", {})),
         "approximate_views": (
@@ -156,7 +158,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "extractor_version",
         "payload_sha256",
     }
-    optional_keys = {"metric_observation_statuses", "approximate_views"}
+    optional_keys = {"metric_observation_statuses", "approximate_views", "topic_tags"}
     if not required_keys.issubset(observation) or not set(observation).issubset(
         required_keys | optional_keys
     ):
@@ -180,6 +182,14 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         for key in nullable_strings
     ):
         raise ValueError("browser observation text fields must be strings or null")
+    topic_tags = observation.get("topic_tags", [])
+    if (
+        not isinstance(topic_tags, list)
+        or len(topic_tags) > 20
+        or any(not isinstance(tag, str) or not tag.strip() or len(tag) > 100 for tag in topic_tags)
+        or len(set(topic_tags)) != len(topic_tags)
+    ):
+        raise ValueError("browser observation topic tags are invalid")
     if any(
         observation.get(key) is not None
         and not isinstance(observation.get(key), bool)

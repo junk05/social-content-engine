@@ -219,6 +219,10 @@ def build_structural_pattern_report(
            JOIN browser_text_quality_assessments
              ON browser_text_quality_assessments.browser_observation_id =
                 dataset_members.selected_browser_observation_id
+            AND browser_text_quality_assessments.id = (
+              SELECT MAX(latest.id) FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id =
+                    dataset_members.selected_browser_observation_id)
            WHERE dataset_members.dataset_snapshot_id = ?
            GROUP BY browser_text_quality_assessments.quality_status
            ORDER BY browser_text_quality_assessments.quality_status""",

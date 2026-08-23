@@ -96,7 +96,7 @@ def prepare_detail_batch_analysis(
             raise ValueError("completed detail observation is unavailable")
         assessment = repository.connection.execute(
             """SELECT quality_status FROM browser_text_quality_assessments
-            WHERE browser_observation_id = ?""",
+            WHERE browser_observation_id = ? ORDER BY id DESC LIMIT 1""",
             (row["detail_observation_id"],),
         ).fetchone()
         if assessment is None:
@@ -168,7 +168,11 @@ def create_clean_browser_dataset_snapshot(
     selection_spec = {
         "contract_version": CLEAN_DATASET_VERSION,
         "include_quality_status": "VALID_TEXT",
-        "exclude_quality_statuses": ["INVALID_TEXT_DATE_METADATA", "TEXT_UNAVAILABLE"],
+        "exclude_quality_statuses": [
+            "INVALID_TEXT_DATE_METADATA",
+            "INVALID_TEXT_TOPIC_TAG_METADATA",
+            "TEXT_UNAVAILABLE",
+        ],
         "source": "threads_browser",
         "selection_order": "browser_identity_id_asc_then_browser_version_desc",
     }
@@ -185,6 +189,10 @@ def create_clean_browser_dataset_snapshot(
            JOIN browser_text_quality_assessments
              ON browser_text_quality_assessments.browser_observation_id =
                 browser_normalized_versions.source_observation_id
+            AND browser_text_quality_assessments.id = (
+              SELECT MAX(latest.id) FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id =
+                    browser_normalized_versions.source_observation_id)
            WHERE browser_text_quality_assessments.quality_status = 'VALID_TEXT'
            ORDER BY browser_normalized_bridges.browser_post_identity_id,
                     browser_normalized_versions.version DESC,
@@ -234,7 +242,11 @@ def create_clean_root_dataset_snapshot(
     selection_spec = {
         "contract_version": ROOT_CLEAN_DATASET_VERSION,
         "include_quality_status": "VALID_TEXT",
-        "exclude_quality_statuses": ["INVALID_TEXT_DATE_METADATA", "TEXT_UNAVAILABLE"],
+        "exclude_quality_statuses": [
+            "INVALID_TEXT_DATE_METADATA",
+            "INVALID_TEXT_TOPIC_TAG_METADATA",
+            "TEXT_UNAVAILABLE",
+        ],
         "identity_scope": "CANONICAL_ROOT_WITH_SEARCH_CARD_EVIDENCE",
         "source": "threads_browser",
         "selection_order": "browser_identity_id_asc_then_latest_valid_browser_version_desc",
@@ -253,6 +265,10 @@ def create_clean_root_dataset_snapshot(
            JOIN browser_text_quality_assessments
              ON browser_text_quality_assessments.browser_observation_id =
                 browser_normalized_versions.source_observation_id
+            AND browser_text_quality_assessments.id = (
+              SELECT MAX(latest.id) FROM browser_text_quality_assessments latest
+              WHERE latest.browser_observation_id =
+                    browser_normalized_versions.source_observation_id)
            WHERE browser_text_quality_assessments.quality_status = 'VALID_TEXT'
              AND EXISTS (
                SELECT 1 FROM browser_observations root_observation
@@ -297,6 +313,10 @@ def create_clean_root_dataset_snapshot(
         LEFT JOIN browser_text_quality_assessments
           ON browser_text_quality_assessments.browser_observation_id =
              browser_post_identities.current_observation_id
+         AND browser_text_quality_assessments.id = (
+           SELECT MAX(latest.id) FROM browser_text_quality_assessments latest
+           WHERE latest.browser_observation_id =
+                 browser_post_identities.current_observation_id)
         WHERE EXISTS (
           SELECT 1 FROM browser_observations root_observation
           WHERE root_observation.browser_post_identity_id = browser_post_identities.id
