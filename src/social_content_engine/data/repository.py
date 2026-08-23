@@ -1479,7 +1479,10 @@ def _migration_27_thread_extraction_assessments(connection: sqlite3.Connection) 
         connection.execute(
             """CREATE TRIGGER immutable_browser_thread_extraction_assessments_{0}
             BEFORE {0} ON browser_thread_extraction_assessments
-            BEGIN SELECT RAISE(ABORT, 'browser Thread extraction assessment is immutable'); END""".format(operation.lower())
+            BEGIN SELECT RAISE(ABORT,
+              'browser Thread extraction assessment is immutable'); END""".format(
+                operation.lower()
+            )
         )
 
 
@@ -2495,28 +2498,49 @@ class Repository:
         return tuple(inserted)
 
     def assess_browser_thread_extraction(
-        self, *, root_identity_id: int, detail_observation_id: int,
-        extractor_version: str, diagnostic: Mapping[str, Any], assessed_at: str,
+        self,
+        *,
+        root_identity_id: int,
+        detail_observation_id: int,
+        extractor_version: str,
+        diagnostic: Mapping[str, Any],
+        assessed_at: str,
     ) -> Dict[str, Any]:
         """Append a completeness result; indicators never create relationship evidence."""
         required = {
-            "diagnostic_version", "visible_post_nodes", "discovered_candidates",
-            "direct_root_author_candidates", "other_author_candidates",
-            "root_author_after_other_boundary", "final_eligible_nodes",
-            "excluded_candidates", "exclusion_reasons",
+            "diagnostic_version",
+            "visible_post_nodes",
+            "discovered_candidates",
+            "direct_root_author_candidates",
+            "other_author_candidates",
+            "root_author_after_other_boundary",
+            "final_eligible_nodes",
+            "excluded_candidates",
+            "exclusion_reasons",
         }
         if set(diagnostic) != required or not _is_contract_identifier(extractor_version):
             raise ValueError("invalid Thread extraction diagnostic")
-        if not isinstance(diagnostic["diagnostic_version"], str) or not diagnostic["diagnostic_version"]:
+        if (
+            not isinstance(diagnostic["diagnostic_version"], str)
+            or not diagnostic["diagnostic_version"]
+        ):
             raise ValueError("invalid Thread extraction diagnostic")
         numeric_keys = required - {"diagnostic_version", "exclusion_reasons"}
-        if any(isinstance(diagnostic[key], bool) or not isinstance(diagnostic[key], int)
-               or diagnostic[key] < 0 for key in numeric_keys):
+        if any(
+            isinstance(diagnostic[key], bool)
+            or not isinstance(diagnostic[key], int)
+            or diagnostic[key] < 0
+            for key in numeric_keys
+        ):
             raise ValueError("invalid Thread extraction diagnostic")
         reasons = diagnostic["exclusion_reasons"]
         if not isinstance(reasons, Mapping) or any(
-            not isinstance(key, str) or not key or isinstance(value, bool)
-            or not isinstance(value, int) or value < 1 for key, value in reasons.items()
+            not isinstance(key, str)
+            or not key
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 1
+            for key, value in reasons.items()
         ):
             raise ValueError("invalid Thread extraction diagnostic")
         detail = self.connection.execute(
@@ -2545,12 +2569,14 @@ class Repository:
         diagnostic_sha256 = hashlib.sha256(diagnostic_json.encode("utf-8")).hexdigest()
         with self.connection:
             existing = self.connection.execute(
-                "SELECT id FROM browser_thread_extraction_assessments WHERE detail_observation_id = ?",
+                "SELECT id FROM browser_thread_extraction_assessments "
+                "WHERE detail_observation_id = ?",
                 (detail_observation_id,),
             ).fetchone()
             if existing is not None:
                 row = self.connection.execute(
-                    "SELECT * FROM browser_thread_extraction_assessments WHERE id = ?", (existing["id"],)
+                    "SELECT * FROM browser_thread_extraction_assessments WHERE id = ?",
+                    (existing["id"],),
                 ).fetchone()
                 return dict(row)
             cursor = self.connection.execute(
@@ -2559,13 +2585,26 @@ class Repository:
                  captured_node_count, assessment_status, diagnostic_json, diagnostic_sha256,
                  assessed_at, extractor_version)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (root_identity_id, detail_observation_id, expected, captured, status,
-                 diagnostic_json, diagnostic_sha256, assessed_at, extractor_version),
+                (
+                    root_identity_id,
+                    detail_observation_id,
+                    expected,
+                    captured,
+                    status,
+                    diagnostic_json,
+                    diagnostic_sha256,
+                    assessed_at,
+                    extractor_version,
+                ),
             )
             if cursor.lastrowid is None:
                 raise RuntimeError("SQLite did not return a Thread assessment id")
-        return {"id": int(cursor.lastrowid), "assessment_status": status,
-                "expected_node_count": expected, "captured_node_count": captured}
+        return {
+            "id": int(cursor.lastrowid),
+            "assessment_status": status,
+            "expected_node_count": expected,
+            "captured_node_count": captured,
+        }
 
     def requeue_incomplete_browser_thread_extractions(
         self, *, requeued_at: Optional[str] = None
@@ -2576,7 +2615,8 @@ class Repository:
             rows = self.connection.execute(
                 """SELECT queue.id AS queue_id, identity.id AS identity_id
                 FROM browser_detail_enrichment_queue queue
-                JOIN browser_post_identities identity ON identity.id = queue.browser_post_identity_id
+                JOIN browser_post_identities identity
+                  ON identity.id = queue.browser_post_identity_id
                 JOIN browser_observations detail ON detail.id = identity.current_observation_id
                   AND detail.observation_type = 'POST_DETAIL'
                 LEFT JOIN browser_thread_extraction_assessments assessment
@@ -2593,10 +2633,12 @@ class Repository:
                     """UPDATE browser_detail_enrichment_queue SET status = 'DETAIL_PENDING',
                     active_batch_id = NULL, claimed_at = NULL, last_error_code = NULL,
                     last_error_type = NULL, last_error_reason = NULL,
-                    updated_at = ? WHERE id = ?""", (timestamp, row["queue_id"]),
+                    updated_at = ? WHERE id = ?""",
+                    (timestamp, row["queue_id"]),
                 )
                 self.connection.execute(
-                    "UPDATE browser_post_identities SET status = 'DETAIL_PENDING', updated_at = ? WHERE id = ?",
+                    "UPDATE browser_post_identities SET status = 'DETAIL_PENDING', "
+                    "updated_at = ? WHERE id = ?",
                     (timestamp, row["identity_id"]),
                 )
         return len(rows)
@@ -2604,7 +2646,8 @@ class Repository:
     def audit_browser_thread_extraction_completeness(self) -> Dict[str, int]:
         """Aggregate only; never expose source content in Thread completeness audits."""
         rows = self.connection.execute(
-            "SELECT assessment_status, COUNT(*) AS count FROM browser_thread_extraction_assessments GROUP BY assessment_status"
+            "SELECT assessment_status, COUNT(*) AS count "
+            "FROM browser_thread_extraction_assessments GROUP BY assessment_status"
         ).fetchall()
         counts = {str(row["assessment_status"]): int(row["count"]) for row in rows}
         qualifying = self.connection.execute(
@@ -2619,20 +2662,25 @@ class Repository:
             JOIN browser_post_identities identity ON identity.id = queue.browser_post_identity_id
             JOIN browser_observations detail ON detail.id = identity.current_observation_id
              AND detail.observation_type = 'POST_DETAIL'
-            LEFT JOIN browser_thread_extraction_assessments assessment ON assessment.detail_observation_id = detail.id
+            LEFT JOIN browser_thread_extraction_assessments assessment
+              ON assessment.detail_observation_id = detail.id
             WHERE queue.enrichment_excluded = 0
               AND json_extract(detail.canonical_payload_json, '$.thread_position') = 1
               AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
-              AND (assessment.id IS NULL OR assessment.assessment_status IN ('THREAD_CHILDREN_NOT_CAPTURED', 'INCOMPLETE_THREAD_EXTRACTION'))"""
+              AND (assessment.id IS NULL OR assessment.assessment_status IN (
+                'THREAD_CHILDREN_NOT_CAPTURED', 'INCOMPLETE_THREAD_EXTRACTION'
+              ))"""
         ).fetchone()
         root_only = self.connection.execute(
             """SELECT COUNT(*) FROM browser_post_identities identity
             JOIN browser_observations detail ON detail.id = identity.current_observation_id
              AND detail.observation_type = 'POST_DETAIL'
-            LEFT JOIN browser_thread_extraction_assessments assessment ON assessment.detail_observation_id = detail.id
+            LEFT JOIN browser_thread_extraction_assessments assessment
+              ON assessment.detail_observation_id = detail.id
             WHERE json_extract(detail.canonical_payload_json, '$.thread_position') = 1
               AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
-              AND (assessment.id IS NULL OR assessment.assessment_status = 'THREAD_CHILDREN_NOT_CAPTURED')"""
+              AND (assessment.id IS NULL
+                OR assessment.assessment_status = 'THREAD_CHILDREN_NOT_CAPTURED')"""
         ).fetchone()
         return {
             "indicator_root_count": int(qualifying[0]),
@@ -3563,9 +3611,7 @@ class Repository:
                     "rounded_views_band": None
                     if approximate is None
                     else str(approximate["view_band"]),
-                    "display_views_raw": None
-                    if displayed is None
-                    else str(displayed["display"]),
+                    "display_views_raw": None if displayed is None else str(displayed["display"]),
                     "display_views_normalized": None
                     if displayed is None
                     else int(displayed["normalized_value"]),
