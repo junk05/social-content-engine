@@ -66,6 +66,16 @@ function valueOrUnknown(value) {
   return value === null || value === undefined ? "未観測" : String(value);
 }
 
+function visibleViews(post) {
+  if (post.display_views_raw !== null && post.display_views_raw !== undefined) {
+    return valueOrUnknown(post.display_views_raw) + "（正確表示）";
+  }
+  if (post.rounded_views_raw !== null && post.rounded_views_raw !== undefined) {
+    return valueOrUnknown(post.rounded_views_raw) + "（概算）";
+  }
+  return "未観測";
+}
+
 function renderCollectedPosts(posts) {
   collectedPosts.replaceChildren();
   for (const post of posts) {
@@ -77,7 +87,7 @@ function renderCollectedPosts(posts) {
       + "\n試行: " + post.attempt_count;
     row.append(state);
     const metrics = document.createElement("td");
-    metrics.textContent = "Views: " + valueOrUnknown(post.rounded_views_raw)
+    metrics.textContent = "Views: " + visibleViews(post)
       + "\nSelf replies: " + valueOrUnknown(post.self_reply_count);
     row.append(metrics);
     const actions = document.createElement("td");

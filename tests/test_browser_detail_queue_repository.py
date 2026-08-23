@@ -86,10 +86,21 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     "extractor_version": "fixture-extractor-v1",
                     "normalizer_version": "rounded-views-normalizer-v1",
                 }
+                displayed = {
+                    "display": "表示4,506回",
+                    "normalized_value": 4506,
+                    "precision": "DISPLAY_EXACT",
+                    "source": "POST_DETAIL_PAGE",
+                    "view_band": "1K_10K",
+                    "observed_at": "2026-08-23T01:00:00Z",
+                    "extractor_version": "fixture-extractor-v1",
+                    "normalizer_version": "display-views-normalizer-v1",
+                }
                 root_detail_payload = rich_observation(
                     observation_type="POST_DETAIL",
                     metric_statuses=True,
                     approximate_views=rounded,
+                    display_views=displayed,
                 )
                 root_detail = repository.add_browser_observation(
                     root_detail_payload,
@@ -140,6 +151,9 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 self.assertEqual("表示1.2万回", posts[0]["rounded_views_raw"])
                 self.assertEqual(12000, posts[0]["rounded_views_normalized"])
                 self.assertEqual("10K_100K", posts[0]["rounded_views_band"])
+                self.assertEqual("表示4,506回", posts[0]["display_views_raw"])
+                self.assertEqual(4506, posts[0]["display_views_normalized"])
+                self.assertEqual("DISPLAY_EXACT", posts[0]["display_views_precision"])
                 self.assertEqual(1, posts[0]["self_reply_count"])
 
     def test_human_exclusion_is_reversible_audited_and_never_claimed(self) -> None:

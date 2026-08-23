@@ -3333,6 +3333,16 @@ class Repository:
                 ORDER BY approximate.observed_at DESC, approximate.id DESC LIMIT 1""",
                 (row["identity_id"],),
             ).fetchone()
+            displayed = self.connection.execute(
+                """SELECT displayed.display, displayed.normalized_value,
+                          displayed.precision, displayed.view_band
+                FROM browser_display_view_observations AS displayed
+                JOIN browser_observations AS observation
+                  ON observation.id = displayed.browser_observation_id
+                WHERE observation.browser_post_identity_id = ?
+                ORDER BY displayed.observed_at DESC, displayed.id DESC LIMIT 1""",
+                (row["identity_id"],),
+            ).fetchone()
             latest_sequence = self.connection.execute(
                 """SELECT detail_observation_id
                 FROM browser_thread_sequence_observations
@@ -3377,6 +3387,18 @@ class Repository:
                     "rounded_views_band": None
                     if approximate is None
                     else str(approximate["view_band"]),
+                    "display_views_raw": None
+                    if displayed is None
+                    else str(displayed["display"]),
+                    "display_views_normalized": None
+                    if displayed is None
+                    else int(displayed["normalized_value"]),
+                    "display_views_precision": None
+                    if displayed is None
+                    else str(displayed["precision"]),
+                    "display_views_band": None
+                    if displayed is None
+                    else str(displayed["view_band"]),
                     "self_reply_count": self_reply_count,
                     "enrichment_excluded": excluded,
                     "exclusion_reason": None

@@ -81,7 +81,9 @@ globalThis.chrome = {
           author_username: "fixture", post_url: "https://www.threads.net/@fixture/post/Review1",
           detail_status: "DETAIL_FAILED", attempt_count: 2, last_error: "POST_NOT_FOUND",
           rounded_views_raw: null, rounded_views_normalized: null,
-          rounded_views_band: null, self_reply_count: 0,
+          rounded_views_band: null, display_views_raw: "表示4,046回",
+          display_views_normalized: 4046, display_views_precision: "DISPLAY_EXACT",
+          display_views_band: "1K_10K", self_reply_count: 0,
           enrichment_excluded: false, exclusion_reason: null, excluded_at: null,
         }] });
       } else if (message.type === "SCE_UPDATE_DETAIL_EXCLUSION") {
@@ -103,7 +105,7 @@ assert.equal(nodes["#queue-summary"].textContent.includes("除外: 1"), true);
 assert.equal(nodes["#collected-posts"].children.length, 1);
 assert.equal(nodes["#collected-posts"].children[0].children[0].children[0].textContent, "@fixture");
 assert.equal(nodes["#collected-posts"].children[0].children[1].textContent.includes("POST_NOT_FOUND"), true);
-assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("未観測"), true);
+assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("表示4,046回（正確表示）"), true);
 nodes["#export-posts-csv"].listeners.click();
 nodes["#collected-filter"].value = "DETAIL_FAILED";
 nodes["#export-thread-csv"].listeners.click();
