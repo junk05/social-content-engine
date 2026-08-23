@@ -1,6 +1,6 @@
 # M4-FU06 — Topic Tag Extraction Repair
 
-STATUS: `IN_PROGRESS / HG-03 PENDING`
+STATUS: `COMPLETE`
 
 Change record: `CR-0023`.
 
@@ -36,3 +36,8 @@ Thread nodes.
 6. both review CSVs expose separated topic metadata;
 7. all M0-M4/M4-FU01 regression and repository validation pass;
 8. known topic-tagged live posts pass HG-03; M5 remains unauthorized.
+
+HG-03 passed over 30 reobserved roots: all 30 retained non-topic body text and
+separate topic metadata. The corresponding 30 legacy tag-only detail
+observations received append-only confirmed-invalid quality evidence. Aggregate,
+source-free evidence is recorded in `spec/evidence/M4_FU06_LIVE_E2E.json`.

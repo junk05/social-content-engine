@@ -1,0 +1,28 @@
+{
+  "contract": "M4-FU06",
+  "verified_at": "2026-08-23",
+  "result": "PASS",
+  "extractor_version": "threads_post_detail_extractor_v7",
+  "live_root_observations": 30,
+  "live_roots_with_separate_topic_tags": 30,
+  "live_roots_with_body_equal_to_topic_tag": 0,
+  "live_thread_node_observations": 35,
+  "live_thread_nodes_with_topic_tags": 33,
+  "confirmed_legacy_invalid_observations": 30,
+  "late_assessment_reconciliations": 8,
+  "human_review_posts_rows": 266,
+  "human_review_thread_rows": 280,
+  "privacy": {
+    "source_text_committed": false,
+    "post_url_committed": false,
+    "author_identity_committed": false,
+    "topic_values_committed": false,
+    "credentials_committed": false
+  },
+  "notes": [
+    "Candidate strings were not used as invalidity evidence.",
+    "Invalid status was appended only after same-post v7 DOM topic evidence.",
+    "Live CSV files and SQLite data remain Git-ignored.",
+    "M5 remains unauthorized."
+  ]
+}

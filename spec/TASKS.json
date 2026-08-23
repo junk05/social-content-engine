@@ -188,6 +188,6 @@
     ,{"id":"M4-FU06-003","owner":"DATA","title":"Persist topic metadata and append confirmed legacy quality reassessments","status":"COMPLETE","depends_on":["M4-FU06-002"]}
     ,{"id":"M4-FU06-004","owner":"DATA","title":"Expose topic tags in Human Review CSV and requeue audit candidates","status":"COMPLETE","depends_on":["M4-FU06-003"]}
     ,{"id":"M4-FU06-005","owner":"QA_REVIEWER","title":"Verify body/tag separation, genuine short text, quality history, CSV, and full regression","status":"COMPLETE","depends_on":["M4-FU06-004"]}
-    ,{"id":"M4-FU06-006","owner":"ORCHESTRATOR","title":"Run known tagged-root HG-03 live verification","status":"PENDING","depends_on":["M4-FU06-005"]}
+    ,{"id":"M4-FU06-006","owner":"ORCHESTRATOR","title":"Run known tagged-root HG-03 live verification","status":"COMPLETE","depends_on":["M4-FU06-005"]}
   ]
 }

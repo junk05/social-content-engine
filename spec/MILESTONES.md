@@ -271,7 +271,7 @@ and UTF-8 BOM compatible, and no Generation-facing or M5 scope is introduced.
 
 ### M4-FU06 — Topic Tag Extraction Repair
 
-Status: `IN_PROGRESS / HG-03 PENDING`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU06_TOPIC_TAG_EXTRACTION.md` (`CR-0023`).
 Detail extractor v7 separates author body text from structurally observed topic
@@ -279,6 +279,10 @@ metadata for roots and self replies. Legacy tag-only text is retained, queued
 for reobservation without asserting invalidity, and only receives an append-only
 `INVALID_TEXT_TOPIC_TAG_METADATA` reassessment when a later DOM observation
 confirms the old text was a topic tag. M5 remains unauthorized.
+
+HG-03 passed for 30 reobserved roots. Every root stored body and topic metadata
+separately, none had body equal to an observed topic label, and all 30 confirmed
+legacy tag-only observations remain immutable with appended quality evidence.
 
 ## Deferred until later milestones
 
