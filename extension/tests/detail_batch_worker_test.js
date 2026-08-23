@@ -41,6 +41,7 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
       reply_to_post_url: null, same_author_as_root: null,
       relationship_evidence: "ROOT_DETAIL_PAGE" }];
   },
+  visibleSequenceIndicator() { return null; },
   async extractVisibleThreadDetails() {
     return [{ post_url: "https://www.threads.net/@fixture/post/Child1" }];
   },

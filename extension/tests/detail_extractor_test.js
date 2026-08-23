@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v11");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v12");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",

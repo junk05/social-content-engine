@@ -76,6 +76,17 @@
       pageUrl: url, collectedAt,
     });
     if (!observation) return { ok: false, reason: "extraction_failed" };
+    // A root `1 / N` indicator proves the page has a multi-node sequence but
+    // not that a relationship exists. Wait only for visible DOM nodes to
+    // render; branch eligibility remains wholly inside the extractor.
+    const rootIndicator = typeof extractor.visibleSequenceIndicator === "function"
+      ? extractor.visibleSequenceIndicator(document) : null;
+    if (rootIndicator && rootIndicator.thread_position === 1 && rootIndicator.thread_total > 1) {
+      await waitFor(
+        () => extractor.extractVisibleThreadNodes(document, url).length >= rootIndicator.thread_total,
+        domReadyTimeoutMilliseconds,
+      );
+    }
     const nodes = extractor.extractVisibleThreadNodes(document, url).map((node) => ({
       post_url: node.post_url, sequence_position: node.sequence_position,
       reply_to_post_url: node.reply_to_post_url, same_author_as_root: node.same_author_as_root,
