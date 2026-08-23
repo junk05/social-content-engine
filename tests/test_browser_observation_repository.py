@@ -25,6 +25,10 @@ def observation(
     approximate_views: dict = None,
     display_views: dict = None,
     topic_tags: list = None,
+    timestamp: str = "2026-08-16T00:00:00+00:00",
+    published_at_raw: str = None,
+    published_at: str = None,
+    published_timezone_basis: str = None,
 ) -> dict:
     surface = "threads_search_card" if observation_type == "SEARCH_CARD" else "threads_post_detail"
     values = {
@@ -37,7 +41,7 @@ def observation(
         "username": "fixture",
         "text": text,
         "topic_tags": list(topic_tags or []),
-        "timestamp": "2026-08-16T00:00:00+00:00",
+        "timestamp": timestamp,
         "public_counters": {
             "view_count": view_count,
             "like_count": 0,
@@ -115,6 +119,29 @@ def observation(
                 "extractor_version": "fixture-extractor-v1",
             }
         )
+    if published_timezone_basis is not None:
+        values.update(
+            {
+                "published_at_raw": published_at_raw,
+                "published_at": published_at,
+                "published_timezone_basis": published_timezone_basis,
+            }
+        )
+        for field, value in (
+            ("published_at_raw", published_at_raw),
+            ("published_at", published_at),
+            ("published_timezone_basis", published_timezone_basis),
+        ):
+            if value is not None:
+                values["observed_fields"].append(
+                    {
+                        "field": field,
+                        "value": value,
+                        "surface": surface,
+                        "observed_at": "2026-08-16T00:00:00+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                    }
+                )
     values["payload_sha256"] = browser_observation_payload_sha256(values)
     return values
 
@@ -137,6 +164,29 @@ def downgrade_before_migration_8(path: Path) -> None:
 
 
 class BrowserObservationRepositoryTest(unittest.TestCase):
+    def test_publication_time_preserves_explicit_offset_without_collection_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "publication-time.sqlite3") as repository:
+                payload = observation(
+                    observation_type="POST_DETAIL", metric_statuses=True,
+                    timestamp="2026-08-16T09:15:00+09:00",
+                    published_at_raw="2026-08-16T09:15:00+09:00",
+                    published_at="2026-08-16T09:15:00+09:00",
+                    published_timezone_basis="TIME_DATETIME_EXPLICIT_OFFSET",
+                )
+                result = repository.add_browser_observation(payload)
+                row = repository.connection.execute(
+                    """SELECT canonical_payload_json FROM browser_normalized_versions
+                    WHERE browser_post_identity_id = ? ORDER BY version DESC LIMIT 1""",
+                    (result["browser_post_identity_id"],),
+                ).fetchone()
+                normalized = json.loads(str(row["canonical_payload_json"]))
+                self.assertEqual("2026-08-16T09:15:00+09:00", normalized["published_at"])
+                self.assertEqual(
+                    "TIME_DATETIME_EXPLICIT_OFFSET", normalized["published_timezone_basis"]
+                )
+                self.assertEqual("2026-08-16T09:15:00+09:00", normalized["timestamp"])
+
     def test_topic_tags_are_separate_versioned_source_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "topics.sqlite3") as repository:

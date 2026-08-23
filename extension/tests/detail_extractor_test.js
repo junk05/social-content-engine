@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v12");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v13");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -155,8 +155,9 @@ async function main() {
   assert.deepEqual(Object.keys(complete).sort(), [
     "author_name", "collected_at", "collection_context", "extractor_version",
     "has_image", "has_video", "media_type", "metric_observation_statuses",
-    "observation_type", "observed_fields",
-    "payload_sha256", "post_url", "public_counters", "raw_sequence_indicator",
+    "observation_type", "observed_fields", "payload_sha256", "post_url",
+    "public_counters", "published_at", "published_at_raw", "published_timezone_basis",
+    "raw_sequence_indicator",
     "schema_version", "source", "source_post_id", "text", "thread_position",
     "thread_total", "timestamp", "topic_tags", "username",
   ]);
@@ -164,6 +165,13 @@ async function main() {
   assert.equal(complete.source_post_id, null);
   assert.equal(complete.author_name, "Sample Author");
   assert.equal(complete.username, "sample.user");
+  assert.equal(complete.published_at_raw, "2026-08-16T02:03:04.000Z");
+  assert.equal(complete.published_at, "2026-08-16T02:03:04.000+00:00");
+  assert.equal(complete.timestamp, complete.published_at,
+    "timestamp is only a compatibility alias for the direct publication timestamp");
+  assert.equal(complete.published_timezone_basis, "TIME_DATETIME_EXPLICIT_OFFSET");
+  assert.equal(complete.observed_fields.find((item) => item.field === "published_at_raw").value,
+    complete.published_at_raw);
   assert.equal(complete.text, "Sanitized detail post text.");
   assert.deepEqual(complete.topic_tags, ["Fixture Topic"]);
   assert.equal(complete.raw_sequence_indicator, null);
@@ -375,6 +383,20 @@ async function main() {
   ), null);
   assert.equal(extractor.activityViewCount(fixturePage("post_detail_missing_view.html")), null);
   assert.equal(extractor.exactNonnegativeInteger("Views 0"), 0);
+  assert.deepEqual(extractor.semanticPublicationTime(
+    new Element({ datetime: "2026-08-16T09:15:00Z" }),
+  ), {
+    published_at_raw: "2026-08-16T09:15:00Z",
+    published_at: "2026-08-16T09:15:00+00:00",
+    published_timezone_basis: "TIME_DATETIME_EXPLICIT_OFFSET",
+  });
+  assert.deepEqual(extractor.semanticPublicationTime(
+    new Element({ datetime: "2026-08-16T09:15:00" }),
+  ), {
+    published_at_raw: "2026-08-16T09:15:00",
+    published_at: null,
+    published_timezone_basis: "NOT_OBSERVED",
+  }, "timezone-less semantic values are not promoted to publication instants");
   assert.equal(extractor.canonicalPostUrl("javascript:alert(1)", context.pageUrl), null);
   assert.equal(extractor.recognizePostDetail(page, "https://www.threads.net/@other/post/Elsewhere"), false);
   assert.equal(await extractor.extractPostDetail(page, { ...context, pageUrl: "https://www.threads.net/search?q=x" }), null);

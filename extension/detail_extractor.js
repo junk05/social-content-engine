@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v12";
+  const VERSION = "threads_post_detail_extractor_v13";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -42,6 +42,33 @@
     if (typeof value !== "string") return null;
     const cleaned = value.replace(/\s+/g, " ").trim();
     return cleaned || null;
+  }
+  function semanticPublicationTime(timeElement) {
+    const raw = cleanText(timeElement && timeElement.getAttribute("datetime"));
+    if (!raw) {
+      return {
+        published_at_raw: null, published_at: null,
+        published_timezone_basis: "NOT_OBSERVED",
+      };
+    }
+    // A semantic datetime must carry an explicit offset.  Do not translate a
+    // relative label or a timezone-less wall time into a publication instant.
+    const explicitOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+    const parsed = explicitOffset ? Date.parse(raw) : Number.NaN;
+    if (!Number.isFinite(parsed)) {
+      return {
+        published_at_raw: raw, published_at: null,
+        published_timezone_basis: "NOT_OBSERVED",
+      };
+    }
+    return {
+      published_at_raw: raw,
+      // Preserve the source's explicit offset as the local calculation basis;
+      // normalize UTC Z to its equivalent explicit ISO-8601 offset.
+      published_at: raw.endsWith("Z") || raw.endsWith("z")
+        ? raw.slice(0, -1) + "+00:00" : raw,
+      published_timezone_basis: "TIME_DATETIME_EXPLICIT_OFFSET",
+    };
   }
   function renderedText(element) {
     const rendered = cleanText(typeof element.innerText === "string" ? element.innerText : null);
@@ -566,8 +593,11 @@
     const postRoot = rootPostContainer(root, pageUrl);
     if (!postRoot) return null;
     const time = postRoot.querySelector("time[datetime]");
-    const timestamp = cleanText(time.getAttribute("datetime"));
-    if (!post || !timestamp) return null;
+    const publication = semanticPublicationTime(time);
+    if (!post) return null;
+    // Keep timestamp as a compatibility alias. New callers must use the
+    // explicit published_at semantics below.
+    const timestamp = publication.published_at;
     const profile = profileValues(postRoot, post.canonical);
     const counters = visibleCounters(postRoot);
     for (const name of Object.keys(counters)) {
@@ -591,7 +621,8 @@
     const counterLabels = Array.from(postRoot.querySelectorAll("[aria-label]"), (element) => isVisible(element) ? cleanText(element.getAttribute("aria-label")) : null);
     const sequenceIndicator = visibleSequenceIndicator(postRoot);
     const text = visiblePostText(
-      postRoot, [profile.authorName, profile.username, timestamp, ...counterLabels],
+      postRoot, [profile.authorName, profile.username, publication.published_at_raw,
+        publication.published_at, ...counterLabels],
       sequenceIndicator,
     );
     const topicTags = visibleTopicTags(postRoot);
@@ -599,7 +630,10 @@
     const observed = [];
     for (const [field, value] of [
       ["author_name", profile.authorName], ["username", profile.username], ["text", text],
-      ["timestamp", timestamp], ["media_type", media.mediaType], ["has_image", media.hasImage], ["has_video", media.hasVideo],
+      ["timestamp", timestamp], ["published_at_raw", publication.published_at_raw],
+      ["published_at", publication.published_at],
+      ["published_timezone_basis", publication.published_timezone_basis],
+      ["media_type", media.mediaType], ["has_image", media.hasImage], ["has_video", media.hasVideo],
     ]) if (value !== null) observed.push(observationField(field, value, collectedAt));
     if (topicTags.length) observed.push(observationField("topic_tags", topicTags, collectedAt));
     if (sequenceIndicator) {
@@ -614,8 +648,10 @@
       author_name: profile.authorName, username: profile.username, text, topic_tags: topicTags,
       raw_sequence_indicator: sequenceIndicator?.raw_sequence_indicator ?? null,
       thread_position: sequenceIndicator?.thread_position ?? null,
-      thread_total: sequenceIndicator?.thread_total ?? null,
-      timestamp,
+      thread_total: sequenceIndicator?.thread_total ?? null, timestamp,
+      published_at_raw: publication.published_at_raw,
+      published_at: publication.published_at,
+      published_timezone_basis: publication.published_timezone_basis,
       public_counters: counters, metric_observation_statuses: metricStatuses,
       media_type: media.mediaType, has_image: media.hasImage, has_video: media.hasVideo,
       collection_context: { surface: SURFACE, page_url: post.canonical, query: null, position: null },
@@ -640,6 +676,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
+    semanticPublicationTime,
     approximatePageViews, exactDisplayPageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,

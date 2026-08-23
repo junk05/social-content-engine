@@ -30,6 +30,11 @@
     "thread_position": {"type": ["integer", "null"], "minimum": 1},
     "thread_total": {"type": ["integer", "null"], "minimum": 1},
     "timestamp": {"type": ["string", "null"], "format": "date-time"},
+    "published_at_raw": {"type": ["string", "null"], "maxLength": 128},
+    "published_at": {"type": ["string", "null"], "format": "date-time"},
+    "published_timezone_basis": {
+      "enum": ["TIME_DATETIME_EXPLICIT_OFFSET", "NOT_OBSERVED"]
+    },
     "public_counters": {
       "type": "object",
       "additionalProperties": false,
@@ -120,6 +125,7 @@
           "field": {
             "enum": [
               "source_post_id", "author_name", "username", "text", "timestamp",
+              "published_at_raw", "published_at", "published_timezone_basis",
               "topic_tags",
               "raw_sequence_indicator", "thread_position", "thread_total",
               "public_counters.view_count", "public_counters.like_count",

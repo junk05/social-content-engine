@@ -19,6 +19,9 @@ OBSERVABLE_FIELDS = {
     "thread_position",
     "thread_total",
     "timestamp",
+    "published_at_raw",
+    "published_at",
+    "published_timezone_basis",
     "public_counters.view_count",
     "public_counters.like_count",
     "public_counters.reply_count",
@@ -96,6 +99,8 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
         "thread_position": observation.get("thread_position"),
         "thread_total": observation.get("thread_total"),
         "timestamp": observation.get("timestamp"),
+        "published_at": observation.get("published_at"),
+        "published_timezone_basis": observation.get("published_timezone_basis"),
         "public_counters": dict(observation.get("public_counters", {})),
         "approximate_views": (
             dict(observation["approximate_views"])
@@ -175,6 +180,9 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "approximate_views",
         "topic_tags",
         "display_views",
+        "published_at_raw",
+        "published_at",
+        "published_timezone_basis",
         "raw_sequence_indicator",
         "thread_position",
         "thread_total",
@@ -194,6 +202,8 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "username",
         "text",
         "timestamp",
+        "published_at_raw",
+        "published_at",
         "media_type",
     )
     if any(
@@ -201,6 +211,25 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         for key in nullable_strings
     ):
         raise ValueError("browser observation text fields must be strings or null")
+    publication = (
+        observation.get("published_at_raw"),
+        observation.get("published_at"),
+        observation.get("published_timezone_basis"),
+    )
+    if any(value is not None for value in publication):
+        raw, normalized, timezone_basis = publication
+        if (
+            raw is not None and (not isinstance(raw, str) or len(raw) > 128)
+        ):
+            raise ValueError("publication timestamp raw value is invalid")
+        if normalized is not None and not isinstance(normalized, str):
+            raise ValueError("publication timestamp normalized value is invalid")
+        if timezone_basis not in {"TIME_DATETIME_EXPLICIT_OFFSET", "NOT_OBSERVED"}:
+            raise ValueError("publication timestamp basis is invalid")
+        if normalized is not None and timezone_basis != "TIME_DATETIME_EXPLICIT_OFFSET":
+            raise ValueError("publication timestamp requires explicit timezone basis")
+        if normalized is not None and observation.get("timestamp") != normalized:
+            raise ValueError("publication timestamp and compatibility timestamp disagree")
     topic_tags = observation.get("topic_tags", [])
     if (
         not isinstance(topic_tags, list)
