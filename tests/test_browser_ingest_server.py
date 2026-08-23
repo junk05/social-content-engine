@@ -42,9 +42,7 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.repository = Repository(Path(temporary.name) / "browser.sqlite3")
         self.addCleanup(self.repository.close)
-        self.service = BrowserIngestService(
-            self.repository, {ALLOWED_ORIGIN}, load_schema()
-        )
+        self.service = BrowserIngestService(self.repository, {ALLOWED_ORIGIN}, load_schema())
 
     def post(self, payload: dict, **kwargs: str):
         return self.service.handle_post(
@@ -56,16 +54,12 @@ class BrowserIngestServerTest(unittest.TestCase):
 
     def observed_url(self, post_code: str, **kwargs: object) -> dict:
         payload = observation(**kwargs)
-        payload["post_url"] = (
-            "https://www.threads.net/@fixture/post/" + post_code
-        )
+        payload["post_url"] = "https://www.threads.net/@fixture/post/" + post_code
         payload["payload_sha256"] = browser_observation_payload_sha256(payload)
         return payload
 
     def test_options_success_and_duplicate_observation(self) -> None:
-        preflight = self.service.handle_options(
-            "/browser-ingest/threads", ALLOWED_ORIGIN
-        )
+        preflight = self.service.handle_options("/browser-ingest/threads", ALLOWED_ORIGIN)
         self.assertEqual(204, preflight.status)
         first = self.post(observation())
         second = self.post(observation())
@@ -114,9 +108,7 @@ class BrowserIngestServerTest(unittest.TestCase):
 
     def test_native_input_move_is_shape_closed_and_one_shot(self) -> None:
         moves = []
-        self.service.native_move_runner = (
-            lambda x, y: moves.append((x, y)) or "cursor_moved"
-        )
+        self.service.native_move_runner = lambda x, y: moves.append((x, y)) or "cursor_moved"
         first = self.service.handle_post(
             NATIVE_INPUT_MOVE_PATH,
             ALLOWED_ORIGIN,
@@ -161,14 +153,10 @@ class BrowserIngestServerTest(unittest.TestCase):
             {ALLOWED_ORIGIN},
             load_schema(),
         )
-        server = HTTPServer(
-            ("127.0.0.1", 0), configured_handler(http_service)
-        )
+        server = HTTPServer(("127.0.0.1", 0), configured_handler(http_service))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        connection = http.client.HTTPConnection(
-            "127.0.0.1", server.server_address[1], timeout=2
-        )
+        connection = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=2)
         try:
             connection.request(
                 "OPTIONS",
@@ -177,9 +165,7 @@ class BrowserIngestServerTest(unittest.TestCase):
             )
             preflight = connection.getresponse()
             self.assertEqual(204, preflight.status)
-            self.assertEqual(
-                ALLOWED_ORIGIN, preflight.getheader("Access-Control-Allow-Origin")
-            )
+            self.assertEqual(ALLOWED_ORIGIN, preflight.getheader("Access-Control-Allow-Origin"))
             self.assertEqual(
                 "GET, POST, OPTIONS",
                 preflight.getheader("Access-Control-Allow-Methods"),
@@ -200,9 +186,7 @@ class BrowserIngestServerTest(unittest.TestCase):
             accepted = connection.getresponse()
             response_payload = json.loads(accepted.read())
             self.assertEqual(201, accepted.status)
-            self.assertEqual(
-                ALLOWED_ORIGIN, accepted.getheader("Access-Control-Allow-Origin")
-            )
+            self.assertEqual(ALLOWED_ORIGIN, accepted.getheader("Access-Control-Allow-Origin"))
             self.assertEqual("no-store", accepted.getheader("Cache-Control"))
             self.assertEqual("accepted", response_payload["status"])
         finally:
@@ -215,14 +199,8 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.post(self.observed_url("PendingA"))
         self.post(self.observed_url("PendingB"))
         self.post(self.observed_url("Collected", view_count=0))
-        self.post(
-            self.observed_url(
-                "Enriched", observation_type="POST_DETAIL", view_count=None
-            )
-        )
-        response = self.service.handle_get(
-            PENDING_DETAILS_PATH, "limit=1", ALLOWED_ORIGIN
-        )
+        self.post(self.observed_url("Enriched", observation_type="POST_DETAIL", view_count=None))
+        response = self.service.handle_get(PENDING_DETAILS_PATH, "limit=1", ALLOWED_ORIGIN)
         self.assertEqual(200, response.status)
         self.assertEqual(1, response.payload["count"])
         self.assertEqual(
@@ -233,9 +211,7 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertNotIn("text", response.body.decode("utf-8"))
         self.assertEqual(
             400,
-            self.service.handle_get(
-                PENDING_DETAILS_PATH, "limit=101", ALLOWED_ORIGIN
-            ).status,
+            self.service.handle_get(PENDING_DETAILS_PATH, "limit=101", ALLOWED_ORIGIN).status,
         )
         header_authorized = self.service.handle_get(
             PENDING_DETAILS_PATH, "limit=1", "null", ALLOWED_ORIGIN
@@ -254,12 +230,12 @@ class BrowserIngestServerTest(unittest.TestCase):
     def test_post_detail_acceptance_records_success_even_when_view_is_missing(self) -> None:
         self.post(self.observed_url("DetailMissingView"))
         detail = self.observed_url(
-            "DetailMissingView", observation_type="POST_DETAIL", view_count=None,
+            "DetailMissingView",
+            observation_type="POST_DETAIL",
+            view_count=None,
             metric_statuses=True,
         )
-        accepted = self.post(
-            detail
-        )
+        accepted = self.post(detail)
         self.assertEqual(201, accepted.status)
         self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
         attempt = self.repository.connection.execute(
@@ -297,10 +273,15 @@ class BrowserIngestServerTest(unittest.TestCase):
             "extractor_version": "fixture-extractor-v1",
             "normalizer_version": "rounded-views-normalizer-v1",
         }
-        accepted = self.post(self.observed_url(
-            "RoundedViews", observation_type="POST_DETAIL", view_count=None,
-            metric_statuses=True, approximate_views=rounded,
-        ))
+        accepted = self.post(
+            self.observed_url(
+                "RoundedViews",
+                observation_type="POST_DETAIL",
+                view_count=None,
+                metric_statuses=True,
+                approximate_views=rounded,
+            )
+        )
         self.assertEqual(201, accepted.status)
         self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
         row = self.repository.connection.execute(
@@ -309,32 +290,66 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(33000, row["normalized_approx"])
         self.assertEqual("ROUNDED", row["precision"])
 
+    def test_post_detail_accepts_exact_integer_display_views(self) -> None:
+        displayed = {
+            "display": "表示4,506回",
+            "normalized_value": 4506,
+            "precision": "DISPLAY_EXACT",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "1K_10K",
+            "observed_at": "2026-08-16T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "display-views-normalizer-v1",
+        }
+        accepted = self.post(
+            self.observed_url(
+                "DisplayViews",
+                observation_type="POST_DETAIL",
+                view_count=None,
+                metric_statuses=True,
+                display_views=displayed,
+            )
+        )
+        self.assertEqual(201, accepted.status)
+        self.assertEqual("DETAIL_ENRICHED", accepted.payload["observation_status"])
+        row = self.repository.connection.execute(
+            "SELECT * FROM browser_display_view_observations"
+        ).fetchone()
+        self.assertEqual(4506, row["normalized_value"])
+        self.assertEqual("DISPLAY_EXACT", row["precision"])
+
     def test_durable_queue_batch_claim_complete_and_summary(self) -> None:
         search = self.post(self.observed_url("QueueSuccess"))
-        summary = self.service.handle_get(
-            DETAIL_QUEUE_SUMMARY_PATH, "", ALLOWED_ORIGIN
-        )
+        summary = self.service.handle_get(DETAIL_QUEUE_SUMMARY_PATH, "", ALLOWED_ORIGIN)
         self.assertEqual(200, summary.status)
         self.assertEqual(1, summary.payload["collected_count"])
         self.assertEqual(1, summary.payload["counts"]["DETAIL_PENDING"])
         started = self.service.handle_post(
-            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps({
-                "action": "start", "requested_items": 1,
-                "max_items": 1, "retry_failed": False,
-            }).encode("utf-8"),
+            DETAIL_BATCHES_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            json.dumps(
+                {
+                    "action": "start",
+                    "requested_items": 1,
+                    "max_items": 1,
+                    "retry_failed": False,
+                }
+            ).encode("utf-8"),
         )
         self.assertEqual(200, started.status)
         batch_id = started.payload["batch_id"]
         claimed = self.service.handle_post(
-            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_CLAIM_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"batch_id": batch_id}).encode("utf-8"),
         )
         self.assertEqual("claimed", claimed.payload["status"])
         self.assertEqual(self.observed_url("QueueSuccess")["post_url"], claimed.payload["post_url"])
-        detail = self.post(self.observed_url(
-            "QueueSuccess", observation_type="POST_DETAIL", view_count=0
-        ))
+        detail = self.post(
+            self.observed_url("QueueSuccess", observation_type="POST_DETAIL", view_count=0)
+        )
         completion = {
             "queue_item_id": claimed.payload["queue_item_id"],
             "batch_id": batch_id,
@@ -343,20 +358,30 @@ class BrowserIngestServerTest(unittest.TestCase):
             "detail_observation_id": detail.payload["observation_id"],
         }
         completed = self.service.handle_post(
-            DETAIL_QUEUE_COMPLETE_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_COMPLETE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps(completion).encode("utf-8"),
         )
         self.assertEqual(200, completed.status)
         empty = self.service.handle_post(
-            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_CLAIM_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"batch_id": batch_id}).encode("utf-8"),
         )
         self.assertEqual("empty", empty.payload["status"])
         finished = self.service.handle_post(
-            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps({
-                "action": "finish", "batch_id": batch_id, "stopped": False,
-            }).encode("utf-8"),
+            DETAIL_BATCHES_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            json.dumps(
+                {
+                    "action": "finish",
+                    "batch_id": batch_id,
+                    "stopped": False,
+                }
+            ).encode("utf-8"),
         )
         self.assertEqual("COMPLETED", finished.payload["batch_status"])
         self.assertEqual(search.payload["identity_id"], detail.payload["identity_id"])
@@ -375,10 +400,19 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(2, listed.payload["count"])
         self.assertEqual(
             {
-                "collected_at", "author_username", "post_url", "detail_status",
-                "attempt_count", "last_error", "rounded_views_raw",
-                "rounded_views_normalized", "rounded_views_band", "self_reply_count",
-                "enrichment_excluded", "exclusion_reason", "excluded_at",
+                "collected_at",
+                "author_username",
+                "post_url",
+                "detail_status",
+                "attempt_count",
+                "last_error",
+                "rounded_views_raw",
+                "rounded_views_normalized",
+                "rounded_views_band",
+                "self_reply_count",
+                "enrichment_excluded",
+                "exclusion_reason",
+                "excluded_at",
             },
             set(listed.payload["posts"][0]),
         )
@@ -387,7 +421,9 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertNotIn("source_text", listed.body.decode("utf-8"))
 
         excluded = self.service.handle_post(
-            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_EXCLUSION_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"action": "EXCLUDE", "post_url": second["post_url"]}).encode(),
         )
         self.assertEqual(200, excluded.status)
@@ -397,13 +433,13 @@ class BrowserIngestServerTest(unittest.TestCase):
         )
         self.assertEqual(1, excluded_list.payload["count"])
         self.assertEqual("EXCLUDED", excluded_list.payload["posts"][0]["detail_status"])
-        pending = self.service.handle_get(
-            PENDING_DETAILS_PATH, "limit=10", ALLOWED_ORIGIN
-        )
+        pending = self.service.handle_get(PENDING_DETAILS_PATH, "limit=10", ALLOWED_ORIGIN)
         self.assertEqual([first["post_url"]], pending.payload["urls"])
 
         requeued = self.service.handle_post(
-            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_EXCLUSION_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"action": "REQUEUE", "post_url": second["post_url"]}).encode(),
         )
         self.assertEqual(200, requeued.status)
@@ -413,19 +449,17 @@ class BrowserIngestServerTest(unittest.TestCase):
         )
         self.assertEqual(2, pending_list.payload["count"])
         self.assertEqual(observation_count, self.repository.count("browser_observations"))
-        self.assertEqual(
-            2, self.repository.count("browser_detail_enrichment_exclusion_actions")
-        )
+        self.assertEqual(2, self.repository.count("browser_detail_enrichment_exclusion_actions"))
         invalid = self.service.handle_post(
-            DETAIL_EXCLUSION_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_EXCLUSION_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"action": "DELETE", "post_url": second["post_url"]}).encode(),
         )
         self.assertEqual(422, invalid.status)
         self.assertEqual(
             400,
-            self.service.handle_get(
-                COLLECTED_POSTS_PATH, "status=UNKNOWN", ALLOWED_ORIGIN
-            ).status,
+            self.service.handle_get(COLLECTED_POSTS_PATH, "status=UNKNOWN", ALLOWED_ORIGIN).status,
         )
 
     def test_review_csv_download_is_filtered_bom_safe_and_read_only(self) -> None:
@@ -445,9 +479,7 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(changes_before, self.repository.connection.total_changes)
         self.assertEqual(200, posts.status)
         self.assertEqual("text/csv; charset=utf-8", posts.content_type)
-        self.assertEqual(
-            'attachment; filename="threads_posts.csv"', posts.content_disposition
-        )
+        self.assertEqual('attachment; filename="threads_posts.csv"', posts.content_disposition)
         self.assertTrue(posts.body.startswith(b"\xef\xbb\xbf"))
         rendered = posts.body.decode("utf-8-sig")
         self.assertIn("日本語の監査本文", rendered)
@@ -473,39 +505,59 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.post(self.observed_url("QueueFailure"))
         self.post(self.observed_url("QueueNext"))
         started = self.service.handle_post(
-            DETAIL_BATCHES_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps({
-                "action": "start", "requested_items": 2,
-                "max_items": 2, "retry_failed": False,
-            }).encode("utf-8"),
+            DETAIL_BATCHES_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
+            json.dumps(
+                {
+                    "action": "start",
+                    "requested_items": 2,
+                    "max_items": 2,
+                    "retry_failed": False,
+                }
+            ).encode("utf-8"),
         )
         batch_id = started.payload["batch_id"]
         first = self.service.handle_post(
-            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_CLAIM_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"batch_id": batch_id}).encode("utf-8"),
         ).payload
         failure = {
-            "queue_item_id": first["queue_item_id"], "batch_id": batch_id,
-            "attempt": first["attempt"], "lease_version": first["lease_version"],
+            "queue_item_id": first["queue_item_id"],
+            "batch_id": batch_id,
+            "attempt": first["attempt"],
+            "lease_version": first["lease_version"],
             "attempted_at": "2026-08-16T05:00:00Z",
             "extractor_version": "threads-post-detail-extractor-v2",
             "contract_version": "M3_BROWSER_DETAIL_ATTEMPT_V1",
-            "failure_type": "TIMEOUT", "failure_reason": "TIME_LIMIT_EXCEEDED",
+            "failure_type": "TIMEOUT",
+            "failure_reason": "TIME_LIMIT_EXCEEDED",
             "error_code": "ACTIVITY_DIALOG_TIMEOUT",
         }
         failed = self.service.handle_post(
-            DETAIL_QUEUE_FAIL_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_FAIL_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps(failure).encode("utf-8"),
         )
         self.assertEqual(201, failed.status)
         stale = dict(failure)
         stale["attempted_at"] = "2026-08-16T05:01:00Z"
-        self.assertEqual(422, self.service.handle_post(
-            DETAIL_QUEUE_FAIL_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps(stale).encode("utf-8"),
-        ).status)
+        self.assertEqual(
+            422,
+            self.service.handle_post(
+                DETAIL_QUEUE_FAIL_PATH,
+                ALLOWED_ORIGIN,
+                "application/json",
+                json.dumps(stale).encode("utf-8"),
+            ).status,
+        )
         second = self.service.handle_post(
-            DETAIL_QUEUE_CLAIM_PATH, ALLOWED_ORIGIN, "application/json",
+            DETAIL_QUEUE_CLAIM_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps({"batch_id": batch_id}).encode("utf-8"),
         )
         self.assertEqual("claimed", second.payload["status"])
@@ -529,33 +581,34 @@ class BrowserIngestServerTest(unittest.TestCase):
         root = self.observed_url("SequenceRoot")
         child = self.observed_url("SequenceChild")
         self.post(root)
-        child_detail = self.post(
-            self.observed_url("SequenceChild", observation_type="POST_DETAIL")
-        )
-        detail = self.post(
-            self.observed_url("SequenceRoot", observation_type="POST_DETAIL")
-        )
+        child_detail = self.post(self.observed_url("SequenceChild", observation_type="POST_DETAIL"))
+        detail = self.post(self.observed_url("SequenceRoot", observation_type="POST_DETAIL"))
         payload = {
             "root_post_url": root["post_url"],
             "detail_observation_id": detail.payload["observation_id"],
             "observed_at": "2026-08-16T04:00:00Z",
             "extractor_version": "fixture-sequence-v1",
-            "nodes": [{
-                "post_url": root["post_url"],
-                "sequence_position": 0,
-                "reply_to_post_url": None,
-                "same_author_as_root": True,
-                "relationship_evidence": "ROOT_DETAIL_PAGE",
-            }, {
-                "post_url": child["post_url"],
-                "sequence_position": 1,
-                "reply_to_post_url": root["post_url"],
-                "same_author_as_root": True,
-                "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
-            }],
+            "nodes": [
+                {
+                    "post_url": root["post_url"],
+                    "sequence_position": 0,
+                    "reply_to_post_url": None,
+                    "same_author_as_root": True,
+                    "relationship_evidence": "ROOT_DETAIL_PAGE",
+                },
+                {
+                    "post_url": child["post_url"],
+                    "sequence_position": 1,
+                    "reply_to_post_url": root["post_url"],
+                    "same_author_as_root": True,
+                    "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+                },
+            ],
         }
         accepted = self.service.handle_post(
-            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            THREAD_SEQUENCE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps(payload).encode("utf-8"),
         )
         self.assertEqual(201, accepted.status)
@@ -581,37 +634,50 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertIsNotNone(relationship["reply_to_browser_post_identity_id"])
         self.assertEqual(1, relationship["sequence_position"])
         self.assertEqual(1, relationship["same_author_as_root"])
-        self.assertEqual(
-            "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN", relationship["relationship_evidence"]
-        )
+        self.assertEqual("DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN", relationship["relationship_evidence"])
         bad_detail = dict(payload)
         bad_detail["detail_observation_id"] = 1
         rejected = self.service.handle_post(
-            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
+            THREAD_SEQUENCE_PATH,
+            ALLOWED_ORIGIN,
+            "application/json",
             json.dumps(bad_detail).encode("utf-8"),
         )
         self.assertEqual(422, rejected.status)
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
         bad_node = dict(payload)
         bad_node["detail_observation_id"] = detail.payload["observation_id"]
-        bad_node["nodes"] = [payload["nodes"][0], {
-            "post_url": "https://www.threads.net/@fixture/post/UnknownChild",
-            "sequence_position": 1,
-            "reply_to_post_url": root["post_url"],
-            "same_author_as_root": None,
-            "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
-        }]
-        self.assertEqual(422, self.service.handle_post(
-            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps(bad_node).encode("utf-8"),
-        ).status)
+        bad_node["nodes"] = [
+            payload["nodes"][0],
+            {
+                "post_url": "https://www.threads.net/@fixture/post/UnknownChild",
+                "sequence_position": 1,
+                "reply_to_post_url": root["post_url"],
+                "same_author_as_root": None,
+                "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
+            },
+        ]
+        self.assertEqual(
+            422,
+            self.service.handle_post(
+                THREAD_SEQUENCE_PATH,
+                ALLOWED_ORIGIN,
+                "application/json",
+                json.dumps(bad_node).encode("utf-8"),
+            ).status,
+        )
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
         bad_evidence = json.loads(json.dumps(payload))
         bad_evidence["nodes"][1]["relationship_evidence"] = "USERNAME_ONLY"
-        self.assertEqual(422, self.service.handle_post(
-            THREAD_SEQUENCE_PATH, ALLOWED_ORIGIN, "application/json",
-            json.dumps(bad_evidence).encode("utf-8"),
-        ).status)
+        self.assertEqual(
+            422,
+            self.service.handle_post(
+                THREAD_SEQUENCE_PATH,
+                ALLOWED_ORIGIN,
+                "application/json",
+                json.dumps(bad_evidence).encode("utf-8"),
+            ).status,
+        )
         self.assertEqual(2, self.repository.count("browser_thread_sequence_observations"))
 
     def test_detail_failure_is_closed_and_does_not_affect_other_pending_url(self) -> None:
@@ -663,11 +729,11 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(422, self.post(invalid_hash).status)
         self.assertEqual(
             403,
-            self.post(observation(), origin="chrome-extension://pppppppppppppppppppppppppppppppp").status,
+            self.post(
+                observation(), origin="chrome-extension://pppppppppppppppppppppppppppppppp"
+            ).status,
         )
-        self.assertEqual(
-            415, self.post(observation(), content_type="text/plain").status
-        )
+        self.assertEqual(415, self.post(observation(), content_type="text/plain").status)
         oversized = self.service.handle_post(
             "/browser-ingest/threads",
             ALLOWED_ORIGIN,

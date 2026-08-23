@@ -23,13 +23,10 @@ def observation(
     source_post_id: str = None,
     metric_statuses: bool = False,
     approximate_views: dict = None,
+    display_views: dict = None,
     topic_tags: list = None,
 ) -> dict:
-    surface = (
-        "threads_search_card"
-        if observation_type == "SEARCH_CARD"
-        else "threads_post_detail"
-    )
+    surface = "threads_search_card" if observation_type == "SEARCH_CARD" else "threads_post_detail"
     values = {
         "schema_version": 1,
         "observation_type": observation_type,
@@ -106,12 +103,18 @@ def observation(
         }
     if approximate_views is not None:
         values["approximate_views"] = dict(approximate_views)
+    if display_views is not None:
+        values["display_views"] = dict(display_views)
     if topic_tags:
-        values["observed_fields"].append({
-            "field": "topic_tags", "value": list(topic_tags), "surface": surface,
-            "observed_at": "2026-08-16T00:00:00+00:00",
-            "extractor_version": "fixture-extractor-v1",
-        })
+        values["observed_fields"].append(
+            {
+                "field": "topic_tags",
+                "value": list(topic_tags),
+                "surface": surface,
+                "observed_at": "2026-08-16T00:00:00+00:00",
+                "extractor_version": "fixture-extractor-v1",
+            }
+        )
     values["payload_sha256"] = browser_observation_payload_sha256(values)
     return values
 
@@ -119,6 +122,7 @@ def observation(
 def downgrade_before_migration_8(path: Path) -> None:
     connection = sqlite3.connect(path)
     for table in (
+        "browser_display_view_observations",
         "browser_approximate_view_observations",
         "browser_metric_observation_statuses",
         "browser_observed_fields",
@@ -142,41 +146,50 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 old = repository.add_browser_observation(old_payload)
                 repository.assess_browser_text_quality(
                     browser_observation_id=old["browser_observation_id"],
-                    quality_status="VALID_TEXT", input_sha256="0" * 64,
+                    quality_status="VALID_TEXT",
+                    input_sha256="0" * 64,
                 )
                 repaired = observation(
-                    observation_type="POST_DETAIL", text="本文です。",
-                    metric_statuses=True, topic_tags=["恋愛"],
+                    observation_type="POST_DETAIL",
+                    text="本文です。",
+                    metric_statuses=True,
+                    topic_tags=["恋愛"],
                 )
                 repaired["collected_at"] = "2026-08-16T00:01:01+00:00"
                 repaired["payload_sha256"] = browser_observation_payload_sha256(repaired)
                 saved = repository.add_browser_observation(repaired)
-                normalized = json.loads(repository.connection.execute(
-                    """SELECT canonical_payload_json FROM browser_normalized_versions
+                normalized = json.loads(
+                    repository.connection.execute(
+                        """SELECT canonical_payload_json FROM browser_normalized_versions
                     WHERE source_observation_id = ?""",
-                    (saved["browser_observation_id"],),
-                ).fetchone()[0])
+                        (saved["browser_observation_id"],),
+                    ).fetchone()[0]
+                )
                 self.assertEqual("本文です。", normalized["text"])
                 self.assertEqual(["恋愛"], normalized["topic_tags"])
-                statuses = [row[0] for row in repository.connection.execute(
-                    """SELECT quality_status FROM browser_text_quality_assessments
+                statuses = [
+                    row[0]
+                    for row in repository.connection.execute(
+                        """SELECT quality_status FROM browser_text_quality_assessments
                     WHERE browser_observation_id = ? ORDER BY id""",
-                    (old["browser_observation_id"],),
-                )]
-                self.assertEqual(
-                    ["VALID_TEXT", "INVALID_TEXT_TOPIC_TAG_METADATA"], statuses
-                )
+                        (old["browser_observation_id"],),
+                    )
+                ]
+                self.assertEqual(["VALID_TEXT", "INVALID_TEXT_TOPIC_TAG_METADATA"], statuses)
 
                 late_old = observation(
-                    observation_type="POST_DETAIL", text="夫婦関係",
+                    observation_type="POST_DETAIL",
+                    text="夫婦関係",
                     metric_statuses=True,
                 )
                 late_old["post_url"] = "https://www.threads.net/@fixture/post/Late"
                 late_old["payload_sha256"] = browser_observation_payload_sha256(late_old)
                 late_old_saved = repository.add_browser_observation(late_old)
                 late_new = observation(
-                    observation_type="POST_DETAIL", text="別の本文です。",
-                    metric_statuses=True, topic_tags=["夫婦関係"],
+                    observation_type="POST_DETAIL",
+                    text="別の本文です。",
+                    metric_statuses=True,
+                    topic_tags=["夫婦関係"],
                 )
                 late_new["post_url"] = late_old["post_url"]
                 late_new["collected_at"] = "2026-08-16T00:02:01+00:00"
@@ -194,23 +207,26 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 self.assertEqual(0, repository.reconcile_browser_topic_tag_text_quality())
 
                 genuine = observation(
-                    observation_type="POST_DETAIL", text="恋愛",
-                    metric_statuses=True, topic_tags=["恋愛"],
+                    observation_type="POST_DETAIL",
+                    text="恋愛",
+                    metric_statuses=True,
+                    topic_tags=["恋愛"],
                 )
                 genuine["post_url"] = "https://www.threads.net/@fixture/post/Genuine"
                 genuine["payload_sha256"] = browser_observation_payload_sha256(genuine)
                 saved_genuine = repository.add_browser_observation(genuine)
-                self.assertEqual(0, repository.connection.execute(
-                    """SELECT COUNT(*) FROM browser_text_quality_assessments
+                self.assertEqual(
+                    0,
+                    repository.connection.execute(
+                        """SELECT COUNT(*) FROM browser_text_quality_assessments
                     WHERE browser_observation_id = ?""",
-                    (saved_genuine["browser_observation_id"],),
-                ).fetchone()[0])
+                        (saved_genuine["browser_observation_id"],),
+                    ).fetchone()[0],
+                )
 
     def test_schema_and_canonical_url_contract(self) -> None:
         schema = json.loads(
-            (ROOT / "spec/contracts/browser-observation.schema.json").read_text(
-                encoding="utf-8"
-            )
+            (ROOT / "spec/contracts/browser-observation.schema.json").read_text(encoding="utf-8")
         )
         validator = jsonschema.Draft202012Validator(
             schema, format_checker=jsonschema.FormatChecker()
@@ -228,19 +244,27 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
         self.assertTrue(list(validator.iter_errors(invalid)))
 
         sequenced = observation(observation_type="POST_DETAIL", metric_statuses=True)
-        sequenced.update({
-            "raw_sequence_indicator": "1 / 3", "thread_position": 1,
-            "thread_total": 3,
-        })
+        sequenced.update(
+            {
+                "raw_sequence_indicator": "1 / 3",
+                "thread_position": 1,
+                "thread_total": 3,
+            }
+        )
         for field, value in [
             ("raw_sequence_indicator", "1 / 3"),
-            ("thread_position", 1), ("thread_total", 3),
+            ("thread_position", 1),
+            ("thread_total", 3),
         ]:
-            sequenced["observed_fields"].append({
-                "field": field, "value": value, "surface": "threads_post_detail",
-                "observed_at": "2026-08-16T00:00:00+00:00",
-                "extractor_version": "fixture-extractor-v1",
-            })
+            sequenced["observed_fields"].append(
+                {
+                    "field": field,
+                    "value": value,
+                    "surface": "threads_post_detail",
+                    "observed_at": "2026-08-16T00:00:00+00:00",
+                    "extractor_version": "fixture-extractor-v1",
+                }
+            )
         sequenced["payload_sha256"] = browser_observation_payload_sha256(sequenced)
         self.assertEqual([], list(validator.iter_errors(sequenced)))
 
@@ -371,11 +395,13 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 self.assertEqual(120000, row["normalized_approx"])
                 self.assertEqual("100K_1M", row["view_band"])
                 self.assertIsNone(
-                    json.loads(repository.connection.execute(
-                        """SELECT canonical_payload_json FROM browser_observations
+                    json.loads(
+                        repository.connection.execute(
+                            """SELECT canonical_payload_json FROM browser_observations
                         WHERE id = ?""",
-                        (result["browser_observation_id"],),
-                    ).fetchone()[0])["public_counters"]["view_count"]
+                            (result["browser_observation_id"],),
+                        ).fetchone()[0]
+                    )["public_counters"]["view_count"]
                 )
                 with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
                     repository.connection.execute(
@@ -389,6 +415,45 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 )
                 with self.assertRaisesRegex(ValueError, "band disagrees"):
                     repository.add_browser_observation(invalid)
+
+    def test_exact_display_views_are_separate_immutable_source_evidence(self) -> None:
+        displayed = {
+            "display": "表示4,506回",
+            "normalized_value": 4506,
+            "precision": "DISPLAY_EXACT",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "1K_10K",
+            "observed_at": "2026-08-16T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "display-views-normalizer-v1",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "display-views.sqlite3") as repository:
+                value = observation(
+                    observation_type="POST_DETAIL",
+                    metric_statuses=True,
+                    display_views=displayed,
+                )
+                result = repository.add_browser_observation(value)
+                row = repository.connection.execute(
+                    "SELECT * FROM browser_display_view_observations"
+                ).fetchone()
+                self.assertEqual("表示4,506回", row["display"])
+                self.assertEqual(4506, row["normalized_value"])
+                self.assertEqual("DISPLAY_EXACT", row["precision"])
+                self.assertIsNone(
+                    json.loads(
+                        repository.connection.execute(
+                            "SELECT canonical_payload_json FROM browser_observations WHERE id = ?",
+                            (result["browser_observation_id"],),
+                        ).fetchone()[0]
+                    )["public_counters"]["view_count"]
+                )
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "immutable"):
+                    repository.connection.execute(
+                        "UPDATE browser_display_view_observations SET normalized_value=1"
+                    )
+                repository.connection.rollback()
 
     def test_hash_mismatch_and_browser_or_credential_leakage_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -416,9 +481,9 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                         (result["browser_observation_id"],),
                     )
                 repository.connection.rollback()
-                self.assertEqual([], repository.connection.execute(
-                    "PRAGMA foreign_key_check"
-                ).fetchall())
+                self.assertEqual(
+                    [], repository.connection.execute("PRAGMA foreign_key_check").fetchall()
+                )
                 self.assertEqual(
                     "ok", repository.connection.execute("PRAGMA integrity_check").fetchone()[0]
                 )
@@ -430,13 +495,19 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 pass
             downgrade_before_migration_8(path)
             with Repository(path) as repository:
-                self.assertEqual(1, repository.connection.execute(
-                    "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
-                ).fetchone()[0])
+                self.assertEqual(
+                    1,
+                    repository.connection.execute(
+                        "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
+                    ).fetchone()[0],
+                )
             with Repository(path) as repository:
-                self.assertEqual(1, repository.connection.execute(
-                    "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
-                ).fetchone()[0])
+                self.assertEqual(
+                    1,
+                    repository.connection.execute(
+                        "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
+                    ).fetchone()[0],
+                )
 
             conflict = Path(directory) / "conflict.sqlite3"
             with Repository(conflict):
@@ -455,9 +526,12 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                         "SELECT name FROM sqlite_master WHERE name = 'browser_observations'"
                     ).fetchone()
                 )
-                self.assertEqual(0, connection.execute(
-                    "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
-                ).fetchone()[0])
+                self.assertEqual(
+                    0,
+                    connection.execute(
+                        "SELECT COUNT(*) FROM schema_migrations WHERE version = 8"
+                    ).fetchone()[0],
+                )
             finally:
                 connection.close()
 

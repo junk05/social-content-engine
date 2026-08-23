@@ -45,6 +45,10 @@ class BrowserReviewExportTest(unittest.TestCase):
               id INTEGER PRIMARY KEY, browser_observation_id INTEGER, display TEXT,
               normalized_approx INTEGER, view_band TEXT
             );
+            CREATE TABLE browser_display_view_observations (
+              id INTEGER PRIMARY KEY, browser_observation_id INTEGER, display TEXT,
+              normalized_value INTEGER, precision TEXT, view_band TEXT
+            );
             CREATE TABLE browser_thread_sequence_observations (
               id INTEGER PRIMARY KEY, root_browser_post_identity_id INTEGER,
               node_browser_post_identity_id INTEGER,
@@ -77,25 +81,51 @@ class BrowserReviewExportTest(unittest.TestCase):
             VALUES (?, ?, ?, ?, '2026-08-22T12:00:00Z', '2026-08-22T12:00:00Z')""",
             identities,
         )
-        def payload(url: str, source_id: str, username: str, text: str, likes: object,
-                    topic_tags: object = None) -> str:
-            return json.dumps({
-                "post_url": url, "source_post_id": source_id, "username": username,
-                "text": text, "topic_tags": topic_tags or [], "public_counters": {
-                    "like_count": likes, "reply_count": 0,
-                    "repost_count": None, "quote_count": None,
+
+        def payload(
+            url: str,
+            source_id: str,
+            username: str,
+            text: str,
+            likes: object,
+            topic_tags: object = None,
+        ) -> str:
+            return json.dumps(
+                {
+                    "post_url": url,
+                    "source_post_id": source_id,
+                    "username": username,
+                    "text": text,
+                    "topic_tags": topic_tags or [],
+                    "public_counters": {
+                        "like_count": likes,
+                        "reply_count": 0,
+                        "repost_count": None,
+                        "quote_count": None,
+                    },
                 },
-            }, ensure_ascii=False)
+                ensure_ascii=False,
+            )
+
         observations = [
-            (1, 1, "SEARCH_CARD", payload(
-                identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]
-            )),
-            (2, 1, "POST_DETAIL", payload(
-                identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]
-            )),
-            (3, 2, "POST_DETAIL", payload(
-                identities[1][1], "child", "作者", "自己返信", 2, ["夫婦関係"]
-            )),
+            (
+                1,
+                1,
+                "SEARCH_CARD",
+                payload(identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]),
+            ),
+            (
+                2,
+                1,
+                "POST_DETAIL",
+                payload(identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]),
+            ),
+            (
+                3,
+                2,
+                "POST_DETAIL",
+                payload(identities[1][1], "child", "作者", "自己返信", 2, ["夫婦関係"]),
+            ),
             (4, 3, "SEARCH_CARD", payload(identities[2][1], "pending", "別作者", "待機中", None)),
             (5, 4, "POST_DETAIL", payload(identities[3][1], "excluded", "作者", "除外返信", 1)),
         ]
@@ -110,13 +140,19 @@ class BrowserReviewExportTest(unittest.TestCase):
         )
         connection.executemany(
             "INSERT INTO browser_detail_enrichment_queue VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [(1, 1, "DETAIL_ENRICHED", 1, None, None, 0),
-             (2, 3, "DETAIL_PENDING", 0, None, None, 0),
-             (3, 4, "DETAIL_ENRICHED", 1, None, None, 1)],
+            [
+                (1, 1, "DETAIL_ENRICHED", 1, None, None, 0),
+                (2, 3, "DETAIL_PENDING", 0, None, None, 0),
+                (3, 4, "DETAIL_ENRICHED", 1, None, None, 1),
+            ],
         )
         connection.execute(
             """INSERT INTO browser_approximate_view_observations
             VALUES (1, 2, '1.2万', 12000, '10K_100K')"""
+        )
+        connection.execute(
+            """INSERT INTO browser_display_view_observations
+            VALUES (1, 4, '表示4,506回', 4506, 'DISPLAY_EXACT', '1K_10K')"""
         )
         connection.executemany(
             """INSERT INTO browser_thread_sequence_observations
@@ -135,9 +171,7 @@ class BrowserReviewExportTest(unittest.TestCase):
 
     def test_isolated_audit_distinguishes_missing_reasons_and_thread_nodes(self) -> None:
         with connect_read_only(self.database) as connection:
-            audit = audit_browser_coverage(
-                connection, since="2026-08-22T11:59:59Z"
-            )
+            audit = audit_browser_coverage(connection, since="2026-08-22T11:59:59Z")
         self.assertEqual(2, audit["cohort"]["root_count"])
         self.assertEqual(1, audit["detail_enrichment"]["DETAIL_ENRICHED"])
         self.assertEqual(1, audit["detail_enrichment"]["DETAIL_PENDING"])
@@ -151,9 +185,7 @@ class BrowserReviewExportTest(unittest.TestCase):
     def test_csv_is_one_root_per_row_bom_safe_deterministic_and_read_only(self) -> None:
         before = hashlib.sha256(self.database.read_bytes()).hexdigest()
         output = Path(self.directory.name) / "exports"
-        first = export_browser_posts(
-            self.database, output, since="2026-08-22T11:59:59Z"
-        )
+        first = export_browser_posts(self.database, output, since="2026-08-22T11:59:59Z")
         after = hashlib.sha256(self.database.read_bytes()).hexdigest()
         self.assertEqual(before, after)
         self.assertFalse(first["database_modified"])
@@ -173,18 +205,19 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("", root["repost_count"])
         self.assertEqual("https://www.threads.com/@a/post/root", root["post_url"])
         self.assertEqual("12000", root["rounded_views_normalized"])
-        with Path(first["thread_nodes_path"]).open(
-            encoding="utf-8-sig", newline=""
-        ) as source:
+        pending = next(row for row in posts if row["canonical_post_id"] == "pending")
+        self.assertEqual("表示4,506回", pending["display_views_raw"])
+        self.assertEqual("4506", pending["display_views_normalized"])
+        self.assertEqual("DISPLAY_EXACT", pending["display_views_precision"])
+        with Path(first["thread_nodes_path"]).open(encoding="utf-8-sig", newline="") as source:
             nodes = list(csv.DictReader(source))
-        self.assertEqual(["ROOT", "SELF_REPLY", "EXCLUDED_NODE"],
-                         [row["node_type"] for row in nodes])
+        self.assertEqual(
+            ["ROOT", "SELF_REPLY", "EXCLUDED_NODE"], [row["node_type"] for row in nodes]
+        )
         self.assertEqual("夫婦関係", nodes[1]["topic_tags"])
         self.assertEqual("1", nodes[1]["topic_tag_count"])
         self.assertEqual("EXCLUDED", nodes[-1]["relationship_eligibility"])
-        second = export_browser_posts(
-            self.database, output, since="2026-08-22T11:59:59Z"
-        )
+        second = export_browser_posts(self.database, output, since="2026-08-22T11:59:59Z")
         self.assertEqual(first["posts_rows"], second["posts_rows"])
 
     def test_download_renderer_reuses_rows_filters_and_preserves_database(self) -> None:

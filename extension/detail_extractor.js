@@ -3,10 +3,11 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v8";
+  const VERSION = "threads_post_detail_extractor_v9";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
+  const DISPLAY_VIEWS_NORMALIZER_VERSION = "display-views-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
     view_count: ["表示", "view"], like_count: ["いいね", "like"],
@@ -338,6 +339,36 @@
     if (value < 1000000) return "100K_1M";
     return "1M_PLUS";
   }
+  function asciiNumericDisplay(value) {
+    return value.replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
+      .replaceAll("，", ",");
+  }
+  function exactDisplayPageViews(root, observedAt) {
+    const patterns = [
+      /^(?:表示\s*)?([0-9０-９][0-9０-９,，]*)\s*(?:回|views?)$/i,
+      /^表示\s*([0-9０-９][0-9０-９,，]*)$/i,
+    ];
+    for (const element of root.querySelectorAll("span, div")) {
+      if (!isVisible(element)) continue;
+      const display = renderedText(element);
+      if (!display || display.length > 32) continue;
+      let token = null;
+      for (const pattern of patterns) {
+        const match = display.match(pattern);
+        if (match) { token = asciiNumericDisplay(match[1]); break; }
+      }
+      if (token === null) continue;
+      const normalizedValue = exactNonnegativeInteger(token);
+      if (normalizedValue === null) continue;
+      return {
+        display, normalized_value: normalizedValue, precision: "DISPLAY_EXACT",
+        source: "POST_DETAIL_PAGE", view_band: viewBand(normalizedValue),
+        observed_at: observedAt, extractor_version: VERSION,
+        normalizer_version: DISPLAY_VIEWS_NORMALIZER_VERSION,
+      };
+    }
+    return null;
+  }
   function approximatePageViews(root, observedAt) {
     const patterns = [
       /^(表示)\s*([0-9]+(?:\.[0-9]+)?)\s*(千|万|億)\s*回$/i,
@@ -348,10 +379,11 @@
       if (!isVisible(element)) continue;
       const display = renderedText(element);
       if (!display || display.length > 32) continue;
+      const comparable = asciiNumericDisplay(display);
       let numericToken = null;
       let unit = null;
       for (const pattern of patterns) {
-        const match = display.match(pattern);
+        const match = comparable.match(pattern);
         if (!match) continue;
         if (match.length === 4 && match[1] === "表示") {
           numericToken = match[2]; unit = match[3];
@@ -528,6 +560,7 @@
       if (counters[name] === null) counters[name] = activityMetricValue(root, name);
     }
     const approximateViews = approximatePageViews(root, collectedAt);
+    const displayViews = exactDisplayPageViews(root, collectedAt);
     const activityVisible = visibleActivitySurface(root);
     const metricStatuses = {};
     for (const [name, value] of Object.entries(counters)) {
@@ -570,6 +603,7 @@
       observed_fields: observed, collected_at: collectedAt, extractor_version: VERSION,
     };
     if (approximateViews !== null) observation.approximate_views = approximateViews;
+    if (displayViews !== null) observation.display_views = displayViews;
     observation.payload_sha256 = await sha256(observation);
     return observation;
   }
@@ -587,7 +621,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
-    approximatePageViews, viewBand,
+    approximatePageViews, exactDisplayPageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,
     recognizePostDetail, rootPostContainer, postDetailReadiness,
     visibleTopicTags, visibleSequenceIndicator, extractVisibleThreadNodes,

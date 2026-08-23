@@ -106,7 +106,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v8");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v9");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -270,6 +270,12 @@ async function main() {
     "detail-page displays never populate exact view_count");
   assert.equal(headerExact.approximate_views, undefined,
     "a display without an explicit rounded unit is not relabelled as rounded evidence");
+  assert.deepEqual(headerExact.display_views, {
+    display: "表示6,400回", normalized_value: 6400, precision: "DISPLAY_EXACT",
+    source: "POST_DETAIL_PAGE", view_band: "1K_10K",
+    observed_at: context.collectedAt, extractor_version: extractor.version,
+    normalizer_version: "display-views-normalizer-v1",
+  });
 
   const activityExact = await extractor.extractPostDetail(
     fixturePage("post_detail_activity_exact_view.html"),
@@ -324,6 +330,41 @@ async function main() {
     ).normalized_approx,
     64000,
   );
+  assert.equal(
+    extractor.exactDisplayPageViews(
+      fixturePage("post_detail_display_4506.html"), context.collectedAt,
+    ).normalized_value,
+    4506,
+  );
+  assert.deepEqual(
+    extractor.exactDisplayPageViews(
+      fixturePage("post_detail_display_999.html"), context.collectedAt,
+    ),
+    {
+      display: "表示999回", normalized_value: 999, precision: "DISPLAY_EXACT",
+      source: "POST_DETAIL_PAGE", view_band: "LT_1K",
+      observed_at: context.collectedAt, extractor_version: extractor.version,
+      normalizer_version: "display-views-normalizer-v1",
+    },
+  );
+  assert.equal(extractor.approximatePageViews(
+    fixturePage("post_detail_display_12man.html"), context.collectedAt,
+  ).normalized_approx, 12000);
+  assert.equal(extractor.approximatePageViews(
+    fixturePage("post_detail_display_10man.html"), context.collectedAt,
+  ).normalized_approx, 100000);
+  assert.equal(extractor.exactDisplayPageViews(
+    fixturePage("post_detail_display_missing.html"), context.collectedAt,
+  ), null);
+  assert.equal(extractor.approximatePageViews(
+    fixturePage("post_detail_display_missing.html"), context.collectedAt,
+  ), null);
+  assert.equal(extractor.exactDisplayPageViews(
+    fixturePage("post_detail_display_malformed.html"), context.collectedAt,
+  ), null);
+  assert.equal(extractor.approximatePageViews(
+    fixturePage("post_detail_display_malformed.html"), context.collectedAt,
+  ), null);
   assert.equal(extractor.activityViewCount(fixturePage("post_detail_missing_view.html")), null);
   assert.equal(extractor.exactNonnegativeInteger("Views 0"), 0);
   assert.equal(extractor.canonicalPostUrl("javascript:alert(1)", context.pageUrl), null);

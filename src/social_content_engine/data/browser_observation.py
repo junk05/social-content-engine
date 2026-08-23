@@ -102,6 +102,11 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(observation.get("approximate_views"), dict)
             else None
         ),
+        "display_views": (
+            dict(observation["display_views"])
+            if isinstance(observation.get("display_views"), dict)
+            else None
+        ),
         "media_type": observation.get("media_type"),
         "has_image": observation.get("has_image"),
         "has_video": observation.get("has_video"),
@@ -166,8 +171,13 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "payload_sha256",
     }
     optional_keys = {
-        "metric_observation_statuses", "approximate_views", "topic_tags",
-        "raw_sequence_indicator", "thread_position", "thread_total",
+        "metric_observation_statuses",
+        "approximate_views",
+        "topic_tags",
+        "display_views",
+        "raw_sequence_indicator",
+        "thread_position",
+        "thread_total",
     }
     if not required_keys.issubset(observation) or not set(observation).issubset(
         required_keys | optional_keys
@@ -187,8 +197,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "media_type",
     )
     if any(
-        observation.get(key) is not None
-        and not isinstance(observation.get(key), str)
+        observation.get(key) is not None and not isinstance(observation.get(key), str)
         for key in nullable_strings
     ):
         raise ValueError("browser observation text fields must be strings or null")
@@ -202,21 +211,23 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         raise ValueError("browser observation topic tags are invalid")
     sequence_values = (
         observation.get("raw_sequence_indicator"),
-        observation.get("thread_position"), observation.get("thread_total"),
+        observation.get("thread_position"),
+        observation.get("thread_total"),
     )
     if any(value is not None for value in sequence_values):
         raw_indicator, thread_position, thread_total = sequence_values
         if (
             not isinstance(raw_indicator, str)
             or not re.fullmatch(r"\s*\d+\s*/\s*\d+\s*", raw_indicator)
-            or isinstance(thread_position, bool) or not isinstance(thread_position, int)
-            or isinstance(thread_total, bool) or not isinstance(thread_total, int)
+            or isinstance(thread_position, bool)
+            or not isinstance(thread_position, int)
+            or isinstance(thread_total, bool)
+            or not isinstance(thread_total, int)
             or not 1 <= thread_position <= thread_total
         ):
             raise ValueError("thread sequence indicator is invalid")
     if any(
-        observation.get(key) is not None
-        and not isinstance(observation.get(key), bool)
+        observation.get(key) is not None and not isinstance(observation.get(key), bool)
         for key in ("has_image", "has_video")
     ):
         raise ValueError("browser observation media flags must be booleans or null")
@@ -232,8 +243,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
     if not isinstance(counters, dict) or not set(counters).issubset(counter_names):
         raise ValueError("public counters do not match the closed contract")
     if any(
-        value is not None
-        and (isinstance(value, bool) or not isinstance(value, int) or value < 0)
+        value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0)
         for value in counters.values()
     ):
         raise ValueError("public counters must be nonnegative integers or null")
@@ -287,7 +297,11 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         if approximate_views["source"] != "POST_DETAIL_PAGE":
             raise ValueError("approximate Views source is invalid")
         if approximate_views["view_band"] not in {
-            "LT_1K", "1K_10K", "10K_100K", "100K_1M", "1M_PLUS"
+            "LT_1K",
+            "1K_10K",
+            "10K_100K",
+            "100K_1M",
+            "1M_PLUS",
         }:
             raise ValueError("approximate Views band is invalid")
         if approximate_views["view_band"] != approximate_view_band(normalized_approx):
@@ -299,6 +313,45 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
             for key in ("observed_at", "normalizer_version")
         ):
             raise ValueError("approximate Views provenance is invalid")
+    display_views = observation.get("display_views")
+    if display_views is not None:
+        expected_display_keys = {
+            "display",
+            "normalized_value",
+            "precision",
+            "source",
+            "view_band",
+            "observed_at",
+            "extractor_version",
+            "normalizer_version",
+        }
+        if observation_type != "POST_DETAIL" or not isinstance(display_views, dict):
+            raise ValueError("display Views require a POST_DETAIL observation")
+        if set(display_views) != expected_display_keys:
+            raise ValueError("display Views do not match the closed contract")
+        display = display_views["display"]
+        normalized_value = display_views["normalized_value"]
+        if not isinstance(display, str) or not display or len(display) > 32:
+            raise ValueError("display Views raw display is invalid")
+        if (
+            isinstance(normalized_value, bool)
+            or not isinstance(normalized_value, int)
+            or normalized_value < 0
+        ):
+            raise ValueError("display Views normalized value is invalid")
+        if display_views["precision"] != "DISPLAY_EXACT":
+            raise ValueError("display Views precision is invalid")
+        if display_views["source"] != "POST_DETAIL_PAGE":
+            raise ValueError("display Views source is invalid")
+        if display_views["view_band"] != approximate_view_band(normalized_value):
+            raise ValueError("display Views band disagrees with normalized value")
+        if display_views["extractor_version"] != observation.get("extractor_version"):
+            raise ValueError("display Views extractor provenance is invalid")
+        if not all(
+            isinstance(display_views[key], str) and display_views[key]
+            for key in ("observed_at", "normalizer_version")
+        ):
+            raise ValueError("display Views provenance is invalid")
     canonical_url = canonical_threads_post_url(str(observation.get("post_url", "")))
     if observation.get("post_url") != canonical_url:
         raise ValueError("post_url must already be canonical")
@@ -348,8 +401,10 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
     if any(item["surface"] != expected_surface for item in fields):
         raise ValueError("observed field surface does not match observation type")
     extractor = observation.get("extractor_version")
-    if not isinstance(extractor, str) or not extractor or any(
-        item["extractor_version"] != extractor for item in fields
+    if (
+        not isinstance(extractor, str)
+        or not extractor
+        or any(item["extractor_version"] != extractor for item in fields)
     ):
         raise ValueError("observed field extractor does not match observation extractor")
     return canonical_url

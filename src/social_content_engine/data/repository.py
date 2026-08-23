@@ -168,9 +168,7 @@ def pattern_set_input_sha256(
     signature_json = _canonical_json(feature_signature)
     document = {
         "contract_version": PATTERN_SET_INPUT_CONTRACT,
-        "feature_signature_sha256": hashlib.sha256(
-            signature_json.encode("utf-8")
-        ).hexdigest(),
+        "feature_signature_sha256": hashlib.sha256(signature_json.encode("utf-8")).hexdigest(),
         "instance_input_sha256s": sorted(instance_input_sha256s),
     }
     return hashlib.sha256(_canonical_json(document).encode("utf-8")).hexdigest()
@@ -208,8 +206,10 @@ _PATTERN_FORBIDDEN_KEYS = {
 
 def _is_contract_identifier(value: Any) -> bool:
     allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._:-"
-    return isinstance(value, str) and 0 < len(value) <= 128 and all(
-        character in allowed for character in value
+    return (
+        isinstance(value, str)
+        and 0 < len(value) <= 128
+        and all(character in allowed for character in value)
     )
 
 
@@ -300,8 +300,10 @@ def _validate_pattern_provenance(provenance: Dict[str, Any]) -> None:
         if not _is_contract_identifier(provenance[key]):
             raise ValueError("pattern provenance version is required")
     value = provenance["input_sha256"]
-    if not isinstance(value, str) or len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
     ):
         raise ValueError("pattern provenance input hash is invalid")
 
@@ -803,16 +805,12 @@ def _migration_9_browser_detail_attempts(connection: sqlite3.Connection) -> None
         connection.execute(
             """CREATE TRIGGER immutable_{0}_update
             BEFORE UPDATE ON {0}
-            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(
-                table
-            )
+            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(table)
         )
         connection.execute(
             """CREATE TRIGGER immutable_{0}_delete
             BEFORE DELETE ON {0}
-            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(
-                table
-            )
+            BEGIN SELECT RAISE(ABORT, 'browser detail evidence is immutable'); END""".format(table)
         )
 
 
@@ -1096,8 +1094,7 @@ def _migration_25_topic_tag_text_quality(connection: sqlite3.Connection) -> None
             )
         )
     connection.execute(
-        "ALTER TABLE browser_text_quality_assessments "
-        "RENAME TO browser_text_quality_assessments_v1"
+        "ALTER TABLE browser_text_quality_assessments RENAME TO browser_text_quality_assessments_v1"
     )
     connection.execute(
         """CREATE TABLE browser_text_quality_assessments (
@@ -1126,6 +1123,8 @@ def _migration_25_topic_tag_text_quality(connection: sqlite3.Connection) -> None
                 operation
             )
         )
+
+
 def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) -> None:
     """Add append-only, source-text-free deterministic structural derivatives."""
     connection.execute(
@@ -1178,7 +1177,9 @@ def _migration_14_structural_pattern_extraction(connection: sqlite3.Connection) 
         )"""
     )
     for table in (
-        "structural_feature_runs", "structural_feature_instances", "structural_patterns",
+        "structural_feature_runs",
+        "structural_feature_instances",
+        "structural_patterns",
         "structural_pattern_members",
     ):
         connection.execute(
@@ -1374,9 +1375,7 @@ def _migration_20_browser_approximate_view_observations(
             BEFORE {0} ON browser_approximate_view_observations
             BEGIN SELECT RAISE(
               ABORT, 'browser approximate Views evidence is immutable'
-            ); END""".format(
-                operation.lower()
-            )
+            ); END""".format(operation.lower())
         )
 
 
@@ -1425,6 +1424,36 @@ def _migration_22_reconcile_detail_batch_assignments(connection: sqlite3.Connect
         FROM browser_detail_enrichment_queue
         WHERE active_batch_id IS NOT NULL AND attempt_count >= 1"""
     )
+
+
+def _migration_26_browser_display_view_observations(
+    connection: sqlite3.Connection,
+) -> None:
+    """Store exact integer Views displays without relabelling them API counters."""
+    connection.execute(
+        """CREATE TABLE browser_display_view_observations (
+          id INTEGER PRIMARY KEY,
+          browser_observation_id INTEGER NOT NULL UNIQUE REFERENCES browser_observations(id),
+          display TEXT NOT NULL,
+          normalized_value INTEGER NOT NULL CHECK(normalized_value >= 0),
+          precision TEXT NOT NULL CHECK(precision = 'DISPLAY_EXACT'),
+          source TEXT NOT NULL CHECK(source = 'POST_DETAIL_PAGE'),
+          view_band TEXT NOT NULL CHECK(view_band IN (
+            'LT_1K', '1K_10K', '10K_100K', '100K_1M', '1M_PLUS'
+          )),
+          observed_at TEXT NOT NULL,
+          extractor_version TEXT NOT NULL,
+          normalizer_version TEXT NOT NULL
+        )"""
+    )
+    for operation in ("UPDATE", "DELETE"):
+        connection.execute(
+            """CREATE TRIGGER immutable_browser_display_view_observations_{0}
+            BEFORE {0} ON browser_display_view_observations
+            BEGIN SELECT RAISE(
+              ABORT, 'browser display Views evidence is immutable'
+            ); END""".format(operation.lower())
+        )
 
 
 MIGRATIONS: Tuple[Migration, ...] = (
@@ -1477,6 +1506,7 @@ MIGRATIONS: Tuple[Migration, ...] = (
         _migration_24_detail_enrichment_exclusions,
     ),
     (25, "browser-topic-tag-text-quality-v1", _migration_25_topic_tag_text_quality),
+    (26, "browser-display-view-observations-v1", _migration_26_browser_display_view_observations),
 )
 
 
@@ -1716,9 +1746,7 @@ class Repository:
         if cursor.rowcount != 1:
             raise ValueError("collection batch is not RUNNING")
 
-    def add_collection_batch_query(
-        self, batch_id: int, ordinal: int, query: Dict[str, Any]
-    ) -> int:
+    def add_collection_batch_query(self, batch_id: int, ordinal: int, query: Dict[str, Any]) -> int:
         batch = self.connection.execute(
             "SELECT status FROM collection_batches WHERE id = ?", (batch_id,)
         ).fetchone()
@@ -1855,7 +1883,9 @@ class Repository:
     ) -> int:
         """Append the quality state of one source observation; never alter the source."""
         if quality_status not in {
-            VALID_TEXT, INVALID_TEXT_DATE_METADATA, INVALID_TEXT_TOPIC_TAG_METADATA,
+            VALID_TEXT,
+            INVALID_TEXT_DATE_METADATA,
+            INVALID_TEXT_TOPIC_TAG_METADATA,
             TEXT_UNAVAILABLE,
         }:
             raise ValueError("unsupported browser text quality status")
@@ -1872,8 +1902,13 @@ class Repository:
             """INSERT INTO browser_text_quality_assessments
             (browser_observation_id, quality_status, assessor_version, input_sha256, assessed_at)
             VALUES (?, ?, ?, ?, ?)""",
-            (browser_observation_id, quality_status, assessor_version, input_sha256,
-             assessed_at or _utc_now()),
+            (
+                browser_observation_id,
+                quality_status,
+                assessor_version,
+                input_sha256,
+                assessed_at or _utc_now(),
+            ),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -1958,9 +1993,7 @@ class Repository:
         field_provenance_json = json.dumps(
             fields, ensure_ascii=False, allow_nan=False, separators=(",", ":"), sort_keys=True
         )
-        field_provenance_sha256 = hashlib.sha256(
-            field_provenance_json.encode("utf-8")
-        ).hexdigest()
+        field_provenance_sha256 = hashlib.sha256(field_provenance_json.encode("utf-8")).hexdigest()
         normalized = browser_normalized_payload(observation)
         normalized_json = canonical_browser_normalized_payload(observation)
         normalized_sha256 = hashlib.sha256(normalized_json.encode("utf-8")).hexdigest()
@@ -2118,6 +2151,26 @@ class Repository:
                         approximate_views["normalizer_version"],
                     ),
                 )
+            display_views = observation.get("display_views")
+            if display_views is not None:
+                self.connection.execute(
+                    """INSERT INTO browser_display_view_observations
+                    (browser_observation_id, display, normalized_value, precision,
+                     source, view_band, observed_at, extractor_version,
+                     normalizer_version)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        observation_id,
+                        display_views["display"],
+                        display_views["normalized_value"],
+                        display_views["precision"],
+                        display_views["source"],
+                        display_views["view_band"],
+                        display_views["observed_at"],
+                        display_views["extractor_version"],
+                        display_views["normalizer_version"],
+                    ),
+                )
             version = self.connection.execute(
                 """SELECT id, version FROM browser_normalized_versions
                 WHERE browser_post_identity_id = ? AND payload_sha256 = ?""",
@@ -2187,10 +2240,7 @@ class Repository:
                 if attempt_cursor.lastrowid is None:
                     raise RuntimeError("SQLite did not return a browser detail attempt id")
                 detail_attempt_id = int(attempt_cursor.lastrowid)
-            if (
-                observation["observation_type"] == "SEARCH_CARD"
-                and status == "DETAIL_PENDING"
-            ):
+            if observation["observation_type"] == "SEARCH_CARD" and status == "DETAIL_PENDING":
                 # The first accepted pending capture is the durable queue provenance.
                 # Duplicate captures append observation history without replacing it.
                 self.connection.execute(
@@ -2322,10 +2372,16 @@ class Repository:
         return len(rows)
 
     def record_browser_thread_sequence_observation(
-        self, *, root_identity_id: int, node_identity_id: int,
-        reply_to_identity_id: Optional[int], sequence_position: int,
-        same_author_as_root: Optional[bool], detail_observation_id: int,
-        extractor_version: str, observed_at: Optional[str] = None,
+        self,
+        *,
+        root_identity_id: int,
+        node_identity_id: int,
+        reply_to_identity_id: Optional[int],
+        sequence_position: int,
+        same_author_as_root: Optional[bool],
+        detail_observation_id: int,
+        extractor_version: str,
+        observed_at: Optional[str] = None,
         relationship_evidence: Optional[str] = None,
     ) -> int:
         """Append one visible thread node without inferring an edge or author match."""
@@ -2333,19 +2389,25 @@ class Repository:
             root_identity_id=root_identity_id,
             detail_observation_id=detail_observation_id,
             extractor_version=extractor_version,
-            entries=[{
-                "node_identity_id": node_identity_id,
-                "reply_to_identity_id": reply_to_identity_id,
-                "sequence_position": sequence_position,
-                "same_author_as_root": same_author_as_root,
-                "relationship_evidence": relationship_evidence,
-                "observed_at": observed_at,
-            }],
+            entries=[
+                {
+                    "node_identity_id": node_identity_id,
+                    "reply_to_identity_id": reply_to_identity_id,
+                    "sequence_position": sequence_position,
+                    "same_author_as_root": same_author_as_root,
+                    "relationship_evidence": relationship_evidence,
+                    "observed_at": observed_at,
+                }
+            ],
         )[0]
 
     def record_browser_thread_sequence_observations(
-        self, *, root_identity_id: int, detail_observation_id: int,
-        extractor_version: str, entries: Sequence[Mapping[str, Any]],
+        self,
+        *,
+        root_identity_id: int,
+        detail_observation_id: int,
+        extractor_version: str,
+        entries: Sequence[Mapping[str, Any]],
     ) -> Tuple[int, ...]:
         """Atomically append visible nodes tied to one root detail observation."""
         if not entries or not _is_contract_identifier(extractor_version):
@@ -2375,9 +2437,8 @@ class Repository:
                     or not isinstance(sequence_position, int)
                     or sequence_position < 0
                     or same_author_as_root not in {None, True, False}
-                    or relationship_evidence not in {
-                        None, "ROOT_DETAIL_PAGE", "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN"
-                    }
+                    or relationship_evidence
+                    not in {None, "ROOT_DETAIL_PAGE", "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN"}
                     or not isinstance(observed_at, str)
                 ):
                     raise ValueError("invalid browser thread sequence observation")
@@ -2388,10 +2449,17 @@ class Repository:
                      detail_observation_id, observed_at, extractor_version,
                      relationship_evidence)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (root_identity_id, node_identity_id, reply_to_identity_id, sequence_position,
-                     None if same_author_as_root is None else int(same_author_as_root),
-                     detail_observation_id, observed_at, extractor_version,
-                     relationship_evidence),
+                    (
+                        root_identity_id,
+                        node_identity_id,
+                        reply_to_identity_id,
+                        sequence_position,
+                        None if same_author_as_root is None else int(same_author_as_root),
+                        detail_observation_id,
+                        observed_at,
+                        extractor_version,
+                        relationship_evidence,
+                    ),
                 )
                 if cursor.lastrowid is None:
                     raise RuntimeError("SQLite did not return a thread sequence observation id")
@@ -2801,9 +2869,7 @@ class Repository:
             )
         return {"queue_item_id": int(row["id"]), "changed": True, "excluded": False}
 
-    def requeue_invalid_browser_detail_text(
-        self, *, requeued_at: Optional[str] = None
-    ) -> int:
+    def requeue_invalid_browser_detail_text(self, *, requeued_at: Optional[str] = None) -> int:
         """Requeue enriched identities whose latest detail text is known date metadata.
 
         Source observations and their immutable quality assessments remain untouched. The
@@ -2904,9 +2970,7 @@ class Repository:
             )
             self.connection.execute(
                 """UPDATE browser_post_identities SET status = 'DETAIL_PENDING',
-                   updated_at = ? WHERE id IN ({0})""".format(
-                    ",".join("?" for _ in identity_ids)
-                ),
+                   updated_at = ? WHERE id IN ({0})""".format(",".join("?" for _ in identity_ids)),
                 (timestamp, *identity_ids),
             )
         return len(queue_ids)
@@ -2999,9 +3063,8 @@ class Repository:
             ).fetchone()
             if row is None:
                 return None
-            if (
-                row["active_batch_id"] is None
-                and assigned >= min(int(batch["requested_items"]), int(batch["max_items"]))
+            if row["active_batch_id"] is None and assigned >= min(
+                int(batch["requested_items"]), int(batch["max_items"])
             ):
                 return None
             cursor = self.connection.execute(
@@ -3029,8 +3092,7 @@ class Repository:
                 status="DETAIL_PROCESSING",
                 claimed_at=timestamp,
                 attempt_count=next_attempt,
-                retry_count=int(row["retry_count"])
-                + (1 if int(row["attempt_count"]) > 0 else 0),
+                retry_count=int(row["retry_count"]) + (1 if int(row["attempt_count"]) > 0 else 0),
                 active_batch_id=batch_id,
                 lease_version=next_lease,
             )
@@ -3118,9 +3180,14 @@ class Repository:
         )
         validate_detail_failure(failure_type, failure_reason)
         error_codes = {
-            "PAGE_TIMEOUT", "POST_NOT_FOUND", "ACTIVITY_BUTTON_NOT_FOUND",
-            "ACTIVITY_DIALOG_TIMEOUT", "VIEW_COUNT_NOT_FOUND",
-            "THREAD_SEQUENCE_NOT_OBSERVED", "INGESTION_FAILED", "EXTRACTOR_MISMATCH",
+            "PAGE_TIMEOUT",
+            "POST_NOT_FOUND",
+            "ACTIVITY_BUTTON_NOT_FOUND",
+            "ACTIVITY_DIALOG_TIMEOUT",
+            "VIEW_COUNT_NOT_FOUND",
+            "THREAD_SEQUENCE_NOT_OBSERVED",
+            "INGESTION_FAILED",
+            "EXTRACTOR_MISMATCH",
         }
         if error_code not in error_codes:
             raise ValueError("detail queue error code is invalid")
@@ -3213,9 +3280,7 @@ class Repository:
         self, *, status_filter: str = "ALL", sort: str = "newest", limit: int = 200
     ) -> Sequence[Dict[str, Any]]:
         """Return local review metadata for human-selected roots without source text."""
-        allowed_filters = {
-            "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"
-        }
+        allowed_filters = {"ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"}
         if status_filter not in allowed_filters:
             raise ValueError("invalid collected-root status filter")
         if sort not in {"newest", "oldest", "error_first"}:
@@ -3304,15 +3369,19 @@ class Repository:
                     if row["last_error_code"] is None
                     else str(row["last_error_code"]),
                     "rounded_views_raw": None
-                    if approximate is None else str(approximate["display"]),
+                    if approximate is None
+                    else str(approximate["display"]),
                     "rounded_views_normalized": None
-                    if approximate is None else int(approximate["normalized_approx"]),
+                    if approximate is None
+                    else int(approximate["normalized_approx"]),
                     "rounded_views_band": None
-                    if approximate is None else str(approximate["view_band"]),
+                    if approximate is None
+                    else str(approximate["view_band"]),
                     "self_reply_count": self_reply_count,
                     "enrichment_excluded": excluded,
                     "exclusion_reason": None
-                    if row["exclusion_reason"] is None else str(row["exclusion_reason"]),
+                    if row["exclusion_reason"] is None
+                    else str(row["exclusion_reason"]),
                     "excluded_at": None if row["excluded_at"] is None else str(row["excluded_at"]),
                 }
             )
@@ -3345,6 +3414,7 @@ class Repository:
             "browser_observed_fields",
             "browser_metric_observation_statuses",
             "browser_approximate_view_observations",
+            "browser_display_view_observations",
             "browser_normalized_versions",
             "browser_detail_attempts",
             "browser_detail_failures",
@@ -3373,8 +3443,13 @@ class Repository:
         return int(row["count"]) if row else 0
 
     def create_m4_intelligence_run(
-        self, dataset_snapshot_id: int, taxonomy_version: str, derivation_version: str,
-        config: Dict[str, Any], *, created_at: Optional[str] = None,
+        self,
+        dataset_snapshot_id: int,
+        taxonomy_version: str,
+        derivation_version: str,
+        config: Dict[str, Any],
+        *,
+        created_at: Optional[str] = None,
     ) -> int:
         """Pin one finalized dataset to a closed M4 derivation configuration."""
         snapshot = self.connection.execute(
@@ -3392,8 +3467,14 @@ class Repository:
             """INSERT INTO m4_intelligence_runs
             (dataset_snapshot_id, taxonomy_version, derivation_version, config_json,
              config_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
-            (dataset_snapshot_id, taxonomy_version, derivation_version, config_json,
-             hashlib.sha256(config_json.encode("utf-8")).hexdigest(), created_at or _utc_now()),
+            (
+                dataset_snapshot_id,
+                taxonomy_version,
+                derivation_version,
+                config_json,
+                hashlib.sha256(config_json.encode("utf-8")).hexdigest(),
+                created_at or _utc_now(),
+            ),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -3401,8 +3482,13 @@ class Repository:
         return int(cursor.lastrowid)
 
     def create_structural_feature_run(
-        self, dataset_snapshot_id: int, taxonomy_version: str, extractor_version: str,
-        config: Dict[str, Any], *, created_at: Optional[str] = None,
+        self,
+        dataset_snapshot_id: int,
+        taxonomy_version: str,
+        extractor_version: str,
+        config: Dict[str, Any],
+        *,
+        created_at: Optional[str] = None,
     ) -> int:
         """Pin a finalized snapshot for deterministic structural extraction."""
         snapshot = self.connection.execute(
@@ -3411,8 +3497,7 @@ class Repository:
         if snapshot is None or snapshot["status"] != "FINALIZED":
             raise ValueError("structural extraction requires a finalized dataset")
         if not (
-            _is_contract_identifier(taxonomy_version)
-            and _is_contract_identifier(extractor_version)
+            _is_contract_identifier(taxonomy_version) and _is_contract_identifier(extractor_version)
         ):
             raise ValueError("structural versions are invalid")
         config_json = _canonical_json(config)
@@ -3420,8 +3505,14 @@ class Repository:
             """INSERT INTO structural_feature_runs
             (dataset_snapshot_id, taxonomy_version, extractor_version, config_json,
              config_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
-            (dataset_snapshot_id, taxonomy_version, extractor_version, config_json,
-             hashlib.sha256(config_json.encode("utf-8")).hexdigest(), created_at or _utc_now()),
+            (
+                dataset_snapshot_id,
+                taxonomy_version,
+                extractor_version,
+                config_json,
+                hashlib.sha256(config_json.encode("utf-8")).hexdigest(),
+                created_at or _utc_now(),
+            ),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -3429,8 +3520,13 @@ class Repository:
         return int(cursor.lastrowid)
 
     def persist_structural_feature_instance(
-        self, *, structural_feature_run_id: int, normalized_post_version_id: int,
-        feature: Dict[str, Any], input_sha256: str, created_at: Optional[str] = None,
+        self,
+        *,
+        structural_feature_run_id: int,
+        normalized_post_version_id: int,
+        feature: Dict[str, Any],
+        input_sha256: str,
+        created_at: Optional[str] = None,
     ) -> int:
         """Persist one text-free structural feature instance for a pinned source version."""
         _reject_pattern_leakage(feature)
@@ -3441,9 +3537,14 @@ class Repository:
             """INSERT INTO structural_feature_instances
             (structural_feature_run_id, normalized_post_version_id, feature_json,
              feature_sha256, input_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?)""",
-            (structural_feature_run_id, normalized_post_version_id, feature_json,
-             hashlib.sha256(feature_json.encode("utf-8")).hexdigest(), input_sha256,
-             created_at or _utc_now()),
+            (
+                structural_feature_run_id,
+                normalized_post_version_id,
+                feature_json,
+                hashlib.sha256(feature_json.encode("utf-8")).hexdigest(),
+                input_sha256,
+                created_at or _utc_now(),
+            ),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -3451,9 +3552,16 @@ class Repository:
         return int(cursor.lastrowid)
 
     def persist_m4_intelligence_instance(
-        self, *, m4_intelligence_run_id: int, normalized_post_version_id: int,
-        analysis_run_row_id: int, first_line_feature_id: int, parent_ending_feature_id: int,
-        feature: Dict[str, Any], input_sha256: str, created_at: Optional[str] = None,
+        self,
+        *,
+        m4_intelligence_run_id: int,
+        normalized_post_version_id: int,
+        analysis_run_row_id: int,
+        first_line_feature_id: int,
+        parent_ending_feature_id: int,
+        feature: Dict[str, Any],
+        input_sha256: str,
+        created_at: Optional[str] = None,
     ) -> int:
         """Append a closed, source-text-free M4 feature instance."""
         _reject_pattern_leakage(feature)
@@ -3465,10 +3573,17 @@ class Repository:
             (m4_intelligence_run_id, normalized_post_version_id, analysis_run_row_id,
              first_line_feature_id, parent_ending_feature_id, feature_json, feature_sha256,
              input_sha256, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (m4_intelligence_run_id, normalized_post_version_id, analysis_run_row_id,
-             first_line_feature_id, parent_ending_feature_id, feature_json,
-             hashlib.sha256(feature_json.encode("utf-8")).hexdigest(), input_sha256,
-             created_at or _utc_now()),
+            (
+                m4_intelligence_run_id,
+                normalized_post_version_id,
+                analysis_run_row_id,
+                first_line_feature_id,
+                parent_ending_feature_id,
+                feature_json,
+                hashlib.sha256(feature_json.encode("utf-8")).hexdigest(),
+                input_sha256,
+                created_at or _utc_now(),
+            ),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -3550,10 +3665,7 @@ class Repository:
              model_name, model_parameters_json, input_sha256, analyzed_at,
              normalized_post_version_id, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'RUNNING')""",
-            values[:9]
-            + (_canonical_json(values[9]),)
-            + values[10:]
-            + (int(version["id"]),),
+            values[:9] + (_canonical_json(values[9]),) + values[10:] + (int(version["id"]),),
         )
         self.connection.commit()
         if cursor.lastrowid is None:
@@ -3815,9 +3927,7 @@ class Repository:
             raise ValueError("feature extraction requires a successful analysis run")
         result = dict(row)
         result["analysis_payload"] = json.loads(str(result.pop("payload_json")))
-        result["normalized_payload"] = json.loads(
-            str(result.pop("canonical_payload_json"))
-        )
+        result["normalized_payload"] = json.loads(str(result.pop("canonical_payload_json")))
         return result
 
     def persist_first_line_feature(
@@ -4003,9 +4113,7 @@ class Repository:
             {
                 "availability": "OBSERVED",
                 "parent_normalized_post_version_id": parent_version_id,
-                "parent_normalized_payload": json.loads(
-                    str(parent["canonical_payload_json"])
-                ),
+                "parent_normalized_payload": json.loads(str(parent["canonical_payload_json"])),
                 "parent_analysis_run_row_id": (
                     int(parent_analysis["id"]) if parent_analysis is not None else None
                 ),
@@ -4216,8 +4324,10 @@ class Repository:
             if feature != feature_signature:
                 raise ValueError("pattern instance does not match the pattern signature")
             input_hash = instance["input_sha256"]
-            if not isinstance(input_hash, str) or len(input_hash) != 64 or any(
-                character not in "0123456789abcdef" for character in input_hash
+            if (
+                not isinstance(input_hash, str)
+                or len(input_hash) != 64
+                or any(character not in "0123456789abcdef" for character in input_hash)
             ):
                 raise ValueError("pattern instance input hash is invalid")
             if not _is_contract_identifier(instance["extractor_version"]) or not (

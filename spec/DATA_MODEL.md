@@ -58,6 +58,9 @@ in `collection_runs` / `raw_posts`. It uses a separate evidence boundary:
 - `browser_approximate_view_observations`: immutable rounded Views displays
   from the detail page, their deterministic approximate normalization, band,
   and replay provenance. These rows never populate exact `view_count`.
+- `browser_display_view_observations`: immutable integer Views displays from the
+  post-detail page (`DISPLAY_EXACT`); distinct from exact API or Activity-sheet
+  `public_counters.view_count` observations.
 - `browser_normalized_versions`: immutable canonical projections. An identical
   payload hash reuses a version; a changed observed payload creates version
   `N+1`.

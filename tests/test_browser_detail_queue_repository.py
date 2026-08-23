@@ -12,6 +12,7 @@ from tests.test_browser_observation_repository import observation as rich_observ
 
 def downgrade_before_migration_16(path: Path) -> None:
     connection = sqlite3.connect(path)
+    connection.execute("DROP TABLE browser_display_view_observations")
     connection.execute("DROP TABLE browser_detail_enrichment_exclusion_actions")
     connection.execute("DROP TABLE browser_detail_batch_assignments")
     connection.execute("DROP TABLE browser_approximate_view_observations")
@@ -39,7 +40,8 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
             with Repository(Path(directory) / "topic-candidate.sqlite3") as repository:
                 repository.add_browser_observation(rich_observation())
                 detail = rich_observation(
-                    observation_type="POST_DETAIL", text="婚外恋愛",
+                    observation_type="POST_DETAIL",
+                    text="婚外恋愛",
                     metric_statuses=True,
                 )
                 repository.add_browser_observation(detail)
@@ -67,23 +69,26 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "review-list.sqlite3") as repository:
                 root = repository.add_browser_observation(rich_observation())
-                queue_id = int(repository.connection.execute(
-                    "SELECT id FROM browser_detail_enrichment_queue"
-                ).fetchone()[0])
-                batch_id = repository.start_browser_detail_batch(
-                    requested_items=1, max_items=1
+                queue_id = int(
+                    repository.connection.execute(
+                        "SELECT id FROM browser_detail_enrichment_queue"
+                    ).fetchone()[0]
                 )
+                batch_id = repository.start_browser_detail_batch(requested_items=1, max_items=1)
                 claim = repository.claim_browser_detail(batch_id)
                 rounded = {
-                    "display": "表示1.2万回", "normalized_approx": 12000,
-                    "precision": "ROUNDED", "source": "POST_DETAIL_PAGE",
+                    "display": "表示1.2万回",
+                    "normalized_approx": 12000,
+                    "precision": "ROUNDED",
+                    "source": "POST_DETAIL_PAGE",
                     "view_band": "10K_100K",
                     "observed_at": "2026-08-23T01:00:00Z",
                     "extractor_version": "fixture-extractor-v1",
                     "normalizer_version": "rounded-views-normalizer-v1",
                 }
                 root_detail_payload = rich_observation(
-                    observation_type="POST_DETAIL", metric_statuses=True,
+                    observation_type="POST_DETAIL",
+                    metric_statuses=True,
                     approximate_views=rounded,
                 )
                 root_detail = repository.add_browser_observation(
@@ -95,16 +100,16 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     },
                 )
                 repository.complete_browser_detail_queue(
-                    queue_id, batch_id=batch_id, attempt=claim["attempt"],
+                    queue_id,
+                    batch_id=batch_id,
+                    attempt=claim["attempt"],
                     lease_version=claim["lease_version"],
                     detail_observation_id=root_detail["browser_observation_id"],
                 )
                 repository.finish_browser_detail_batch(batch_id)
                 child_payload = rich_observation(observation_type="POST_DETAIL")
                 child_payload["post_url"] = "https://www.threads.net/@fixture/post/Child1"
-                child_payload["payload_sha256"] = browser_observation_payload_sha256(
-                    child_payload
-                )
+                child_payload["payload_sha256"] = browser_observation_payload_sha256(child_payload)
                 child = repository.add_browser_observation(child_payload)
                 repository.record_browser_thread_sequence_observations(
                     root_identity_id=root["browser_post_identity_id"],
@@ -113,14 +118,16 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     entries=[
                         {
                             "node_identity_id": root["browser_post_identity_id"],
-                            "reply_to_identity_id": None, "sequence_position": 0,
+                            "reply_to_identity_id": None,
+                            "sequence_position": 0,
                             "same_author_as_root": True,
                             "relationship_evidence": "ROOT_DETAIL_PAGE",
                             "observed_at": "2026-08-23T01:01:00Z",
                         },
                         {
                             "node_identity_id": child["browser_post_identity_id"],
-                            "reply_to_identity_id": None, "sequence_position": 1,
+                            "reply_to_identity_id": None,
+                            "sequence_position": 1,
                             "same_author_as_root": True,
                             "relationship_evidence": "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN",
                             "observed_at": "2026-08-23T01:01:00Z",
@@ -149,24 +156,18 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     "SELECT * FROM browser_detail_enrichment_queue"
                 ).fetchone()
                 self.assertEqual(1, queue["enrichment_excluded"])
-                self.assertEqual(
-                    "USER_EXCLUDED_SOURCE_UNAVAILABLE", queue["exclusion_reason"]
-                )
+                self.assertEqual("USER_EXCLUDED_SOURCE_UNAVAILABLE", queue["exclusion_reason"])
                 self.assertEqual("2026-08-23T01:00:00Z", queue["excluded_at"])
                 self.assertEqual([], repository.list_browser_pending_detail_urls(limit=10))
                 with self.assertRaisesRegex(ValueError, "explicitly excluded"):
                     repository.enqueue_browser_detail(saved["post_url"])
-                batch_id = repository.start_browser_detail_batch(
-                    requested_items=1, max_items=1
-                )
+                batch_id = repository.start_browser_detail_batch(requested_items=1, max_items=1)
                 self.assertIsNone(repository.claim_browser_detail(batch_id))
                 repository.finish_browser_detail_batch(batch_id)
 
                 replay = repository.exclude_browser_detail_enrichment(saved["post_url"])
                 self.assertFalse(replay["changed"])
-                self.assertEqual(
-                    1, repository.count("browser_detail_enrichment_exclusion_actions")
-                )
+                self.assertEqual(1, repository.count("browser_detail_enrichment_exclusion_actions"))
                 reenabled = repository.requeue_browser_detail_enrichment(
                     saved["post_url"], requeued_at="2026-08-23T01:01:00Z"
                 )
@@ -237,9 +238,7 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                         "SELECT id FROM browser_detail_enrichment_queue"
                     ).fetchone()[0]
                 )
-                batch_id = repository.start_browser_detail_batch(
-                    requested_items=1, max_items=1
-                )
+                batch_id = repository.start_browser_detail_batch(requested_items=1, max_items=1)
                 claimed = repository.claim_browser_detail(batch_id)
                 detail_payload = observation(observation_type="POST_DETAIL", view_count=None)
                 detail_payload["text"] = "2026/08/16"
@@ -442,9 +441,7 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
             with Repository(path) as repository:
                 saved = repository.add_browser_observation(observation())
                 queue_id = repository.enqueue_browser_detail(saved["post_url"])
-                batch_id = repository.start_browser_detail_batch(
-                    requested_items=1, max_items=1
-                )
+                batch_id = repository.start_browser_detail_batch(requested_items=1, max_items=1)
                 first_claim = repository.claim_browser_detail(
                     batch_id, claimed_at="2026-08-16T02:00:00Z"
                 )
@@ -467,9 +464,7 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 self.assertEqual("TIMEOUT", failed["last_error_type"])
                 self.assertEqual("PAGE_TIMEOUT", failed["last_error_code"])
                 repository.enqueue_browser_detail(saved["post_url"])
-                retry_batch = repository.start_browser_detail_batch(
-                    requested_items=1, max_items=1
-                )
+                retry_batch = repository.start_browser_detail_batch(requested_items=1, max_items=1)
                 retry = repository.claim_browser_detail(
                     retry_batch, claimed_at="2026-08-16T02:02:00Z"
                 )
@@ -532,9 +527,7 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                     "SELECT migration_sha256 FROM schema_migrations WHERE version = 16"
                 ).fetchone()[0]
                 self.assertEqual(
-                    hashlib.sha256(
-                        b"16:durable-browser-detail-enrichment-queue-v1"
-                    ).hexdigest(),
+                    hashlib.sha256(b"16:durable-browser-detail-enrichment-queue-v1").hexdigest(),
                     digest,
                 )
             with Repository(path) as repository:

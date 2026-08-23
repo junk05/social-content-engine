@@ -17,27 +17,73 @@ _RELATIVE_TIME_METADATA = re.compile(
 )
 
 POST_COLUMNS = [
-    "canonical_post_id", "collected_at", "author_username", "post_url",
-    "source_text", "topic_tags", "topic_tag_count", "raw_sequence_indicator",
-    "thread_position", "thread_total", "text_quality", "first_line", "detail_status",
-    "detail_attempt_count", "detail_last_error", "rounded_views_raw",
-    "rounded_views_normalized", "rounded_views_band", "rounded_views_status",
-    "like_count", "reply_count", "repost_count", "quote_count",
-    "thread_sequence_observed", "self_reply_count", "extractor_version",
-    "first_line_pattern_ids", "post_pattern_ids",
+    "canonical_post_id",
+    "collected_at",
+    "author_username",
+    "post_url",
+    "source_text",
+    "topic_tags",
+    "topic_tag_count",
+    "raw_sequence_indicator",
+    "thread_position",
+    "thread_total",
+    "text_quality",
+    "first_line",
+    "detail_status",
+    "detail_attempt_count",
+    "detail_last_error",
+    "rounded_views_raw",
+    "rounded_views_normalized",
+    "rounded_views_band",
+    "rounded_views_status",
+    "display_views_raw",
+    "display_views_normalized",
+    "display_views_precision",
+    "display_views_band",
+    "like_count",
+    "reply_count",
+    "repost_count",
+    "quote_count",
+    "thread_sequence_observed",
+    "self_reply_count",
+    "extractor_version",
+    "first_line_pattern_ids",
+    "post_pattern_ids",
 ]
 
 THREAD_COLUMNS = [
-    "root_canonical_id", "sequence_position", "node_type", "author_username",
-    "same_author_as_root", "source_post_id", "reply_to_post_id", "post_url",
-    "text", "topic_tags", "topic_tag_count", "raw_sequence_indicator",
-    "thread_position", "thread_total", "text_quality", "observed_at", "extractor_version",
-    "relationship_eligibility", "exclusion_reason",
+    "root_canonical_id",
+    "sequence_position",
+    "node_type",
+    "author_username",
+    "same_author_as_root",
+    "source_post_id",
+    "reply_to_post_id",
+    "post_url",
+    "text",
+    "topic_tags",
+    "topic_tag_count",
+    "raw_sequence_indicator",
+    "thread_position",
+    "thread_total",
+    "text_quality",
+    "observed_at",
+    "extractor_version",
+    "display_views_raw",
+    "display_views_normalized",
+    "display_views_precision",
+    "display_views_band",
+    "relationship_eligibility",
+    "exclusion_reason",
 ]
 
 EXPORT_KINDS = {"POSTS", "THREAD_NODES"}
 EXPORT_STATUS_FILTERS = {
-    "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED",
+    "ALL",
+    "DETAIL_PENDING",
+    "DETAIL_FAILED",
+    "DETAIL_ENRICHED",
+    "EXCLUDED",
 }
 
 
@@ -88,8 +134,7 @@ def _root_ids(connection: sqlite3.Connection, since: Optional[str]) -> List[int]
         query += " HAVING MIN(collected_at) > ?"
         parameters = (since,)
     query += " ORDER BY first_collected_at, browser_post_identity_id"
-    return [int(row["browser_post_identity_id"])
-            for row in connection.execute(query, parameters)]
+    return [int(row["browser_post_identity_id"]) for row in connection.execute(query, parameters)]
 
 
 def _placeholders(values: Sequence[Any]) -> str:
@@ -97,10 +142,13 @@ def _placeholders(values: Sequence[Any]) -> str:
 
 
 def _queue(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3.Row]:
-    return cast(Optional[sqlite3.Row], connection.execute(
-        "SELECT * FROM browser_detail_enrichment_queue WHERE browser_post_identity_id = ?",
-        (identity_id,),
-    ).fetchone())
+    return cast(
+        Optional[sqlite3.Row],
+        connection.execute(
+            "SELECT * FROM browser_detail_enrichment_queue WHERE browser_post_identity_id = ?",
+            (identity_id,),
+        ).fetchone(),
+    )
 
 
 def _matches_status_filter(queue: Optional[sqlite3.Row], status_filter: str) -> bool:
@@ -120,20 +168,40 @@ def _filtered_root_ids(
     connection: sqlite3.Connection, *, since: Optional[str], status_filter: str
 ) -> List[int]:
     return [
-        identity_id for identity_id in _root_ids(connection, since)
+        identity_id
+        for identity_id in _root_ids(connection, since)
         if _matches_status_filter(_queue(connection, identity_id), status_filter)
     ]
 
 
 def _latest_rounded(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3.Row]:
-    return cast(Optional[sqlite3.Row], connection.execute(
-        """SELECT approximate.* FROM browser_approximate_view_observations approximate
+    return cast(
+        Optional[sqlite3.Row],
+        connection.execute(
+            """SELECT approximate.* FROM browser_approximate_view_observations approximate
         JOIN browser_observations observation
           ON observation.id = approximate.browser_observation_id
         WHERE observation.browser_post_identity_id = ?
         ORDER BY approximate.id DESC LIMIT 1""",
-        (identity_id,),
-    ).fetchone())
+            (identity_id,),
+        ).fetchone(),
+    )
+
+
+def _latest_display_views(
+    connection: sqlite3.Connection, identity_id: int
+) -> Optional[sqlite3.Row]:
+    return cast(
+        Optional[sqlite3.Row],
+        connection.execute(
+            """SELECT displayed.* FROM browser_display_view_observations displayed
+        JOIN browser_observations observation
+          ON observation.id = displayed.browser_observation_id
+        WHERE observation.browser_post_identity_id = ?
+        ORDER BY displayed.id DESC LIMIT 1""",
+            (identity_id,),
+        ).fetchone(),
+    )
 
 
 def _rounded_missing_reason(queue: Optional[sqlite3.Row]) -> str:
@@ -142,9 +210,10 @@ def _rounded_missing_reason(queue: Optional[sqlite3.Row]) -> str:
     error = str(queue["last_error_code"] or "")
     if error == "PAGE_TIMEOUT":
         return "PAGE_TIMEOUT"
-    if error in {"EXTRACTOR_MISMATCH", "INGESTION_FAILED"} or str(
-        queue["last_error_type"] or ""
-    ) == "EXTRACTION_FAILED":
+    if (
+        error in {"EXTRACTOR_MISMATCH", "INGESTION_FAILED"}
+        or str(queue["last_error_type"] or "") == "EXTRACTION_FAILED"
+    ):
         return "EXTRACTOR_FAILURE"
     if str(queue["status"]) == "DETAIL_ENRICHED":
         return "VIEWS_NOT_PRESENT"
@@ -153,9 +222,7 @@ def _rounded_missing_reason(queue: Optional[sqlite3.Row]) -> str:
     return "OTHER_MISSING"
 
 
-def _latest_clean_thread_rows(
-    connection: sqlite3.Connection, root_id: int
-) -> List[sqlite3.Row]:
+def _latest_clean_thread_rows(connection: sqlite3.Connection, root_id: int) -> List[sqlite3.Row]:
     detail = connection.execute(
         """SELECT MAX(detail_observation_id) AS detail_observation_id
         FROM browser_thread_sequence_observations
@@ -176,9 +243,7 @@ def _latest_clean_thread_rows(
     ).fetchall()
 
 
-def audit_browser_coverage(
-    connection: sqlite3.Connection, *, since: str
-) -> Dict[str, Any]:
+def audit_browser_coverage(connection: sqlite3.Connection, *, since: str) -> Dict[str, Any]:
     root_ids = _root_ids(connection, since)
     detail: Counter[str] = Counter()
     failures: Counter[str] = Counter()
@@ -230,15 +295,15 @@ def audit_browser_coverage(
             "DETAIL_PENDING": detail["DETAIL_PENDING"],
             "PAGE_TIMEOUT": failures["PAGE_TIMEOUT"],
             "other_failures": {
-                key: value for key, value in sorted(failures.items())
-                if key != "PAGE_TIMEOUT"
+                key: value for key, value in sorted(failures.items()) if key != "PAGE_TIMEOUT"
             },
         },
         "rounded_views": {
             "observed": rounded_observed,
             "missing": rounded_missing,
             "coverage_percent": round(100 * rounded_observed / root_count, 1)
-            if root_count else 0.0,
+            if root_count
+            else 0.0,
             "detail_not_run": rounded["DETAIL_NOT_RUN"],
             "page_timeout": rounded["PAGE_TIMEOUT"],
             "views_not_present": rounded["VIEWS_NOT_PRESENT"],
@@ -277,9 +342,7 @@ def _latest_source_row(
     return row, str(row["quality_status"] or "UNASSESSED") if row is not None else "UNAVAILABLE"
 
 
-def _latest_counter(
-    connection: sqlite3.Connection, identity_id: int, key: str
-) -> Any:
+def _latest_counter(connection: sqlite3.Connection, identity_id: int, key: str) -> Any:
     for row in connection.execute(
         """SELECT canonical_payload_json FROM browser_observations
         WHERE browser_post_identity_id = ? ORDER BY collected_at DESC, id DESC""",
@@ -291,12 +354,8 @@ def _latest_counter(
     return None
 
 
-def _pattern_ids(
-    connection: sqlite3.Connection, identity_id: int, kind: str
-) -> str:
-    row = connection.execute(
-        """SELECT MAX(id) AS id FROM structural_feature_runs"""
-    ).fetchone()
+def _pattern_ids(connection: sqlite3.Connection, identity_id: int, kind: str) -> str:
+    row = connection.execute("""SELECT MAX(id) AS id FROM structural_feature_runs""").fetchone()
     if row is None or row["id"] is None:
         return ""
     values = connection.execute(
@@ -322,15 +381,18 @@ def _canonical_id(identity: sqlite3.Row) -> str:
 
 
 def build_post_rows(
-    connection: sqlite3.Connection, *, since: Optional[str] = None,
-    only_valid_text: bool = False, only_detail_enriched: bool = False,
-    only_with_thread: bool = False, sort: str = "collected_at", limit: Optional[int] = None,
+    connection: sqlite3.Connection,
+    *,
+    since: Optional[str] = None,
+    only_valid_text: bool = False,
+    only_detail_enriched: bool = False,
+    only_with_thread: bool = False,
+    sort: str = "collected_at",
+    limit: Optional[int] = None,
     status_filter: str = "ALL",
 ) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
-    for identity_id in _filtered_root_ids(
-        connection, since=since, status_filter=status_filter
-    ):
+    for identity_id in _filtered_root_ids(connection, since=since, status_filter=status_filter):
         identity = connection.execute(
             "SELECT * FROM browser_post_identities WHERE id = ?", (identity_id,)
         ).fetchone()
@@ -338,8 +400,11 @@ def build_post_rows(
         payload = _payload(source)
         queue = _queue(connection, identity_id)
         detail_status = (
-            "EXCLUDED" if queue is not None and bool(queue["enrichment_excluded"])
-            else str(queue["status"]) if queue is not None else "DETAIL_PENDING"
+            "EXCLUDED"
+            if queue is not None and bool(queue["enrichment_excluded"])
+            else str(queue["status"])
+            if queue is not None
+            else "DETAIL_PENDING"
         )
         nodes = _latest_clean_thread_rows(connection, identity_id)
         if only_valid_text and quality != "VALID_TEXT":
@@ -349,12 +414,14 @@ def build_post_rows(
         if only_with_thread and not nodes:
             continue
         rounded = _latest_rounded(connection, identity_id)
+        displayed = _latest_display_views(connection, identity_id)
         text = payload.get("text")
         topic_tags = _topic_tags(payload)
         row = {
             "canonical_post_id": _canonical_id(identity),
             "collected_at": source["collected_at"]
-            if source is not None else identity["created_at"],
+            if source is not None
+            else identity["created_at"],
             "author_username": payload.get("username"),
             "post_url": identity["post_url"],
             "source_text": text,
@@ -370,10 +437,18 @@ def build_post_rows(
             "detail_last_error": queue["last_error_code"] if queue is not None else None,
             "rounded_views_raw": rounded["display"] if rounded is not None else None,
             "rounded_views_normalized": rounded["normalized_approx"]
-            if rounded is not None else None,
+            if rounded is not None
+            else None,
             "rounded_views_band": rounded["view_band"] if rounded is not None else None,
-            "rounded_views_status": "OBSERVED" if rounded is not None
+            "rounded_views_status": "OBSERVED"
+            if rounded is not None
             else _rounded_missing_reason(queue),
+            "display_views_raw": displayed["display"] if displayed is not None else None,
+            "display_views_normalized": displayed["normalized_value"]
+            if displayed is not None
+            else None,
+            "display_views_precision": displayed["precision"] if displayed is not None else None,
+            "display_views_band": displayed["view_band"] if displayed is not None else None,
             "like_count": _latest_counter(connection, identity_id, "like_count"),
             "reply_count": _latest_counter(connection, identity_id, "reply_count"),
             "repost_count": _latest_counter(connection, identity_id, "repost_count"),
@@ -386,11 +461,14 @@ def build_post_rows(
         }
         result.append(row)
     if sort == "views":
-        result.sort(key=lambda row: (
-            row["rounded_views_normalized"] is None,
-            -(int(row["rounded_views_normalized"] or 0)),
-            str(row["collected_at"]), str(row["canonical_post_id"]),
-        ))
+        result.sort(
+            key=lambda row: (
+                row["rounded_views_normalized"] is None,
+                -(int(row["rounded_views_normalized"] or 0)),
+                str(row["collected_at"]),
+                str(row["canonical_post_id"]),
+            )
+        )
     else:
         result.sort(key=lambda row: (str(row["collected_at"]), str(row["canonical_post_id"])))
     return result[:limit] if limit is not None else result
@@ -418,7 +496,9 @@ def _node_source(
 
 
 def build_thread_rows(
-    connection: sqlite3.Connection, *, since: Optional[str] = None,
+    connection: sqlite3.Connection,
+    *,
+    since: Optional[str] = None,
     root_limit_ids: Optional[Set[int]] = None,
 ) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
@@ -431,9 +511,7 @@ def build_thread_rows(
         ).fetchone()
         eligible = _latest_clean_thread_rows(connection, root_id)
         eligible_ids = {int(row["node_browser_post_identity_id"]) for row in eligible}
-        candidates: List[Tuple[sqlite3.Row, str, str]] = [
-            (row, "ELIGIBLE", "") for row in eligible
-        ]
+        candidates: List[Tuple[sqlite3.Row, str, str]] = [(row, "ELIGIBLE", "") for row in eligible]
         excluded = connection.execute(
             """SELECT sequence.* FROM browser_thread_sequence_observations sequence
             JOIN (
@@ -464,36 +542,53 @@ def build_thread_rows(
                     (int(node["reply_to_browser_post_identity_id"]),),
                 ).fetchone()
             source, quality, payload = _node_source(connection, node_id)
+            displayed = _latest_display_views(connection, node_id)
             topic_tags = _topic_tags(payload)
-            result.append({
-                "root_canonical_id": _canonical_id(root_identity),
-                "sequence_position": int(node["sequence_position"]),
-                "node_type": "ROOT" if int(node["sequence_position"]) == 0
-                else ("SELF_REPLY" if eligibility == "ELIGIBLE" else "EXCLUDED_NODE"),
-                "author_username": payload.get("username"),
-                "same_author_as_root": "UNKNOWN" if node["same_author_as_root"] is None
-                else int(node["same_author_as_root"]),
-                "source_post_id": identity["source_post_id"],
-                "reply_to_post_id": _canonical_id(reply_identity)
-                if reply_identity is not None else None,
-                "post_url": identity["post_url"],
-                "text": payload.get("text"),
-                "topic_tags": _render_topic_tags(topic_tags),
-                "topic_tag_count": len(topic_tags),
-                "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
-                "thread_position": payload.get("thread_position"),
-                "thread_total": payload.get("thread_total"),
-                "text_quality": quality,
-                "observed_at": node["observed_at"],
-                "extractor_version": node["extractor_version"],
-                "relationship_eligibility": eligibility,
-                "exclusion_reason": reason,
-            })
-    result.sort(key=lambda row: (
-        str(row["root_canonical_id"]),
-        0 if row["relationship_eligibility"] == "ELIGIBLE" else 1,
-        int(row["sequence_position"]), str(row["post_url"]),
-    ))
+            result.append(
+                {
+                    "root_canonical_id": _canonical_id(root_identity),
+                    "sequence_position": int(node["sequence_position"]),
+                    "node_type": "ROOT"
+                    if int(node["sequence_position"]) == 0
+                    else ("SELF_REPLY" if eligibility == "ELIGIBLE" else "EXCLUDED_NODE"),
+                    "author_username": payload.get("username"),
+                    "same_author_as_root": "UNKNOWN"
+                    if node["same_author_as_root"] is None
+                    else int(node["same_author_as_root"]),
+                    "source_post_id": identity["source_post_id"],
+                    "reply_to_post_id": _canonical_id(reply_identity)
+                    if reply_identity is not None
+                    else None,
+                    "post_url": identity["post_url"],
+                    "text": payload.get("text"),
+                    "topic_tags": _render_topic_tags(topic_tags),
+                    "topic_tag_count": len(topic_tags),
+                    "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
+                    "thread_position": payload.get("thread_position"),
+                    "thread_total": payload.get("thread_total"),
+                    "text_quality": quality,
+                    "observed_at": node["observed_at"],
+                    "extractor_version": node["extractor_version"],
+                    "display_views_raw": displayed["display"] if displayed is not None else None,
+                    "display_views_normalized": displayed["normalized_value"]
+                    if displayed is not None
+                    else None,
+                    "display_views_precision": displayed["precision"]
+                    if displayed is not None
+                    else None,
+                    "display_views_band": displayed["view_band"] if displayed is not None else None,
+                    "relationship_eligibility": eligibility,
+                    "exclusion_reason": reason,
+                }
+            )
+    result.sort(
+        key=lambda row: (
+            str(row["root_canonical_id"]),
+            0 if row["relationship_eligibility"] == "ELIGIBLE" else 1,
+            int(row["sequence_position"]),
+            str(row["post_url"]),
+        )
+    )
     return result
 
 
@@ -504,9 +599,7 @@ def _write_csv(path: Path, columns: List[str], rows: Iterable[Dict[str, Any]]) -
     return count
 
 
-def render_csv(
-    columns: List[str], rows: Iterable[Dict[str, Any]]
-) -> Tuple[bytes, int]:
+def render_csv(columns: List[str], rows: Iterable[Dict[str, Any]]) -> Tuple[bytes, int]:
     """Render the same UTF-8 BOM CSV used by CLI and localhost downloads."""
     output = io.StringIO(newline="")
     writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
@@ -541,9 +634,7 @@ def render_browser_review_csv_from_connection(
         columns = POST_COLUMNS
         filename = "threads_posts.csv"
     else:
-        root_ids = set(_filtered_root_ids(
-            connection, since=None, status_filter=status_filter
-        ))
+        root_ids = set(_filtered_root_ids(connection, since=None, status_filter=status_filter))
         rows = build_thread_rows(connection, root_limit_ids=root_ids)
         columns = THREAD_COLUMNS
         filename = "threads_thread_nodes.csv"
@@ -552,20 +643,32 @@ def render_browser_review_csv_from_connection(
 
 
 def export_browser_posts(
-    database: Path, output_dir: Path, *, since: Optional[str] = None,
-    only_valid_text: bool = False, only_detail_enriched: bool = False,
-    only_with_thread: bool = False, sort: str = "collected_at", limit: Optional[int] = None,
+    database: Path,
+    output_dir: Path,
+    *,
+    since: Optional[str] = None,
+    only_valid_text: bool = False,
+    only_detail_enriched: bool = False,
+    only_with_thread: bool = False,
+    sort: str = "collected_at",
+    limit: Optional[int] = None,
 ) -> Dict[str, Any]:
     with connect_read_only(database) as connection:
         post_rows = build_post_rows(
-            connection, since=since, only_valid_text=only_valid_text,
+            connection,
+            since=since,
+            only_valid_text=only_valid_text,
             only_detail_enriched=only_detail_enriched,
-            only_with_thread=only_with_thread, sort=sort, limit=limit,
+            only_with_thread=only_with_thread,
+            sort=sort,
+            limit=limit,
         )
         selected_ids = {
-            int(row["id"]) for row in connection.execute(
+            int(row["id"])
+            for row in connection.execute(
                 "SELECT id, source_post_id, post_url FROM browser_post_identities"
-            ) if str(row["source_post_id"] or row["post_url"])
+            )
+            if str(row["source_post_id"] or row["post_url"])
             in {str(item["canonical_post_id"]) for item in post_rows}
         }
         thread_rows = build_thread_rows(connection, since=since, root_limit_ids=selected_ids)
@@ -594,10 +697,14 @@ def export_main(argv: Optional[Sequence[str]] = None) -> int:
     if args.limit is not None and args.limit < 1:
         parser.error("--limit must be positive")
     result = export_browser_posts(
-        args.database, args.output_dir, since=args.since,
+        args.database,
+        args.output_dir,
+        since=args.since,
         only_valid_text=args.only_valid_text,
         only_detail_enriched=args.only_detail_enriched,
-        only_with_thread=args.only_with_thread, sort=args.sort, limit=args.limit,
+        only_with_thread=args.only_with_thread,
+        sort=args.sort,
+        limit=args.limit,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
