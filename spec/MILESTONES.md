@@ -286,12 +286,17 @@ legacy tag-only observations remain immutable with appended quality evidence.
 
 ### M4-FU07 — Sequence Indicator and Display Views
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU07_SEQUENCE_AND_DISPLAY_VIEWS.md`
 (`CR-0024`). This follow-up separates DOM-confirmed `N / total` UI metadata
 from author text and stores integer detail-page Views as `DISPLAY_EXACT`, while
 preserving rounded magnitude displays as `ROUNDED`. M5 remains unauthorized.
+
+HG-03 passed with extractor v10: DOM-confirmed sequence indicators were
+separated from root and self-reply text, and an integer detail-page display
+Views observation was attached only to the canonical root, not its self reply.
+The audit stores no live source text, URL, username, or credential.
 
 ## Deferred until later milestones
 

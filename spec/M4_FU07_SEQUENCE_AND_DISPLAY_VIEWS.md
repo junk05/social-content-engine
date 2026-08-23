@@ -1,6 +1,6 @@
 # M4-FU07 — Sequence Indicator and Display Views
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0024`.
 
@@ -39,3 +39,12 @@ root display.
 4. exact-display and rounded precision remain distinct in storage and CSV;
 5. full regressions and CI pass;
 6. HG-03 verifies current DOM behavior without committing live content.
+
+## HG-03 result — 2026-08-23
+
+PASS. One user-selected root and its one observed self reply were re-enriched
+with extractor v10. DOM-confirmed `1 / 2` and `2 / 2` indicators were stored
+as sequence metadata for their respective nodes. The root's integer display
+Views normalized to `4046` with `DISPLAY_EXACT`; the self reply stored no root
+Views display. The machine-readable, source-text-free audit is
+`spec/evidence/M4_FU07_HG03_LIVE_VERIFICATION.json`.

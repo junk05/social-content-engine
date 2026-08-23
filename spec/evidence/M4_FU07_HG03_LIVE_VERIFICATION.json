@@ -1,0 +1,31 @@
+{
+  "verification_id": "M4-FU07-HG03-LIVE-VERIFICATION-V1",
+  "verified_at": "2026-08-23",
+  "human_action": "The user re-enriched one live root with one observed self reply.",
+  "extractor_version": "threads_post_detail_extractor_v10",
+  "sequence_indicator": {
+    "root_raw_sequence_indicator": "1 / 2",
+    "root_thread_position": 1,
+    "root_thread_total": 2,
+    "self_reply_raw_sequence_indicator": "2 / 2",
+    "self_reply_thread_position": 2,
+    "self_reply_thread_total": 2,
+    "result": "PASS"
+  },
+  "display_views": {
+    "root_display_observed": true,
+    "root_normalized_value": 4046,
+    "root_precision": "DISPLAY_EXACT",
+    "root_view_band": "1K_10K",
+    "self_reply_observations": 1,
+    "display_views_attached_to_self_replies": 0,
+    "result": "PASS"
+  },
+  "privacy_boundary": {
+    "source_text_recorded": false,
+    "post_url_recorded": false,
+    "username_recorded": false,
+    "credentials_recorded": false
+  },
+  "result": "PASS"
+}
