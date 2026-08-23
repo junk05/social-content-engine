@@ -1,6 +1,6 @@
 # M4-FU09 — Publication-Time Observation
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0026`.
 
@@ -69,3 +69,12 @@ contains it. CSV remains a local human-review artifact, not a Generation DTO.
 5. tests, validation, and CI pass; and
 6. a bounded live read-only verification confirms the direct attribute path or
    explicitly records it unavailable.
+
+## HG-03 result — 2026-08-23
+
+PASS. After the user re-enriched a selected live root, all three resulting v13
+post-detail observations retained raw and normalized direct semantic timestamps
+with an explicit offset basis. All three `published_at` values differed from
+their `collected_at` capture time. Local Human Review CSVs contain deterministic
+timing columns without writing to the source database. Aggregate, source-text-
+free evidence is `spec/evidence/M4_FU09_HG03_PUBLICATION_TIMING_VERIFICATION.json`.

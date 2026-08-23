@@ -205,6 +205,6 @@
     ,{"id":"M4-FU09-002","owner":"COLLECTOR","title":"Extract and validate direct publication timestamps without hover automation","status":"COMPLETE","depends_on":["M4-FU09-001"]}
     ,{"id":"M4-FU09-003","owner":"DATA","title":"Expose immutable timing provenance and deterministic CSV derivations","status":"COMPLETE","depends_on":["M4-FU09-002"]}
     ,{"id":"M4-FU09-004","owner":"QA_REVIEWER","title":"Verify publication-time extraction, export, and timing boundaries","status":"COMPLETE","depends_on":["M4-FU09-003"]}
-    ,{"id":"M4-FU09-005","owner":"ORCHESTRATOR","title":"Run bounded direct-attribute live verification","status":"PENDING","depends_on":["M4-FU09-004"]}
+    ,{"id":"M4-FU09-005","owner":"ORCHESTRATOR","title":"Run bounded direct-attribute live verification","status":"COMPLETE","depends_on":["M4-FU09-004"]}
   ]
 }

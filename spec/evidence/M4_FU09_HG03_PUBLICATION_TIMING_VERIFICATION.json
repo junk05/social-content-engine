@@ -1,0 +1,30 @@
+{
+  "verification_id": "M4-FU09-HG03-PUBLICATION-TIMING-VERIFICATION-V1",
+  "verified_at": "2026-08-23",
+  "human_action": "The user re-enriched one selected live root after reloading the extension and restarting the local receiver.",
+  "extractor_version": "threads_post_detail_extractor_v13",
+  "aggregate_results": {
+    "v13_post_detail_observations": 3,
+    "published_at_present": 3,
+    "published_at_raw_present": 3,
+    "explicit_offset_basis": 3,
+    "timestamp_compatibility_alias_matches": 3,
+    "published_at_distinct_from_collected_at": 3,
+    "human_review_post_rows": 266,
+    "human_review_thread_node_rows": 291,
+    "post_csv_rows_with_complete_derived_timing": 266,
+    "thread_csv_rows_with_complete_derived_timing": 291
+  },
+  "acquisition": {
+    "direct_semantic_attribute_used": "time[datetime]",
+    "hover_automation_used": false,
+    "relative_time_promoted_to_timestamp": false
+  },
+  "privacy_boundary": {
+    "source_text_recorded": false,
+    "post_url_recorded": false,
+    "username_recorded": false,
+    "credentials_recorded": false
+  },
+  "result": "PASS"
+}

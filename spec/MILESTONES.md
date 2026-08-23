@@ -320,12 +320,17 @@ remained. Historical incomplete assessments are retained as audit evidence.
 
 ### M4-FU09 — Publication-Time Observation
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU09_PUBLICATION_TIMING.md` (`CR-0026`).
 Direct semantic `time[datetime]` observation is the preferred exact source;
 relative UI time is never upgraded to a timestamp and hover is out of scope
 while that attribute remains available. M5 remains unauthorized.
+
+HG-03 passed with extractor v13. Direct `time[datetime]` observations retained
+raw/normalized explicit-offset publication timestamps separately from capture
+time, and local Human Review CSVs include deterministic date/time/weekday
+derivations. M5 remains unauthorized.
 
 ## Deferred until later milestones
 
