@@ -19,5 +19,14 @@
   },
   "source_observations_deleted": 0,
   "live_source_content_stored": false,
-  "live_verification_status": "HG_03_PENDING"
+  "v19_live_result": {
+    "repaired_roots": 2,
+    "still_composer_metadata": 0
+  },
+  "human_review_csv": {
+    "canonical_root_rows": 266,
+    "exact_bad_source_text_rows": 0,
+    "reply_placeholder_shape_rows": 0
+  },
+  "live_verification_status": "PASS"
 }

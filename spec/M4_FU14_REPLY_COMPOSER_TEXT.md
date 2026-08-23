@@ -1,6 +1,6 @@
 # M4-FU14 — Reply Composer Text Exclusion
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0031`.
 
@@ -45,8 +45,8 @@ over a newer non-invalid detail observation. M5 remains unauthorized.
 
 Five canonical roots selected an identical reply-composer placeholder from
 extractor v14. All five immutable observations now have append-only confirmed
-invalid quality evidence and all five roots are `DETAIL_PENDING` for an
-extractor-v19 reobservation. The first v17 pass repaired three roots and exposed
+invalid quality evidence and all five roots were explicitly requeued. The first
+v17 pass repaired three roots and exposed
 a second composer DOM form on two roots; those two v17 observations remain as
 audit evidence. The v18 pass confirmed those two composer nodes expose no input
 semantics; read-only live diagnosis instead established the engagement-row DOM
@@ -54,4 +54,6 @@ order used by v19. Both v18 observations remain immutable and the two roots are
 requeued once more.
 Aggregate, source-free evidence is recorded in
 `spec/evidence/M4_FU14_REPLY_COMPOSER_AUDIT.json`. HG-03 live reobservation and
-CSV verification remain pending.
+CSV verification passed: the two remaining roots were repaired by v19, and the
+266-root Human Review CSV contains zero exact composer placeholders and zero
+reply-placeholder-shaped selected source texts.

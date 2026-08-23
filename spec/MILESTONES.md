@@ -305,12 +305,15 @@ evidence exists and zero queue-state projection mismatches.
 
 ### M4-FU14 — Reply Composer Text Exclusion
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU14_REPLY_COMPOSER_TEXT.md` (`CR-0031`).
 Semantic reply-composer input surfaces are excluded from shared detail body
 selection. Historical bad observations remain immutable and affected roots are
 re-enriched explicitly. M5 remains unauthorized.
+
+Extractor v19 repaired all five affected canonical roots. The regenerated
+266-root Human Review CSV selects zero reply-composer placeholders.
 
 ### M4-FU07 — Sequence Indicator and Display Views
 
