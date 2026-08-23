@@ -25,9 +25,11 @@ class Node {
     this.children = [];
     this.textContent = "";
     this.disabled = false;
+    this.checked = false;
     this.listeners = {};
   }
   addEventListener(type, listener) { this.listeners[type] = listener; }
+  setAttribute() {}
   append(child) { this.children.push(child); }
   replaceChildren() { this.children = []; }
 }
@@ -40,6 +42,9 @@ const nodes = {
   "#queue-summary": new Node(),
   "#collected-filter": new Node("select"), "#collected-sort": new Node("select"),
   "#refresh-collected": new Node("button"), "#collected-status": new Node(),
+  "#select-all-collected": new Node("button"),
+  "#clear-collected-selection": new Node("button"),
+  "#requeue-selected": new Node("button"),
   "#collected-posts": new Node("tbody"),
   "#export-posts-csv": new Node("button"), "#export-thread-csv": new Node("button"),
   "#export-status": new Node(),
@@ -103,9 +108,15 @@ assert.deepEqual(messages, [
 assert.equal(nodes["#queue-summary"].textContent.includes("DETAIL_PENDING: 1"), true);
 assert.equal(nodes["#queue-summary"].textContent.includes("除外: 1"), true);
 assert.equal(nodes["#collected-posts"].children.length, 1);
-assert.equal(nodes["#collected-posts"].children[0].children[0].children[0].textContent, "@fixture");
-assert.equal(nodes["#collected-posts"].children[0].children[1].textContent.includes("POST_NOT_FOUND"), true);
-assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("表示4,046回（正確表示）"), true);
+assert.equal(nodes["#collected-posts"].children[0].children[1].children[0].textContent, "@fixture");
+assert.equal(nodes["#collected-posts"].children[0].children[2].textContent.includes("POST_NOT_FOUND"), true);
+assert.equal(nodes["#collected-posts"].children[0].children[3].textContent.includes("Views: 4,046回"), true);
+assert.equal(nodes["#collected-posts"].children[0].children[3].textContent.includes("正確表示"), false);
+nodes["#select-all-collected"].listeners.click();
+assert.equal(nodes["#requeue-selected"].disabled, false);
+assert.equal(nodes["#requeue-selected"].textContent, "選択分を再補完対象にする（1件）");
+nodes["#clear-collected-selection"].listeners.click();
+assert.equal(nodes["#requeue-selected"].disabled, true);
 nodes["#export-posts-csv"].listeners.click();
 nodes["#collected-filter"].value = "DETAIL_FAILED";
 nodes["#export-thread-csv"].listeners.click();
@@ -113,7 +124,7 @@ assert.deepEqual(exportCalls, [
   { kind: "POSTS", status: "ALL" },
   { kind: "THREAD_NODES", status: "DETAIL_FAILED" },
 ]);
-const excludeButton = nodes["#collected-posts"].children[0].children[3].children[1];
+const excludeButton = nodes["#collected-posts"].children[0].children[4].children[1];
 excludeButton.listeners.click();
 assert.equal(messages.some((message) => message.type === "SCE_UPDATE_DETAIL_EXCLUSION"
   && message.action === "EXCLUDE"), true);
@@ -154,3 +165,11 @@ pendingResponse = { accepted: false, reason: "network_error" };
 nodes["#resume-detail-batch"].listeners.click();
 assert.deepEqual(messages[messages.length - 1], { type: "SCE_RESUME_DETAIL_BATCH", limit: 50 });
 assert.equal(nodes["#batch-status"].textContent, "詳細バッチを完了できませんでした。再開できます。");
+
+nodes["#select-all-collected"].listeners.click();
+nodes["#requeue-selected"].listeners.click();
+setTimeout(() => {
+  assert.equal(messages.some((message) => message.type === "SCE_UPDATE_DETAIL_EXCLUSION"
+    && message.action === "REQUEUE"), true);
+  assert.equal(nodes["#requeue-selected"].disabled, true);
+}, 0);

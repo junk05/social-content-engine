@@ -38,6 +38,9 @@
           </select>
         </label>
         <button id="refresh-collected" type="button">一覧を更新</button>
+        <button id="select-all-collected" type="button">表示中を全選択</button>
+        <button id="clear-collected-selection" type="button">選択解除</button>
+        <button id="requeue-selected" type="button" disabled>選択分を再補完対象にする</button>
         <button id="export-posts-csv" type="button">投稿一覧CSV</button>
         <button id="export-thread-csv" type="button">Thread Sequence CSV</button>
         <p id="export-status" aria-live="polite"></p>
@@ -45,7 +48,7 @@
         <div class="table-scroll">
           <table>
             <thead><tr>
-              <th>収集日時・投稿</th><th>状態</th><th>観測</th><th>操作</th>
+              <th>選択</th><th>収集日時・投稿</th><th>状態</th><th>観測</th><th>操作</th>
             </tr></thead>
             <tbody id="collected-posts"></tbody>
           </table>

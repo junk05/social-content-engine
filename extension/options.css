@@ -24,3 +24,4 @@ th, td { border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent)
 td a { overflow-wrap: anywhere; }
 .post-meta { display: block; opacity: 0.75; margin-top: 4px; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 4px; min-width: 180px; }
+.row-select { text-align: center; vertical-align: middle; }

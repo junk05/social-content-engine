@@ -11,6 +11,9 @@ const queueSummary = document.querySelector("#queue-summary");
 const collectedFilter = document.querySelector("#collected-filter");
 const collectedSort = document.querySelector("#collected-sort");
 const refreshCollected = document.querySelector("#refresh-collected");
+const selectAllCollected = document.querySelector("#select-all-collected");
+const clearCollectedSelection = document.querySelector("#clear-collected-selection");
+const requeueSelected = document.querySelector("#requeue-selected");
 const collectedStatus = document.querySelector("#collected-status");
 const collectedPosts = document.querySelector("#collected-posts");
 const exportPostsCsv = document.querySelector("#export-posts-csv");
@@ -19,6 +22,8 @@ const exportStatus = document.querySelector("#export-status");
 const SAFE_PENDING_FAILURES = new Set([
   "network_error", "receiver_rejected", "invalid_receiver_response", "invalid_limit",
 ]);
+const selectedPostUrls = new Set();
+let visibleCollectedPosts = [];
 
 chrome.runtime.sendMessage({ type: "SCE_SCAFFOLD_STATUS" }, (response) => {
   if (chrome.runtime.lastError || !response) {
@@ -68,18 +73,40 @@ function valueOrUnknown(value) {
 
 function visibleViews(post) {
   if (post.display_views_raw !== null && post.display_views_raw !== undefined) {
-    return valueOrUnknown(post.display_views_raw) + "（正確表示）";
+    return Number.isInteger(post.display_views_normalized)
+      ? post.display_views_normalized.toLocaleString("ja-JP") + "回"
+      : String(post.display_views_raw).replace(/^表示\s*/, "");
   }
   if (post.rounded_views_raw !== null && post.rounded_views_raw !== undefined) {
-    return valueOrUnknown(post.rounded_views_raw) + "（概算）";
+    return String(post.rounded_views_raw).replace(/^表示\s*/, "");
   }
   return "未観測";
+}
+
+function updateSelectionControls() {
+  requeueSelected.disabled = selectedPostUrls.size === 0;
+  requeueSelected.textContent = selectedPostUrls.size
+    ? `選択分を再補完対象にする（${selectedPostUrls.size}件）`
+    : "選択分を再補完対象にする";
 }
 
 function renderCollectedPosts(posts) {
   collectedPosts.replaceChildren();
   for (const post of posts) {
     const row = document.createElement("tr");
+    const select = document.createElement("td");
+    select.className = "row-select";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedPostUrls.has(post.post_url);
+    checkbox.setAttribute("aria-label", "投稿を再補完対象に選択");
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selectedPostUrls.add(post.post_url);
+      else selectedPostUrls.delete(post.post_url);
+      updateSelectionControls();
+    });
+    select.append(checkbox);
+    row.append(select);
     row.append(postCell(post));
     const state = document.createElement("td");
     state.textContent = post.detail_status
@@ -106,6 +133,7 @@ function renderCollectedPosts(posts) {
     row.append(actions);
     collectedPosts.append(row);
   }
+  updateSelectionControls();
 }
 
 function loadCollectedPosts() {
@@ -124,17 +152,26 @@ function loadCollectedPosts() {
       collectedStatus.textContent = "収集済み投稿を読み込めませんでした。";
       return;
     }
-    renderCollectedPosts(response.posts);
+    visibleCollectedPosts = response.posts;
+    renderCollectedPosts(visibleCollectedPosts);
     collectedStatus.textContent = response.posts.length + "件を表示しています。";
+  });
+}
+
+function updateDetailExclusion(action, postUrl) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({
+      type: "SCE_UPDATE_DETAIL_EXCLUSION", action, postUrl,
+    }, (response) => {
+      resolve(!chrome.runtime.lastError && response && response.accepted);
+    });
   });
 }
 
 function updateCollectedPost(action, postUrl) {
   collectedStatus.textContent = action === "EXCLUDE" ? "除外を保存しています。" : "再補完を準備しています。";
-  chrome.runtime.sendMessage({
-    type: "SCE_UPDATE_DETAIL_EXCLUSION", action, postUrl,
-  }, (response) => {
-    if (chrome.runtime.lastError || !response || !response.accepted) {
+  updateDetailExclusion(action, postUrl).then((accepted) => {
+    if (!accepted) {
       collectedStatus.textContent = "操作を保存できませんでした。";
       return;
     }
@@ -146,6 +183,30 @@ function updateCollectedPost(action, postUrl) {
 refreshCollected.addEventListener("click", loadCollectedPosts);
 collectedFilter.addEventListener("change", loadCollectedPosts);
 collectedSort.addEventListener("change", loadCollectedPosts);
+selectAllCollected.addEventListener("click", () => {
+  for (const post of visibleCollectedPosts) selectedPostUrls.add(post.post_url);
+  renderCollectedPosts(visibleCollectedPosts);
+});
+clearCollectedSelection.addEventListener("click", () => {
+  selectedPostUrls.clear();
+  renderCollectedPosts(visibleCollectedPosts);
+});
+requeueSelected.addEventListener("click", async () => {
+  const urls = Array.from(selectedPostUrls);
+  if (!urls.length) return;
+  requeueSelected.disabled = true;
+  collectedStatus.textContent = `${urls.length}件を再補完対象にしています。`;
+  let completed = 0;
+  for (const postUrl of urls) {
+    if (await updateDetailExclusion("REQUEUE", postUrl)) completed += 1;
+  }
+  selectedPostUrls.clear();
+  refreshQueueSummary();
+  loadCollectedPosts();
+  collectedStatus.textContent = completed === urls.length
+    ? `${completed}件を再補完対象にしました。`
+    : `${completed} / ${urls.length}件を再補完対象にしました。`;
+});
 loadCollectedPosts();
 
 function runReviewExport(kind, button) {
