@@ -56,7 +56,9 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 self.assertEqual("DETAIL_PENDING", repository.connection.execute(
                     "SELECT status FROM browser_detail_enrichment_queue"
                 ).fetchone()[0])
-                self.assertEqual(0, repository.requeue_missing_browser_engagement_metrics()["count"])
+                self.assertEqual(
+                    0, repository.requeue_missing_browser_engagement_metrics()["count"]
+                )
 
     def test_topic_tag_candidate_requeue_does_not_assert_invalidity(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

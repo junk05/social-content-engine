@@ -172,7 +172,10 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                     {"like_count": 14000, "reply_count": 154, "repost_count": 48}
                 )
                 payload["metric_observation_statuses"].update(
-                    {"like_count": "OBSERVED", "reply_count": "OBSERVED", "repost_count": "OBSERVED"}
+                    {
+                        "like_count": "OBSERVED", "reply_count": "OBSERVED",
+                        "repost_count": "OBSERVED",
+                    }
                 )
                 payload["observed_fields"] = [
                     field for field in payload["observed_fields"]
@@ -195,7 +198,9 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                         "observed_at": "2026-08-16T00:00:00+00:00",
                         "extractor_version": "fixture-extractor-v1",
                         "normalizer_version": "engagement-display-normalizer-v1",
-                        "relationship_evidence": "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY",
+                        "relationship_evidence": (
+                            "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY"
+                        ),
                         "metric_name": "like_count",
                     },
                     "reply_count": {
@@ -220,7 +225,10 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 self.assertEqual(
                     "ROUNDED", normalized["engagement_metric_displays"]["like_count"]["precision"]
                 )
-                self.assertEqual(154, normalized["engagement_metric_displays"]["reply_count"]["normalized_value"])
+                self.assertEqual(
+                    154,
+                    normalized["engagement_metric_displays"]["reply_count"]["normalized_value"],
+                )
 
     def test_publication_time_preserves_explicit_offset_without_collection_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
