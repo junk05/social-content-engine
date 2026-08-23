@@ -2222,6 +2222,8 @@ class Repository:
                             observation["extractor_version"],
                         ),
                     )
+            approximate_legacy_id = None
+            display_legacy_id = None
             approximate_views = observation.get("approximate_views")
             if approximate_views is not None:
                 cursor = self.connection.execute(
@@ -2242,23 +2244,35 @@ class Repository:
                         approximate_views["normalizer_version"],
                     ),
                 )
-                self.connection.execute(
-                    """INSERT INTO browser_view_observations
-                    (browser_observation_id, raw_display, normalized_value, precision,
-                     display_format, source, view_band, observed_at, extractor_version,
-                     normalizer_version, legacy_source_table, legacy_source_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        observation_id, approximate_views["display"], approximate_views["normalized_approx"],
-                        approximate_views["precision"],
-                        "JAPANESE_OKU" if "億" in approximate_views["display"] else
-                        "JAPANESE_MAN" if "万" in approximate_views["display"] else "OTHER_MAGNITUDE",
-                        approximate_views["source"], approximate_views["view_band"],
-                        approximate_views["observed_at"], approximate_views["extractor_version"],
-                        approximate_views["normalizer_version"],
-                        "browser_approximate_view_observations", int(cursor.lastrowid),
-                    ),
-                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("approximate Views provenance insert returned no id")
+                approximate_legacy_id = int(cursor.lastrowid)
+                if observation.get("views") is None:
+                    self.connection.execute(
+                        """INSERT INTO browser_view_observations
+                        (browser_observation_id, raw_display, normalized_value, precision,
+                         display_format, source, view_band, observed_at, extractor_version,
+                         normalizer_version, legacy_source_table, legacy_source_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            observation_id,
+                            approximate_views["display"],
+                            approximate_views["normalized_approx"],
+                            approximate_views["precision"],
+                            "JAPANESE_OKU"
+                            if "億" in approximate_views["display"]
+                            else "JAPANESE_MAN"
+                            if "万" in approximate_views["display"]
+                            else "OTHER_MAGNITUDE",
+                            approximate_views["source"],
+                            approximate_views["view_band"],
+                            approximate_views["observed_at"],
+                            approximate_views["extractor_version"],
+                            approximate_views["normalizer_version"],
+                            "browser_approximate_view_observations",
+                            approximate_legacy_id,
+                        ),
+                    )
             display_views = observation.get("display_views")
             if display_views is not None:
                 cursor = self.connection.execute(
@@ -2279,18 +2293,57 @@ class Repository:
                         display_views["normalizer_version"],
                     ),
                 )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("display Views provenance insert returned no id")
+                display_legacy_id = int(cursor.lastrowid)
+                if observation.get("views") is None:
+                    self.connection.execute(
+                        """INSERT INTO browser_view_observations
+                        (browser_observation_id, raw_display, normalized_value, precision,
+                         display_format, source, view_band, observed_at, extractor_version,
+                         normalizer_version, legacy_source_table, legacy_source_id)
+                        VALUES (?, ?, ?, ?, 'INTEGER', ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            observation_id,
+                            display_views["display"],
+                            display_views["normalized_value"],
+                            display_views["precision"],
+                            display_views["source"],
+                            display_views["view_band"],
+                            display_views["observed_at"],
+                            display_views["extractor_version"],
+                            display_views["normalizer_version"],
+                            "browser_display_view_observations",
+                            display_legacy_id,
+                        ),
+                    )
+            views = observation.get("views")
+            if views is not None:
+                if views["precision"] == "DISPLAY_EXACT":
+                    legacy_source_table = "browser_display_view_observations"
+                    legacy_source_id = display_legacy_id
+                else:
+                    legacy_source_table = "browser_approximate_view_observations"
+                    legacy_source_id = approximate_legacy_id
                 self.connection.execute(
                     """INSERT INTO browser_view_observations
                     (browser_observation_id, raw_display, normalized_value, precision,
                      display_format, source, view_band, observed_at, extractor_version,
                      normalizer_version, legacy_source_table, legacy_source_id)
-                    VALUES (?, ?, ?, ?, 'INTEGER', ?, ?, ?, ?, ?, ?, ?)""",
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        observation_id, display_views["display"], display_views["normalized_value"],
-                        display_views["precision"], display_views["source"], display_views["view_band"],
-                        display_views["observed_at"], display_views["extractor_version"],
-                        display_views["normalizer_version"],
-                        "browser_display_view_observations", int(cursor.lastrowid),
+                        observation_id,
+                        views["raw_display"],
+                        views["normalized_value"],
+                        views["precision"],
+                        views["display_format"],
+                        views["source"],
+                        views["view_band"],
+                        views["observed_at"],
+                        views["extractor_version"],
+                        views["normalizer_version"],
+                        legacy_source_table,
+                        legacy_source_id,
                     ),
                 )
             version = self.connection.execute(
@@ -3704,24 +3757,14 @@ class Repository:
         ).fetchall()
         result = []
         for row in rows:
-            approximate = self.connection.execute(
-                """SELECT approximate.display, approximate.normalized_approx,
-                          approximate.view_band
-                FROM browser_approximate_view_observations AS approximate
+            views = self.connection.execute(
+                """SELECT views.raw_display, views.normalized_value, views.precision,
+                          views.display_format, views.observed_at, views.view_band
+                FROM browser_view_observations AS views
                 JOIN browser_observations AS observation
-                  ON observation.id = approximate.browser_observation_id
+                  ON observation.id = views.browser_observation_id
                 WHERE observation.browser_post_identity_id = ?
-                ORDER BY approximate.observed_at DESC, approximate.id DESC LIMIT 1""",
-                (row["identity_id"],),
-            ).fetchone()
-            displayed = self.connection.execute(
-                """SELECT displayed.display, displayed.normalized_value,
-                          displayed.precision, displayed.view_band
-                FROM browser_display_view_observations AS displayed
-                JOIN browser_observations AS observation
-                  ON observation.id = displayed.browser_observation_id
-                WHERE observation.browser_post_identity_id = ?
-                ORDER BY displayed.observed_at DESC, displayed.id DESC LIMIT 1""",
+                ORDER BY views.observed_at DESC, views.id DESC LIMIT 1""",
                 (row["identity_id"],),
             ).fetchone()
             latest_sequence = self.connection.execute(
@@ -3759,25 +3802,20 @@ class Repository:
                     "last_error": None
                     if row["last_error_code"] is None
                     else str(row["last_error_code"]),
-                    "rounded_views_raw": None
-                    if approximate is None
-                    else str(approximate["display"]),
-                    "rounded_views_normalized": None
-                    if approximate is None
-                    else int(approximate["normalized_approx"]),
-                    "rounded_views_band": None
-                    if approximate is None
-                    else str(approximate["view_band"]),
-                    "display_views_raw": None if displayed is None else str(displayed["display"]),
-                    "display_views_normalized": None
-                    if displayed is None
-                    else int(displayed["normalized_value"]),
-                    "display_views_precision": None
-                    if displayed is None
-                    else str(displayed["precision"]),
-                    "display_views_band": None
-                    if displayed is None
-                    else str(displayed["view_band"]),
+                    "views_latest_raw": None if views is None else str(views["raw_display"]),
+                    "views_latest_value": None
+                    if views is None
+                    else int(views["normalized_value"]),
+                    "views_latest_precision": None
+                    if views is None
+                    else str(views["precision"]),
+                    "views_latest_display_format": None
+                    if views is None
+                    else str(views["display_format"]),
+                    "views_latest_observed_at": None
+                    if views is None
+                    else str(views["observed_at"]),
+                    "views_latest_band": None if views is None else str(views["view_band"]),
                     "self_reply_count": self_reply_count,
                     "enrichment_excluded": excluded,
                     "exclusion_reason": None

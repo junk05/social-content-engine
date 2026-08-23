@@ -73,13 +73,11 @@ function valueOrUnknown(value) {
 }
 
 function visibleViews(post) {
-  if (post.display_views_raw !== null && post.display_views_raw !== undefined) {
-    return Number.isInteger(post.display_views_normalized)
-      ? post.display_views_normalized.toLocaleString("ja-JP") + "回"
-      : String(post.display_views_raw).replace(/^表示\s*/, "");
-  }
-  if (post.rounded_views_raw !== null && post.rounded_views_raw !== undefined) {
-    return String(post.rounded_views_raw).replace(/^表示\s*/, "");
+  if (post.views_latest_raw !== null && post.views_latest_raw !== undefined) {
+    return post.views_latest_precision === "DISPLAY_EXACT"
+      && Number.isInteger(post.views_latest_value)
+      ? post.views_latest_value.toLocaleString("ja-JP") + "回"
+      : String(post.views_latest_raw).replace(/^表示\s*/, "");
   }
   return "未観測";
 }

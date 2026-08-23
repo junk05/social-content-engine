@@ -87,10 +87,10 @@ globalThis.chrome = {
           collected_at: "2026-08-23T01:00:00Z",
           author_username: "fixture", post_url: "https://www.threads.net/@fixture/post/Review1",
           detail_status: "DETAIL_FAILED", attempt_count: 2, last_error: "POST_NOT_FOUND",
-          rounded_views_raw: null, rounded_views_normalized: null,
-          rounded_views_band: null, display_views_raw: "表示4,046回",
-          display_views_normalized: 4046, display_views_precision: "DISPLAY_EXACT",
-          display_views_band: "1K_10K", self_reply_count: 0,
+          views_latest_raw: "表示4,046回", views_latest_value: 4046,
+          views_latest_precision: "DISPLAY_EXACT", views_latest_display_format: "INTEGER",
+          views_latest_observed_at: "2026-08-23T01:00:00Z",
+          views_latest_band: "1K_10K", self_reply_count: 0,
           enrichment_excluded: false, exclusion_reason: null, excluded_at: null,
         }] });
       } else if (message.type === "SCE_UPDATE_DETAIL_EXCLUSION") {

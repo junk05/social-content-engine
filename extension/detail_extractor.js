@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v15";
+  const VERSION = "threads_post_detail_extractor_v16";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -807,6 +807,28 @@
       ? approximatePageViews(root, collectedAt) : null;
     const displayViews = includePageMetrics
       ? exactDisplayPageViews(root, collectedAt) : null;
+    const views = displayViews !== null ? {
+      raw_display: displayViews.display,
+      normalized_value: displayViews.normalized_value,
+      precision: displayViews.precision,
+      display_format: "INTEGER",
+      source: displayViews.source,
+      view_band: displayViews.view_band,
+      observed_at: displayViews.observed_at,
+      extractor_version: displayViews.extractor_version,
+      normalizer_version: displayViews.normalizer_version,
+    } : approximateViews !== null ? {
+      raw_display: approximateViews.display,
+      normalized_value: approximateViews.normalized_approx,
+      precision: approximateViews.precision,
+      display_format: approximateViews.display.includes("億") ? "JAPANESE_OKU"
+        : approximateViews.display.includes("万") ? "JAPANESE_MAN" : "OTHER_MAGNITUDE",
+      source: approximateViews.source,
+      view_band: approximateViews.view_band,
+      observed_at: approximateViews.observed_at,
+      extractor_version: approximateViews.extractor_version,
+      normalizer_version: approximateViews.normalizer_version,
+    } : null;
     const activityVisible = visibleActivitySurface(root);
     const metricStatuses = {};
     for (const [name, value] of Object.entries(counters)) {
@@ -856,6 +878,7 @@
     };
     if (approximateViews !== null) observation.approximate_views = approximateViews;
     if (displayViews !== null) observation.display_views = displayViews;
+    if (views !== null) observation.views = views;
     if (Object.keys(engagementMetricDisplays).length) {
       observation.engagement_metric_displays = engagementMetricDisplays;
     }

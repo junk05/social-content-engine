@@ -281,10 +281,9 @@ if (typeof importScripts === "function") {
   function isSafeCollectedPost(post) {
     const keys = [
       "collected_at", "author_username", "post_url", "detail_status",
-      "attempt_count", "last_error", "rounded_views_raw",
-      "rounded_views_normalized", "rounded_views_band", "self_reply_count",
-      "display_views_raw", "display_views_normalized", "display_views_precision",
-      "display_views_band",
+      "attempt_count", "last_error", "views_latest_raw", "views_latest_value",
+      "views_latest_precision", "views_latest_display_format", "views_latest_observed_at",
+      "views_latest_band", "self_reply_count",
       "enrichment_excluded", "exclusion_reason", "excluded_at",
     ];
     return post && typeof post === "object" && Object.keys(post).length === keys.length
@@ -297,18 +296,16 @@ if (typeof importScripts === "function") {
         .includes(post.detail_status)
       && Number.isInteger(post.attempt_count) && post.attempt_count >= 0
       && (post.last_error === null || typeof post.last_error === "string")
-      && (post.rounded_views_raw === null || typeof post.rounded_views_raw === "string")
-      && (post.rounded_views_normalized === null
-        || (Number.isInteger(post.rounded_views_normalized)
-          && post.rounded_views_normalized >= 0))
-      && (post.rounded_views_band === null || typeof post.rounded_views_band === "string")
-      && (post.display_views_raw === null || typeof post.display_views_raw === "string")
-      && (post.display_views_normalized === null
-        || (Number.isInteger(post.display_views_normalized)
-          && post.display_views_normalized >= 0))
-      && (post.display_views_precision === null
-        || post.display_views_precision === "DISPLAY_EXACT")
-      && (post.display_views_band === null || typeof post.display_views_band === "string")
+      && (post.views_latest_raw === null || typeof post.views_latest_raw === "string")
+      && (post.views_latest_value === null
+        || (Number.isInteger(post.views_latest_value) && post.views_latest_value >= 0))
+      && (post.views_latest_precision === null
+        || ["DISPLAY_EXACT", "ROUNDED"].includes(post.views_latest_precision))
+      && (post.views_latest_display_format === null
+        || typeof post.views_latest_display_format === "string")
+      && (post.views_latest_observed_at === null
+        || typeof post.views_latest_observed_at === "string")
+      && (post.views_latest_band === null || typeof post.views_latest_band === "string")
       && (post.self_reply_count === null
         || (Number.isInteger(post.self_reply_count) && post.self_reply_count >= 0))
       && typeof post.enrichment_excluded === "boolean"

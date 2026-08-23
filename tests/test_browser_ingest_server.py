@@ -424,13 +424,12 @@ class BrowserIngestServerTest(unittest.TestCase):
                 "detail_status",
                 "attempt_count",
                 "last_error",
-                "rounded_views_raw",
-                "rounded_views_normalized",
-                "rounded_views_band",
-                "display_views_raw",
-                "display_views_normalized",
-                "display_views_precision",
-                "display_views_band",
+                "views_latest_raw",
+                "views_latest_value",
+                "views_latest_precision",
+                "views_latest_display_format",
+                "views_latest_observed_at",
+                "views_latest_band",
                 "self_reply_count",
                 "enrichment_excluded",
                 "exclusion_reason",
@@ -438,7 +437,7 @@ class BrowserIngestServerTest(unittest.TestCase):
             },
             set(listed.payload["posts"][0]),
         )
-        self.assertIsNone(listed.payload["posts"][0]["rounded_views_normalized"])
+        self.assertIsNone(listed.payload["posts"][0]["views_latest_value"])
         self.assertIsNone(listed.payload["posts"][0]["self_reply_count"])
         self.assertNotIn("source_text", listed.body.decode("utf-8"))
 

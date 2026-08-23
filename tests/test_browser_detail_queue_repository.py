@@ -173,12 +173,12 @@ class BrowserDetailQueueRepositoryTest(unittest.TestCase):
                 posts = repository.list_collected_browser_roots()
                 self.assertEqual(1, len(posts), "child-only detail identity is not a root row")
                 self.assertEqual("DETAIL_ENRICHED", posts[0]["detail_status"])
-                self.assertEqual("表示1.2万回", posts[0]["rounded_views_raw"])
-                self.assertEqual(12000, posts[0]["rounded_views_normalized"])
-                self.assertEqual("10K_100K", posts[0]["rounded_views_band"])
-                self.assertEqual("表示4,506回", posts[0]["display_views_raw"])
-                self.assertEqual(4506, posts[0]["display_views_normalized"])
-                self.assertEqual("DISPLAY_EXACT", posts[0]["display_views_precision"])
+                self.assertEqual("表示4,506回", posts[0]["views_latest_raw"])
+                self.assertEqual(4506, posts[0]["views_latest_value"])
+                self.assertEqual("DISPLAY_EXACT", posts[0]["views_latest_precision"])
+                self.assertEqual("INTEGER", posts[0]["views_latest_display_format"])
+                self.assertEqual("2026-08-23T01:00:00Z", posts[0]["views_latest_observed_at"])
+                self.assertEqual("1K_10K", posts[0]["views_latest_band"])
                 self.assertEqual(1, posts[0]["self_reply_count"])
 
     def test_human_exclusion_is_reversible_audited_and_never_claimed(self) -> None:

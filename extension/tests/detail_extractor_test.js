@@ -141,7 +141,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v15");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v16");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
@@ -315,6 +315,12 @@ async function main() {
     observed_at: context.collectedAt, extractor_version: extractor.version,
     normalizer_version: "rounded-views-normalizer-v1",
   });
+  assert.deepEqual(missing.views, {
+    raw_display: "表示6.4万回", normalized_value: 64000, precision: "ROUNDED",
+    display_format: "JAPANESE_MAN", source: "POST_DETAIL_PAGE",
+    view_band: "10K_100K", observed_at: context.collectedAt,
+    extractor_version: extractor.version, normalizer_version: "rounded-views-normalizer-v1",
+  });
   assert.equal(missing.metric_observation_statuses.view_count, "NOT_OBSERVED");
   assert.equal(missing.metric_observation_statuses.like_count, "OBSERVED");
   assert.equal(missing.observed_fields.some((item) => item.field === "public_counters.view_count"), false);
@@ -377,6 +383,12 @@ async function main() {
   assert.deepEqual(headerExact.display_views, {
     display: "表示6,400回", normalized_value: 6400, precision: "DISPLAY_EXACT",
     source: "POST_DETAIL_PAGE", view_band: "1K_10K",
+    observed_at: context.collectedAt, extractor_version: extractor.version,
+    normalizer_version: "display-views-normalizer-v1",
+  });
+  assert.deepEqual(headerExact.views, {
+    raw_display: "表示6,400回", normalized_value: 6400, precision: "DISPLAY_EXACT",
+    display_format: "INTEGER", source: "POST_DETAIL_PAGE", view_band: "1K_10K",
     observed_at: context.collectedAt, extractor_version: extractor.version,
     normalizer_version: "display-views-normalizer-v1",
   });

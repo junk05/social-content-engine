@@ -101,6 +101,29 @@
         "normalizer_version": {"type": "string", "minLength": 1}
       }
     },
+    "views": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_display", "normalized_value", "precision", "display_format", "source",
+        "view_band", "observed_at", "extractor_version", "normalizer_version"
+      ],
+      "properties": {
+        "raw_display": {"type": "string", "minLength": 1, "maxLength": 32},
+        "normalized_value": {"type": "integer", "minimum": 0},
+        "precision": {"enum": ["DISPLAY_EXACT", "ROUNDED"]},
+        "display_format": {
+          "enum": ["INTEGER", "JAPANESE_MAN", "JAPANESE_OKU", "OTHER_MAGNITUDE"]
+        },
+        "source": {"const": "POST_DETAIL_PAGE"},
+        "view_band": {
+          "enum": ["LT_1K", "1K_10K", "10K_100K", "100K_1M", "1M_PLUS"]
+        },
+        "observed_at": {"type": "string", "format": "date-time"},
+        "extractor_version": {"type": "string", "minLength": 1},
+        "normalizer_version": {"type": "string", "minLength": 1}
+      }
+    },
     "engagement_metric_displays": {
       "type": "object",
       "additionalProperties": false,

@@ -112,6 +112,11 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(observation.get("display_views"), dict)
             else None
         ),
+        "views": (
+            dict(observation["views"])
+            if isinstance(observation.get("views"), dict)
+            else None
+        ),
         "engagement_metric_displays": (
             dict(observation["engagement_metric_displays"])
             if isinstance(observation.get("engagement_metric_displays"), dict)
@@ -185,6 +190,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "approximate_views",
         "topic_tags",
         "display_views",
+        "views",
         "published_at_raw",
         "published_at",
         "published_timezone_basis",
@@ -387,6 +393,57 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
             for key in ("observed_at", "normalizer_version")
         ):
             raise ValueError("display Views provenance is invalid")
+    views = observation.get("views")
+    if views is not None:
+        expected_views_keys = {
+            "raw_display", "normalized_value", "precision", "display_format", "source",
+            "view_band", "observed_at", "extractor_version", "normalizer_version",
+        }
+        if observation_type != "POST_DETAIL" or not isinstance(views, dict):
+            raise ValueError("Views require a POST_DETAIL observation")
+        if set(views) != expected_views_keys:
+            raise ValueError("Views do not match the closed contract")
+        raw_display = views["raw_display"]
+        normalized_value = views["normalized_value"]
+        if not isinstance(raw_display, str) or not raw_display or len(raw_display) > 32:
+            raise ValueError("Views raw display is invalid")
+        if (
+            isinstance(normalized_value, bool)
+            or not isinstance(normalized_value, int)
+            or normalized_value < 0
+        ):
+            raise ValueError("Views normalized value is invalid")
+        if views["precision"] not in {"DISPLAY_EXACT", "ROUNDED"}:
+            raise ValueError("Views precision is invalid")
+        if views["display_format"] not in {
+            "INTEGER", "JAPANESE_MAN", "JAPANESE_OKU", "OTHER_MAGNITUDE",
+        }:
+            raise ValueError("Views display format is invalid")
+        if views["precision"] == "DISPLAY_EXACT" and views["display_format"] != "INTEGER":
+            raise ValueError("exact Views require integer display format")
+        if views["source"] != "POST_DETAIL_PAGE":
+            raise ValueError("Views source is invalid")
+        if views["view_band"] != approximate_view_band(normalized_value):
+            raise ValueError("Views band disagrees with normalized value")
+        if views["extractor_version"] != observation.get("extractor_version"):
+            raise ValueError("Views extractor provenance is invalid")
+        if not all(
+            isinstance(views[key], str) and views[key]
+            for key in ("observed_at", "normalizer_version")
+        ):
+            raise ValueError("Views provenance is invalid")
+        legacy = display_views if views["precision"] == "DISPLAY_EXACT" else approximate_views
+        legacy_value = (
+            legacy.get("normalized_value")
+            if views["precision"] == "DISPLAY_EXACT" and isinstance(legacy, dict)
+            else legacy.get("normalized_approx") if isinstance(legacy, dict) else None
+        )
+        if (
+            not isinstance(legacy, dict)
+            or views["raw_display"] != legacy.get("display")
+            or views["normalized_value"] != legacy_value
+        ):
+            raise ValueError("canonical Views disagree with legacy provenance bridge")
     engagement_displays = observation.get("engagement_metric_displays")
     if engagement_displays is not None:
         expected_keys = {

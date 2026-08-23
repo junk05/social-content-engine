@@ -49,6 +49,12 @@ class BrowserReviewExportTest(unittest.TestCase):
               id INTEGER PRIMARY KEY, browser_observation_id INTEGER, display TEXT,
               normalized_value INTEGER, precision TEXT, view_band TEXT
             );
+            CREATE TABLE browser_view_observations (
+              id INTEGER PRIMARY KEY, browser_observation_id INTEGER, raw_display TEXT,
+              normalized_value INTEGER, precision TEXT, display_format TEXT, source TEXT,
+              view_band TEXT, observed_at TEXT, extractor_version TEXT,
+              normalizer_version TEXT, legacy_source_table TEXT, legacy_source_id INTEGER
+            );
             CREATE TABLE browser_thread_sequence_observations (
               id INTEGER PRIMARY KEY, root_browser_post_identity_id INTEGER,
               node_browser_post_identity_id INTEGER,
@@ -190,6 +196,18 @@ class BrowserReviewExportTest(unittest.TestCase):
             VALUES (1, 4, '表示4,506回', 4506, 'DISPLAY_EXACT', '1K_10K')"""
         )
         connection.executemany(
+            """INSERT INTO browser_view_observations VALUES
+            (?, ?, ?, ?, ?, ?, 'POST_DETAIL_PAGE', ?, ?, 'fixture-v1', ?, ?, ?)""",
+            [
+                (1, 2, "1.2万", 12000, "ROUNDED", "JAPANESE_MAN", "10K_100K",
+                 "2026-08-22T12:00:00Z", "rounded-v1",
+                 "browser_approximate_view_observations", 1),
+                (2, 4, "表示4,506回", 4506, "DISPLAY_EXACT", "INTEGER", "1K_10K",
+                 "2026-08-22T12:00:01Z", "display-v1",
+                 "browser_display_view_observations", 1),
+            ],
+        )
+        connection.executemany(
             """INSERT INTO browser_thread_sequence_observations
             VALUES (?, 1, ?, ?, ?, 1, 2, '2026-08-22T12:00:01Z', 'fixture-v6', ?)""",
             [
@@ -247,16 +265,17 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("09:15:00+09:00", root["published_time"])
         self.assertEqual("SATURDAY", root["published_weekday"])
         self.assertEqual("2026-08-22T12:00:00Z", root["collected_at"])
-        self.assertEqual("12000", root["rounded_views_normalized"])
+        self.assertEqual("12000", root["views_latest_value"])
+        self.assertEqual("ROUNDED", root["views_latest_precision"])
         pending = next(row for row in posts if row["canonical_post_id"] == "pending")
         self.assertEqual(
             "", pending["published_at"],
             "missing timing is never substituted from collection",
         )
         self.assertEqual("NOT_OBSERVED", pending["published_timezone_basis"])
-        self.assertEqual("表示4,506回", pending["display_views_raw"])
-        self.assertEqual("4506", pending["display_views_normalized"])
-        self.assertEqual("DISPLAY_EXACT", pending["display_views_precision"])
+        self.assertEqual("表示4,506回", pending["views_latest_raw"])
+        self.assertEqual("4506", pending["views_latest_value"])
+        self.assertEqual("DISPLAY_EXACT", pending["views_latest_precision"])
         with Path(first["thread_nodes_path"]).open(encoding="utf-8-sig", newline="") as source:
             nodes = list(csv.DictReader(source))
         self.assertEqual(

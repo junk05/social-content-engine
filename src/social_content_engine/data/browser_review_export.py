@@ -45,14 +45,6 @@ POST_COLUMNS = [
     "views_latest_precision",
     "views_latest_display_format",
     "views_latest_observed_at",
-    "rounded_views_raw",
-    "rounded_views_normalized",
-    "rounded_views_band",
-    "rounded_views_status",
-    "display_views_raw",
-    "display_views_normalized",
-    "display_views_precision",
-    "display_views_band",
     "like_count",
     "reply_count",
     "repost_count",
@@ -88,10 +80,11 @@ THREAD_COLUMNS = [
     "published_weekday",
     "observed_at",
     "extractor_version",
-    "display_views_raw",
-    "display_views_normalized",
-    "display_views_precision",
-    "display_views_band",
+    "views_latest_raw",
+    "views_latest_value",
+    "views_latest_precision",
+    "views_latest_display_format",
+    "views_latest_observed_at",
     "relationship_eligibility",
     "exclusion_reason",
 ]
@@ -534,8 +527,6 @@ def build_post_rows(
             continue
         if only_with_thread and not nodes:
             continue
-        rounded = _latest_rounded(connection, identity_id)
-        displayed = _latest_display_views(connection, identity_id)
         views = _latest_views(connection, identity_id)
         text = payload.get("text")
         topic_tags = _topic_tags(payload)
@@ -567,20 +558,6 @@ def build_post_rows(
             "views_latest_precision": views["precision"] if views is not None else None,
             "views_latest_display_format": views["display_format"] if views is not None else None,
             "views_latest_observed_at": views["observed_at"] if views is not None else None,
-            "rounded_views_raw": rounded["display"] if rounded is not None else None,
-            "rounded_views_normalized": rounded["normalized_approx"]
-            if rounded is not None
-            else None,
-            "rounded_views_band": rounded["view_band"] if rounded is not None else None,
-            "rounded_views_status": "OBSERVED"
-            if rounded is not None
-            else _rounded_missing_reason(queue),
-            "display_views_raw": displayed["display"] if displayed is not None else None,
-            "display_views_normalized": displayed["normalized_value"]
-            if displayed is not None
-            else None,
-            "display_views_precision": displayed["precision"] if displayed is not None else None,
-            "display_views_band": displayed["view_band"] if displayed is not None else None,
             "like_count": _latest_counter(connection, identity_id, "like_count"),
             "reply_count": _latest_counter(connection, identity_id, "reply_count"),
             "repost_count": _latest_counter(connection, identity_id, "repost_count"),
@@ -595,8 +572,8 @@ def build_post_rows(
     if sort == "views":
         result.sort(
             key=lambda row: (
-                row["rounded_views_normalized"] is None,
-                -(int(row["rounded_views_normalized"] or 0)),
+                row["views_latest_value"] is None,
+                -(int(row["views_latest_value"] or 0)),
                 str(row["collected_at"]),
                 str(row["canonical_post_id"]),
             )
@@ -617,7 +594,8 @@ def build_views_history_rows(
             """SELECT identity.source_post_id, identity.post_url, views.*
             FROM browser_view_observations views
             JOIN browser_observations observation ON observation.id = views.browser_observation_id
-            JOIN browser_post_identities identity ON identity.id = observation.browser_post_identity_id
+            JOIN browser_post_identities identity
+              ON identity.id = observation.browser_post_identity_id
             WHERE identity.id IN ({})
             ORDER BY identity.id, views.observed_at, views.id""".format(placeholders),
             tuple(sorted(root_ids)),
@@ -704,7 +682,7 @@ def build_thread_rows(
                     (int(node["reply_to_browser_post_identity_id"]),),
                 ).fetchone()
             source, quality, payload = _node_source(connection, node_id)
-            displayed = _latest_display_views(connection, node_id)
+            views = _latest_views(connection, node_id)
             topic_tags = _topic_tags(payload)
             timing = _publication_timing(payload)
             result.append(
@@ -735,14 +713,15 @@ def build_thread_rows(
                     **timing,
                     "observed_at": node["observed_at"],
                     "extractor_version": node["extractor_version"],
-                    "display_views_raw": displayed["display"] if displayed is not None else None,
-                    "display_views_normalized": displayed["normalized_value"]
-                    if displayed is not None
+                    "views_latest_raw": views["raw_display"] if views is not None else None,
+                    "views_latest_value": views["normalized_value"] if views is not None else None,
+                    "views_latest_precision": views["precision"] if views is not None else None,
+                    "views_latest_display_format": views["display_format"]
+                    if views is not None
                     else None,
-                    "display_views_precision": displayed["precision"]
-                    if displayed is not None
+                    "views_latest_observed_at": views["observed_at"]
+                    if views is not None
                     else None,
-                    "display_views_band": displayed["view_band"] if displayed is not None else None,
                     "relationship_eligibility": eligibility,
                     "exclusion_reason": reason,
                 }

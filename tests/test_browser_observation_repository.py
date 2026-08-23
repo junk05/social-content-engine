@@ -24,6 +24,7 @@ def observation(
     metric_statuses: bool = False,
     approximate_views: dict = None,
     display_views: dict = None,
+    views: dict = None,
     topic_tags: list = None,
     timestamp: str = "2026-08-16T00:00:00+00:00",
     published_at_raw: str = None,
@@ -109,6 +110,8 @@ def observation(
         values["approximate_views"] = dict(approximate_views)
     if display_views is not None:
         values["display_views"] = dict(display_views)
+    if views is not None:
+        values["views"] = dict(views)
     if topic_tags:
         values["observed_fields"].append(
             {
@@ -502,6 +505,17 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                     view_count=None,
                     metric_statuses=True,
                     approximate_views=rounded,
+                    views={
+                        "raw_display": "12万",
+                        "normalized_value": 120000,
+                        "precision": "ROUNDED",
+                        "display_format": "JAPANESE_MAN",
+                        "source": "POST_DETAIL_PAGE",
+                        "view_band": "100K_1M",
+                        "observed_at": "2026-08-16T00:00:01+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                        "normalizer_version": "rounded-views-normalizer-v1",
+                    },
                 )
                 result = repository.add_browser_observation(value)
                 row = repository.connection.execute(
@@ -510,6 +524,14 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 self.assertEqual("12万", row["display"])
                 self.assertEqual(120000, row["normalized_approx"])
                 self.assertEqual("100K_1M", row["view_band"])
+                unified = repository.connection.execute(
+                    "SELECT * FROM browser_view_observations"
+                ).fetchone()
+                self.assertEqual("12万", unified["raw_display"])
+                self.assertEqual("JAPANESE_MAN", unified["display_format"])
+                self.assertEqual(
+                    "browser_approximate_view_observations", unified["legacy_source_table"]
+                )
                 self.assertIsNone(
                     json.loads(
                         repository.connection.execute(
@@ -549,6 +571,17 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                     observation_type="POST_DETAIL",
                     metric_statuses=True,
                     display_views=displayed,
+                    views={
+                        "raw_display": "表示4,506回",
+                        "normalized_value": 4506,
+                        "precision": "DISPLAY_EXACT",
+                        "display_format": "INTEGER",
+                        "source": "POST_DETAIL_PAGE",
+                        "view_band": "1K_10K",
+                        "observed_at": "2026-08-16T00:00:01+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                        "normalizer_version": "display-views-normalizer-v1",
+                    },
                 )
                 result = repository.add_browser_observation(value)
                 row = repository.connection.execute(
@@ -557,6 +590,14 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                 self.assertEqual("表示4,506回", row["display"])
                 self.assertEqual(4506, row["normalized_value"])
                 self.assertEqual("DISPLAY_EXACT", row["precision"])
+                unified = repository.connection.execute(
+                    "SELECT * FROM browser_view_observations"
+                ).fetchone()
+                self.assertEqual(4506, unified["normalized_value"])
+                self.assertEqual("INTEGER", unified["display_format"])
+                self.assertEqual(
+                    "browser_display_view_observations", unified["legacy_source_table"]
+                )
                 self.assertIsNone(
                     json.loads(
                         repository.connection.execute(
@@ -570,6 +611,93 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                         "UPDATE browser_display_view_observations SET normalized_value=1"
                     )
                 repository.connection.rollback()
+
+                invalid = observation(
+                    observation_type="POST_DETAIL",
+                    display_views=displayed,
+                    views={
+                        "raw_display": "表示4,507回",
+                        "normalized_value": 4507,
+                        "precision": "DISPLAY_EXACT",
+                        "display_format": "INTEGER",
+                        "source": "POST_DETAIL_PAGE",
+                        "view_band": "1K_10K",
+                        "observed_at": "2026-08-16T00:00:01+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                        "normalizer_version": "display-views-normalizer-v1",
+                    },
+                )
+                with self.assertRaisesRegex(ValueError, "legacy provenance bridge"):
+                    repository.add_browser_observation(invalid)
+
+    def test_views_history_preserves_precision_changes_and_projects_latest(self) -> None:
+        exact = {
+            "display": "表示4,506回",
+            "normalized_value": 4506,
+            "precision": "DISPLAY_EXACT",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "1K_10K",
+            "observed_at": "2026-08-16T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "display-views-normalizer-v1",
+        }
+        rounded = {
+            "display": "表示1.2万回",
+            "normalized_approx": 12000,
+            "precision": "ROUNDED",
+            "source": "POST_DETAIL_PAGE",
+            "view_band": "10K_100K",
+            "observed_at": "2026-08-17T00:00:01+00:00",
+            "extractor_version": "fixture-extractor-v1",
+            "normalizer_version": "rounded-views-normalizer-v1",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "views-history.sqlite3") as repository:
+                repository.add_browser_observation(observation())
+                repository.add_browser_observation(
+                    observation(
+                        observation_type="POST_DETAIL",
+                        display_views=exact,
+                        views={
+                            "raw_display": exact["display"],
+                            "normalized_value": exact["normalized_value"],
+                            "precision": exact["precision"],
+                            "display_format": "INTEGER",
+                            "source": exact["source"],
+                            "view_band": exact["view_band"],
+                            "observed_at": exact["observed_at"],
+                            "extractor_version": exact["extractor_version"],
+                            "normalizer_version": exact["normalizer_version"],
+                        },
+                    )
+                )
+                repository.add_browser_observation(
+                    observation(
+                        observation_type="POST_DETAIL",
+                        approximate_views=rounded,
+                        views={
+                            "raw_display": rounded["display"],
+                            "normalized_value": rounded["normalized_approx"],
+                            "precision": rounded["precision"],
+                            "display_format": "JAPANESE_MAN",
+                            "source": rounded["source"],
+                            "view_band": rounded["view_band"],
+                            "observed_at": rounded["observed_at"],
+                            "extractor_version": rounded["extractor_version"],
+                            "normalizer_version": rounded["normalizer_version"],
+                        },
+                    )
+                )
+                history = repository.connection.execute(
+                    "SELECT precision, normalized_value FROM browser_view_observations ORDER BY id"
+                ).fetchall()
+                self.assertEqual(
+                    [("DISPLAY_EXACT", 4506), ("ROUNDED", 12000)],
+                    [(row["precision"], row["normalized_value"]) for row in history],
+                )
+                latest = repository.list_collected_browser_roots()[0]
+                self.assertEqual("表示1.2万回", latest["views_latest_raw"])
+                self.assertEqual("ROUNDED", latest["views_latest_precision"])
 
     def test_hash_mismatch_and_browser_or_credential_leakage_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
