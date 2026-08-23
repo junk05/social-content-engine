@@ -1,0 +1,31 @@
+{
+  "evidence_id": "M4-FU10-ENGAGEMENT-DOM-AUDIT-2026-08-23",
+  "scope": "read-only canonical Threads post-detail controls",
+  "live_pages_audited": 3,
+  "source_text_or_identity_retained": false,
+  "findings": {
+    "like_count": {
+      "control_evidence": "unlabelled numeric action immediately preceding the Reply action",
+      "display_forms_observed": ["DISPLAY_EXACT", "ROUNDED"],
+      "contract": "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY"
+    },
+    "reply_count": {
+      "control_evidence": "local SVG role=img aria-label plus local numeric display",
+      "display_forms_observed": ["DISPLAY_EXACT"],
+      "contract": "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY"
+    },
+    "repost_count": {
+      "control_evidence": "local SVG role=img aria-label plus local numeric display",
+      "display_forms_observed": ["DISPLAY_EXACT"],
+      "contract": "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY"
+    },
+    "quote_count": {"status": "NOT_OBSERVED_ON_AUDITED_DETAIL_CONTROL_SURFACE"},
+    "share_count": {"status": "NOT_OBSERVED_AS_A_NUMERIC_VALUE_ON_AUDITED_DETAIL_CONTROL_SURFACE"}
+  },
+  "zero_semantics": "No numeric zero control was observed in this bounded sample; absence remains NOT_OBSERVED and is never converted to zero.",
+  "forbidden_validation": [
+    "No source-post body number is used as a metric.",
+    "No generated CSS class is used as an extraction contract.",
+    "No live metric value, post URL, author, or source text is committed."
+  ]
+}

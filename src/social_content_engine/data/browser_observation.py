@@ -112,6 +112,11 @@ def browser_normalized_payload(observation: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(observation.get("display_views"), dict)
             else None
         ),
+        "engagement_metric_displays": (
+            dict(observation["engagement_metric_displays"])
+            if isinstance(observation.get("engagement_metric_displays"), dict)
+            else None
+        ),
         "media_type": observation.get("media_type"),
         "has_image": observation.get("has_image"),
         "has_video": observation.get("has_video"),
@@ -186,6 +191,7 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
         "raw_sequence_indicator",
         "thread_position",
         "thread_total",
+        "engagement_metric_displays",
     }
     if not required_keys.issubset(observation) or not set(observation).issubset(
         required_keys | optional_keys
@@ -381,6 +387,44 @@ def validate_browser_observation(observation: Dict[str, Any]) -> str:
             for key in ("observed_at", "normalizer_version")
         ):
             raise ValueError("display Views provenance is invalid")
+    engagement_displays = observation.get("engagement_metric_displays")
+    if engagement_displays is not None:
+        expected_keys = {
+            "raw_display", "normalized_value", "precision", "source", "observed_at",
+            "extractor_version", "normalizer_version", "relationship_evidence", "metric_name",
+        }
+        allowed_names = {"like_count", "reply_count", "repost_count", "quote_count", "share_count"}
+        allowed_evidence = {
+            "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+            "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY",
+        }
+        if (
+            observation_type != "POST_DETAIL"
+            or not isinstance(engagement_displays, dict)
+            or not engagement_displays
+            or not set(engagement_displays).issubset(allowed_names)
+        ):
+            raise ValueError("engagement metric displays do not match the closed contract")
+        for metric_name, display in engagement_displays.items():
+            if not isinstance(display, dict) or set(display) != expected_keys:
+                raise ValueError("engagement metric display shape is invalid")
+            if (
+                display["metric_name"] != metric_name
+                or not isinstance(display["raw_display"], str)
+                or not display["raw_display"]
+                or len(display["raw_display"]) > 32
+                or isinstance(display["normalized_value"], bool)
+                or not isinstance(display["normalized_value"], int)
+                or display["normalized_value"] < 0
+                or display["precision"] not in {"DISPLAY_EXACT", "ROUNDED"}
+                or display["source"] != "POST_DETAIL_ENGAGEMENT_CONTROL"
+                or display["relationship_evidence"] not in allowed_evidence
+                or display["extractor_version"] != observation.get("extractor_version")
+                or not all(isinstance(display[key], str) and display[key]
+                           for key in ("observed_at", "normalizer_version"))
+                or counters.get(metric_name) != display["normalized_value"]
+            ):
+                raise ValueError("engagement metric display provenance is invalid")
     canonical_url = canonical_threads_post_url(str(observation.get("post_url", "")))
     if observation.get("post_url") != canonical_url:
         raise ValueError("post_url must already be canonical")

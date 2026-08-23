@@ -32,6 +32,17 @@ integer displays use `DISPLAY_EXACT`; magnitude displays use `ROUNDED`.
 `0`, `NOT_OBSERVED`, `NOT_PRESENT`, and `EXTRACTION_FAILED` are distinct.
 Only values visibly observed on the control surface are stored.
 
+### Bounded DOM audit result
+
+Three canonical detail pages were audited read-only. Reply and Repost each
+exposed a local `svg[role=img][aria-label]` with a local numeric display. Like
+had no usable icon label, but the unlabelled numeric action immediately before
+the semantically-labelled Reply action was consistent across all three pages.
+That bounded action-order relationship is a versioned structural contract, not
+a CSS-class selector. Quote and Share had no numeric detail-control display in
+the audit; they remain `NOT_OBSERVED`, not zero. The source-text-free aggregate
+record is `spec/evidence/M4_FU10_ENGAGEMENT_DOM_AUDIT.json`.
+
 ## Recovery
 
 Existing observations remain immutable. Roots already detail-enriched but with

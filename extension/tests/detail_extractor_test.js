@@ -99,10 +99,45 @@ function fixturePage(name) {
   };
 }
 
+class EngagementNode {
+  constructor(tagName, attributes = {}, text = "", children = []) {
+    this.tagName = tagName.toUpperCase();
+    this.attributes = attributes;
+    this.textContent = text;
+    this.innerText = text;
+    this.hidden = false;
+    this.children = children;
+    for (const child of children) child.parentElement = this;
+  }
+  getAttribute(name) { return this.attributes[name] ?? null; }
+  querySelectorAll(selector) {
+    const all = [];
+    const visit = (node) => {
+      for (const child of node.children || []) {
+        all.push(child);
+        visit(child);
+      }
+    };
+    visit(this);
+    const hasRoleButton = (node) => node.getAttribute("role") === "button";
+    if (selector === '[role="button"]') return all.filter(hasRoleButton);
+    if (selector === 'svg[role="img"][aria-label]') return all.filter(
+      (node) => node.tagName === "SVG" && node.getAttribute("role") === "img"
+        && node.getAttribute("aria-label") !== null,
+    );
+    if (selector === "span, div") return all.filter(
+      (node) => node.tagName === "SPAN" || node.tagName === "DIV",
+    );
+    if (selector === "svg") return all.filter((node) => node.tagName === "SVG");
+    return [];
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+}
+
 async function main() {
   const extractor = globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR;
   const source = fs.readFileSync(path.join(__dirname, "..", "detail_extractor.js"), "utf8");
-  assert.match(source, /visibleCounters\(postRoot\)/);
+  assert.match(source, /visibleCounters\(postRoot, engagementMetricDisplays\)/);
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
@@ -121,6 +156,44 @@ async function main() {
     canonical_detail: true,
     control_candidates: [], numeric_candidates: [],
   }, "the audit exposes no post body or identity when no engagement-control context is present");
+  const engagementSurface = new EngagementNode("div", {}, "", [
+    new EngagementNode("div", { role: "button" }, "", [
+      new EngagementNode("svg", { role: "img" }), new EngagementNode("span", {}, "1.4万"),
+    ]),
+    new EngagementNode("div", { role: "button" }, "", [
+      new EngagementNode("svg", { role: "img", "aria-label": "返信" }), new EngagementNode("span", {}, "154"),
+    ]),
+    new EngagementNode("div", { role: "button" }, "", [
+      new EngagementNode("svg", { role: "img", "aria-label": "再投稿" }), new EngagementNode("span", {}, "48"),
+    ]),
+    new EngagementNode("div", {}, "2024", []),
+  ]);
+  const engagementDisplays = extractor.visibleEngagementMetricDisplays(
+    engagementSurface, context.collectedAt,
+  );
+  assert.deepEqual(engagementDisplays, {
+    like_count: {
+      raw_display: "1.4万", normalized_value: 14000, precision: "ROUNDED",
+      source: "POST_DETAIL_ENGAGEMENT_CONTROL", observed_at: context.collectedAt,
+      extractor_version: extractor.version, normalizer_version: "engagement-display-normalizer-v1",
+      relationship_evidence: "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY",
+      metric_name: "like_count",
+    },
+    reply_count: {
+      raw_display: "154", normalized_value: 154, precision: "DISPLAY_EXACT",
+      source: "POST_DETAIL_ENGAGEMENT_CONTROL", observed_at: context.collectedAt,
+      extractor_version: extractor.version, normalizer_version: "engagement-display-normalizer-v1",
+      relationship_evidence: "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+      metric_name: "reply_count",
+    },
+    repost_count: {
+      raw_display: "48", normalized_value: 48, precision: "DISPLAY_EXACT",
+      source: "POST_DETAIL_ENGAGEMENT_CONTROL", observed_at: context.collectedAt,
+      extractor_version: extractor.version, normalizer_version: "engagement-display-normalizer-v1",
+      relationship_evidence: "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+      metric_name: "repost_count",
+    },
+  }, "body numbers never enter the engagement-control-only extractor");
   const nodes = extractor.extractVisibleThreadNodes(page, context.pageUrl);
   assert.deepEqual(nodes.map((node) => node.post_url), [
     "https://www.threads.net/@sample.user/post/AbC_123",

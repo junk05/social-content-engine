@@ -164,6 +164,64 @@ def downgrade_before_migration_8(path: Path) -> None:
 
 
 class BrowserObservationRepositoryTest(unittest.TestCase):
+    def test_engagement_display_provenance_preserves_exact_and_rounded_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "engagement.sqlite3") as repository:
+                payload = observation(observation_type="POST_DETAIL", metric_statuses=True)
+                payload["public_counters"].update(
+                    {"like_count": 14000, "reply_count": 154, "repost_count": 48}
+                )
+                payload["metric_observation_statuses"].update(
+                    {"like_count": "OBSERVED", "reply_count": "OBSERVED", "repost_count": "OBSERVED"}
+                )
+                payload["observed_fields"] = [
+                    field for field in payload["observed_fields"]
+                    if field["field"] != "public_counters.like_count"
+                ]
+                for name in ("like_count", "reply_count", "repost_count"):
+                    payload["observed_fields"].append(
+                        {
+                            "field": "public_counters." + name,
+                            "value": payload["public_counters"][name],
+                            "surface": "threads_post_detail",
+                            "observed_at": "2026-08-16T00:00:00+00:00",
+                            "extractor_version": "fixture-extractor-v1",
+                        }
+                    )
+                payload["engagement_metric_displays"] = {
+                    "like_count": {
+                        "raw_display": "1.4万", "normalized_value": 14000,
+                        "precision": "ROUNDED", "source": "POST_DETAIL_ENGAGEMENT_CONTROL",
+                        "observed_at": "2026-08-16T00:00:00+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                        "normalizer_version": "engagement-display-normalizer-v1",
+                        "relationship_evidence": "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY",
+                        "metric_name": "like_count",
+                    },
+                    "reply_count": {
+                        "raw_display": "154", "normalized_value": 154,
+                        "precision": "DISPLAY_EXACT", "source": "POST_DETAIL_ENGAGEMENT_CONTROL",
+                        "observed_at": "2026-08-16T00:00:00+00:00",
+                        "extractor_version": "fixture-extractor-v1",
+                        "normalizer_version": "engagement-display-normalizer-v1",
+                        "relationship_evidence": "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+                        "metric_name": "reply_count",
+                    },
+                }
+                payload["payload_sha256"] = browser_observation_payload_sha256(payload)
+                saved = repository.add_browser_observation(payload)
+                normalized = json.loads(
+                    repository.connection.execute(
+                        """SELECT canonical_payload_json FROM browser_normalized_versions
+                        WHERE source_observation_id = ?""",
+                        (saved["browser_observation_id"],),
+                    ).fetchone()[0]
+                )
+                self.assertEqual(
+                    "ROUNDED", normalized["engagement_metric_displays"]["like_count"]["precision"]
+                )
+                self.assertEqual(154, normalized["engagement_metric_displays"]["reply_count"]["normalized_value"])
+
     def test_publication_time_preserves_explicit_offset_without_collection_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "publication-time.sqlite3") as repository:

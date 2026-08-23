@@ -8,6 +8,7 @@
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
   const DISPLAY_VIEWS_NORMALIZER_VERSION = "display-views-normalizer-v1";
+  const ENGAGEMENT_DISPLAY_NORMALIZER_VERSION = "engagement-display-normalizer-v1";
   const SURFACE = "threads_post_detail";
   const COUNTERS = Object.freeze({
     view_count: ["表示", "view"], like_count: ["いいね", "like"],
@@ -154,6 +155,76 @@
     if (/^(?:0|[1-9][0-9]{0,2}(?:,[0-9]{3})*|[1-9][0-9]*)$/.test(ascii)) return "DISPLAY_EXACT";
     if (/^[0-9]+(?:\.[0-9]+)?\s*(?:千|万|億|[KMB])$/i.test(ascii)) return "ROUNDED";
     return null;
+  }
+  function normalizedEngagementDisplay(display, metricName, observedAt, relationshipEvidence) {
+    const shape = numericDisplayShape(display);
+    if (!shape) return null;
+    const ascii = asciiNumericDisplay(display).replace(/\s+/g, "");
+    let normalizedValue = exactNonnegativeInteger(ascii);
+    if (normalizedValue === null && shape === "ROUNDED") {
+      const match = ascii.match(/^([0-9]+(?:\.[0-9]+)?)(千|万|億|K|M|B)$/i);
+      const multipliers = { 千: 1000, 万: 10000, 億: 100000000, K: 1000, M: 1000000, B: 1000000000 };
+      if (!match || !Object.hasOwn(multipliers, match[2].toUpperCase())) return null;
+      normalizedValue = Math.round(Number(match[1]) * multipliers[match[2].toUpperCase()]);
+    }
+    if (!Number.isSafeInteger(normalizedValue) || normalizedValue < 0) return null;
+    return {
+      raw_display: display, normalized_value: normalizedValue, precision: shape,
+      source: "POST_DETAIL_ENGAGEMENT_CONTROL", observed_at: observedAt,
+      extractor_version: VERSION, normalizer_version: ENGAGEMENT_DISPLAY_NORMALIZER_VERSION,
+      relationship_evidence: relationshipEvidence, metric_name: metricName,
+    };
+  }
+  function localNumericDisplay(container) {
+    if (!container || typeof container.querySelectorAll !== "function") return null;
+    const values = new Set();
+    for (const element of [container, ...container.querySelectorAll("span, div")]) {
+      if (!isVisible(element)) continue;
+      const display = renderedText(element);
+      if (numericDisplayShape(display)) values.add(display);
+    }
+    return values.size === 1 ? Array.from(values)[0] : null;
+  }
+  function metricIconHint(container) {
+    if (!container || typeof container.querySelectorAll !== "function") return null;
+    for (const icon of container.querySelectorAll('svg[role="img"][aria-label]')) {
+      if (!isVisible(icon)) continue;
+      const hint = metricHint(icon.getAttribute("aria-label"));
+      if (hint) return hint;
+    }
+    return null;
+  }
+  function visibleEngagementMetricDisplays(root, observedAt) {
+    const displays = {};
+    const controls = Array.from(root.querySelectorAll('[role="button"]')).filter(isVisible);
+    const indexedControls = controls.map((control) => ({
+      control, metric_name: metricIconHint(control), display: localNumericDisplay(control),
+    }));
+    for (const item of indexedControls) {
+      if (!item.metric_name || !item.display || item.metric_name === "share_count") continue;
+      const metric = normalizedEngagementDisplay(
+        item.display, item.metric_name, observedAt,
+        "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+      );
+      if (metric) displays[item.metric_name] = metric;
+    }
+    // In the observed Threads control row, Like is the unlabelled numeric
+    // action immediately preceding a semantically-labelled Reply action.
+    // This is constrained to the engagement action order, never post text.
+    const replyIndex = indexedControls.findIndex(
+      (item) => item.metric_name === "reply_count" && item.display,
+    );
+    if (replyIndex > 0 && !displays.like_count) {
+      const likeCandidate = indexedControls[replyIndex - 1];
+      if (likeCandidate && likeCandidate.metric_name === null && likeCandidate.display) {
+        const metric = normalizedEngagementDisplay(
+          likeCandidate.display, "like_count", observedAt,
+          "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY",
+        );
+        if (metric) displays.like_count = metric;
+      }
+    }
+    return displays;
   }
   function diagnosticNode(element) {
     if (!element) return null;
@@ -456,9 +527,11 @@
     }
     return { username, authorName };
   }
-  function visibleCounters(root) {
+  function visibleCounters(root, engagementDisplays = {}) {
     const counters = {};
-    for (const name of Object.keys(COUNTERS)) counters[name] = null;
+    for (const name of Object.keys(COUNTERS)) {
+      counters[name] = engagementDisplays[name]?.normalized_value ?? null;
+    }
     for (const element of root.querySelectorAll("[aria-label]")) {
       if (!isVisible(element)) continue;
       const label = element.getAttribute("aria-label") || "";
@@ -466,7 +539,7 @@
       for (const [name, markers] of Object.entries(COUNTERS)) {
         if (!markers.some((marker) => lower.includes(marker))) continue;
         const value = exactNonnegativeInteger(label);
-        if (value !== null) counters[name] = value;
+        if (value !== null && counters[name] === null) counters[name] = value;
       }
     }
     return counters;
@@ -709,13 +782,15 @@
     // explicit published_at semantics below.
     const timestamp = publication.published_at;
     const profile = profileValues(postRoot, post.canonical);
-    const counters = visibleCounters(postRoot);
+    // Header and engagement values describe the canonical page root. Thread
+    // child extraction reuses the same document and must not inherit them.
+    const includePageMetrics = context.includePageMetrics !== false;
+    const engagementMetricDisplays = includePageMetrics
+      ? visibleEngagementMetricDisplays(postRoot, collectedAt) : {};
+    const counters = visibleCounters(postRoot, engagementMetricDisplays);
     for (const name of Object.keys(counters)) {
       if (counters[name] === null) counters[name] = activityMetricValue(root, name);
     }
-    // Header Views describe the canonical page root. Thread-child extraction
-    // reuses the same document, so it must not inherit root-level metrics.
-    const includePageMetrics = context.includePageMetrics !== false;
     const approximateViews = includePageMetrics
       ? approximatePageViews(root, collectedAt) : null;
     const displayViews = includePageMetrics
@@ -769,6 +844,9 @@
     };
     if (approximateViews !== null) observation.approximate_views = approximateViews;
     if (displayViews !== null) observation.display_views = displayViews;
+    if (Object.keys(engagementMetricDisplays).length) {
+      observation.engagement_metric_displays = engagementMetricDisplays;
+    }
     observation.payload_sha256 = await sha256(observation);
     return observation;
   }
@@ -786,7 +864,7 @@
   }
   scope.SCE_THREADS_POST_DETAIL_EXTRACTOR = Object.freeze({
     version: VERSION, canonicalPostUrl, exactNonnegativeInteger, pageViewCount, activityViewCount,
-    auditEngagementControls,
+    auditEngagementControls, visibleEngagementMetricDisplays,
     semanticPublicationTime,
     approximatePageViews, exactDisplayPageViews, viewBand,
     activityMetricValue, activityMetricPresent, visibleActivitySurface, visibleActivityViewCount,

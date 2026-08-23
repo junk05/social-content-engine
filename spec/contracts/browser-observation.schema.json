@@ -101,6 +101,17 @@
         "normalizer_version": {"type": "string", "minLength": 1}
       }
     },
+    "engagement_metric_displays": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "like_count": {"$ref": "#/$defs/engagementMetricDisplay"},
+        "reply_count": {"$ref": "#/$defs/engagementMetricDisplay"},
+        "repost_count": {"$ref": "#/$defs/engagementMetricDisplay"},
+        "quote_count": {"$ref": "#/$defs/engagementMetricDisplay"},
+        "share_count": {"$ref": "#/$defs/engagementMetricDisplay"}
+      }
+    },
     "media_type": {"type": ["string", "null"], "minLength": 1},
     "has_image": {"type": ["boolean", "null"]},
     "has_video": {"type": ["boolean", "null"]},
@@ -149,5 +160,31 @@
     "collected_at": {"type": "string", "format": "date-time"},
     "extractor_version": {"type": "string", "minLength": 1},
     "payload_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "$defs": {
+    "engagementMetricDisplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_display", "normalized_value", "precision", "source", "observed_at",
+        "extractor_version", "normalizer_version", "relationship_evidence", "metric_name"
+      ],
+      "properties": {
+        "raw_display": {"type": "string", "minLength": 1, "maxLength": 32},
+        "normalized_value": {"type": "integer", "minimum": 0},
+        "precision": {"enum": ["DISPLAY_EXACT", "ROUNDED"]},
+        "source": {"const": "POST_DETAIL_ENGAGEMENT_CONTROL"},
+        "observed_at": {"type": "string", "format": "date-time"},
+        "extractor_version": {"type": "string", "minLength": 1},
+        "normalizer_version": {"type": "string", "minLength": 1},
+        "relationship_evidence": {
+          "enum": [
+            "SVG_ARIA_LABEL_AND_LOCAL_NUMERIC_DISPLAY",
+            "ACTION_ORDER_PRECEDING_REPLY_AND_LOCAL_NUMERIC_DISPLAY"
+          ]
+        },
+        "metric_name": {"enum": ["like_count", "reply_count", "repost_count", "quote_count", "share_count"]}
+      }
+    }
   }
 }
