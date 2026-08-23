@@ -1,0 +1,30 @@
+{
+  "evidence_id": "M4-FU10-ENGAGEMENT-LIVE-VERIFICATION-2026-08-23",
+  "verification_scope": "five human-selected canonical Threads detail pages",
+  "ui_db_csv_agreement": true,
+  "source_text_or_identity_retained": false,
+  "observed_metric_semantics": {
+    "like_count": "OBSERVED when a rendered contextual numeric control exists",
+    "reply_count": "OBSERVED when a rendered contextual numeric control exists",
+    "repost_count": "OBSERVED when a rendered contextual numeric control exists",
+    "quote_count": "NOT_OBSERVED when no numeric detail-control display exists"
+  },
+  "local_export": {
+    "posts_rows": 266,
+    "thread_nodes_rows": 515,
+    "database_modified_by_export": false
+  },
+  "post_verification_queue": {
+    "detail_enriched": 260,
+    "detail_failed": 2,
+    "detail_pending": 0
+  },
+  "metric_coverage": {
+    "like_count_observed": 256,
+    "reply_count_observed": 256,
+    "repost_count_observed": 214,
+    "quote_count_observed": 0,
+    "quote_count_status": "NOT_OBSERVED"
+  },
+  "boundary": "Aggregate-only evidence; no post text, URL, author identity, credential, or live metric value is committed."
+}

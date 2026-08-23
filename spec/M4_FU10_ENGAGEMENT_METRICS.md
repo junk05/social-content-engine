@@ -1,6 +1,6 @@
 # M4-FU10 — Engagement Metric Observation Repair
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0027`.
 
@@ -79,3 +79,12 @@ exports remain local analysis-only artifacts and do not modify the database.
 6. Tests, repository validation, and CI pass.
 7. A bounded five-post live comparison records UI/DB/CSV agreement and the
    remaining missing-engagement candidate count.
+
+## Completion evidence
+
+The bounded live comparison passed on 2026-08-23: five human-selected detail
+pages agreed across the rendered Threads controls, immutable local source
+observations, and the regenerated human-review CSV.  The non-content aggregate
+record is `spec/evidence/M4_FU10_ENGAGEMENT_LIVE_VERIFICATION.json`.  Quote
+remains `NOT_OBSERVED` where its numeric control is absent; it is neither
+inferred nor converted to zero.
