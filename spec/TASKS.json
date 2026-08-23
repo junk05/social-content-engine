@@ -196,5 +196,10 @@
     ,{"id":"M4-FU07-005","owner":"DATA","title":"Persist display Views provenance and expose review fields","status":"COMPLETE","depends_on":["M4-FU07-004"]}
     ,{"id":"M4-FU07-006","owner":"QA_REVIEWER","title":"Run sequence, Views, M0-M4, and M4-FU01 regressions","status":"COMPLETE","depends_on":["M4-FU07-003","M4-FU07-005"]}
     ,{"id":"M4-FU07-007","owner":"ORCHESTRATOR","title":"Run sequence and display Views HG-03 live verification","status":"COMPLETE","depends_on":["M4-FU07-006"]}
+    ,{"id":"M4-FU08-001","owner":"ORCHESTRATOR","title":"Approve indicator-backed Thread completeness contract","status":"COMPLETE","depends_on":["M4-FU07-007"]}
+    ,{"id":"M4-FU08-002","owner":"COLLECTOR","title":"Emit shared Thread exploration diagnostics for qualifying root indicators","status":"IN_PROGRESS","depends_on":["M4-FU08-001"]}
+    ,{"id":"M4-FU08-003","owner":"DATA","title":"Persist completeness assessments and requeue incomplete root sequences","status":"PENDING","depends_on":["M4-FU08-002"]}
+    ,{"id":"M4-FU08-004","owner":"QA_REVIEWER","title":"Verify completeness, recovery, branch safety, audit, and regressions","status":"PENDING","depends_on":["M4-FU08-003"]}
+    ,{"id":"M4-FU08-005","owner":"ORCHESTRATOR","title":"Run aggregate local audit and bounded live verification","status":"PENDING","depends_on":["M4-FU08-004"]}
   ]
 }

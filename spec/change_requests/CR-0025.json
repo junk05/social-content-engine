@@ -1,0 +1,20 @@
+{
+  "id": "CR-0025",
+  "title": "Use observed sequence indicators for Thread extraction completeness",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "A DOM-confirmed root 1 / N sequence indicator requires branch-aware child exploration and records completeness without inferring any parent-child relationship from the indicator.",
+  "scope": [
+    "root sequence-indicator completeness assessment",
+    "append-only Thread extraction assessment evidence",
+    "non-destructive re-enrichment candidate recovery",
+    "audit and regression coverage"
+  ],
+  "forbidden": [
+    "using an indicator as parent-child relationship evidence",
+    "including root-author replies below other-author branches",
+    "deleting source or historical Thread evidence",
+    "starting M5"
+  ]
+}

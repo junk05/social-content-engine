@@ -298,6 +298,17 @@ separated from root and self-reply text, and an integer detail-page display
 Views observation was attached only to the canonical root, not its self reply.
 The audit stores no live source text, URL, username, or credential.
 
+### M4-FU08 — Thread Indicator Completeness
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU08_THREAD_COMPLETENESS.md` (`CR-0025`).
+DOM-confirmed root `1 / N` indicators require the shared branch-aware extractor
+to record a completeness assessment. The indicator is not relationship
+evidence; other-author branches remain excluded. Incomplete sequences are
+non-destructively returned to an explicit re-enrichment queue. M5 remains
+unauthorized.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing
