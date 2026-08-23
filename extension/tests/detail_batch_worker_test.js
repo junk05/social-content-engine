@@ -44,11 +44,13 @@ globalThis.SCE_THREADS_POST_DETAIL_EXTRACTOR = {
   async extractVisibleThreadDetails() {
     return [{ post_url: "https://www.threads.net/@fixture/post/Child1" }];
   },
-  diagnoseVisibleThread() {
+  threadExtractionDiagnostic() {
     return {
       diagnostic_version: "thread_candidate_diagnostic_v1",
-      visible_post_nodes: 2,
-      final_eligible_nodes: 2,
+      visible_post_nodes: 2, discovered_candidates: 2,
+      direct_root_author_candidates: 1, other_author_candidates: 0,
+      root_author_after_other_boundary: 0, final_eligible_nodes: 2,
+      excluded_candidates: 0,
       exclusion_reasons: {},
     };
   },
