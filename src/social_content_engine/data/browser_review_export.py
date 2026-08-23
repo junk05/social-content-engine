@@ -7,6 +7,7 @@ import json
 import re
 import sqlite3
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, cast
 
@@ -19,6 +20,12 @@ _RELATIVE_TIME_METADATA = re.compile(
 POST_COLUMNS = [
     "canonical_post_id",
     "collected_at",
+    "published_at_raw",
+    "published_at",
+    "published_timezone_basis",
+    "published_date",
+    "published_time",
+    "published_weekday",
     "author_username",
     "post_url",
     "source_text",
@@ -67,6 +74,12 @@ THREAD_COLUMNS = [
     "thread_position",
     "thread_total",
     "text_quality",
+    "published_at_raw",
+    "published_at",
+    "published_timezone_basis",
+    "published_date",
+    "published_time",
+    "published_weekday",
     "observed_at",
     "extractor_version",
     "display_views_raw",
@@ -123,6 +136,59 @@ def _topic_tags(payload: Dict[str, Any]) -> List[str]:
 
 def _render_topic_tags(values: Sequence[str]) -> str:
     return ";".join(values)
+
+
+def _publication_timing(payload: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Return export-only timing derivations from an explicit-offset source value."""
+    raw = payload.get("published_at_raw")
+    published_at = payload.get("published_at")
+    basis = payload.get("published_timezone_basis")
+    # v1-v12 used `timestamp` for the same direct time[datetime] source. It is
+    # a safe compatibility fallback, never a collection-time substitution.
+    if not isinstance(published_at, str):
+        legacy = payload.get("timestamp")
+        published_at = legacy if isinstance(legacy, str) else None
+    if not isinstance(raw, str):
+        raw = published_at
+    if basis != "TIME_DATETIME_EXPLICIT_OFFSET":
+        basis = "TIME_DATETIME_EXPLICIT_OFFSET" if published_at is not None else "NOT_OBSERVED"
+    if not isinstance(published_at, str):
+        return {
+            "published_at_raw": raw if isinstance(raw, str) else None,
+            "published_at": None,
+            "published_timezone_basis": basis,
+            "published_date": None,
+            "published_time": None,
+            "published_weekday": None,
+        }
+    try:
+        parsed = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+    except ValueError:
+        return {
+            "published_at_raw": raw if isinstance(raw, str) else None,
+            "published_at": None,
+            "published_timezone_basis": "NOT_OBSERVED",
+            "published_date": None,
+            "published_time": None,
+            "published_weekday": None,
+        }
+    if parsed.tzinfo is None:
+        return {
+            "published_at_raw": raw if isinstance(raw, str) else None,
+            "published_at": None,
+            "published_timezone_basis": "NOT_OBSERVED",
+            "published_date": None,
+            "published_time": None,
+            "published_weekday": None,
+        }
+    return {
+        "published_at_raw": raw if isinstance(raw, str) else None,
+        "published_at": published_at,
+        "published_timezone_basis": basis,
+        "published_date": parsed.date().isoformat(),
+        "published_time": parsed.timetz().replace(microsecond=0).isoformat(),
+        "published_weekday": parsed.strftime("%A").upper(),
+    }
 
 
 def _root_ids(connection: sqlite3.Connection, since: Optional[str]) -> List[int]:
@@ -335,7 +401,8 @@ def _latest_source_row(
               FROM browser_text_quality_assessments latest
               WHERE latest.browser_observation_id = observation.id)
         WHERE observation.browser_post_identity_id = ?
-        ORDER BY (assessment.quality_status = 'VALID_TEXT') DESC,
+        ORDER BY (observation.observation_type = 'POST_DETAIL') DESC,
+                 (assessment.quality_status = 'VALID_TEXT') DESC,
                  observation.collected_at DESC, observation.id DESC LIMIT 1""",
         (identity_id,),
     ).fetchone()
@@ -417,11 +484,13 @@ def build_post_rows(
         displayed = _latest_display_views(connection, identity_id)
         text = payload.get("text")
         topic_tags = _topic_tags(payload)
+        timing = _publication_timing(payload)
         row = {
             "canonical_post_id": _canonical_id(identity),
             "collected_at": source["collected_at"]
             if source is not None
             else identity["created_at"],
+            **timing,
             "author_username": payload.get("username"),
             "post_url": identity["post_url"],
             "source_text": text,
@@ -544,6 +613,7 @@ def build_thread_rows(
             source, quality, payload = _node_source(connection, node_id)
             displayed = _latest_display_views(connection, node_id)
             topic_tags = _topic_tags(payload)
+            timing = _publication_timing(payload)
             result.append(
                 {
                     "root_canonical_id": _canonical_id(root_identity),
@@ -567,6 +637,7 @@ def build_thread_rows(
                     "thread_position": payload.get("thread_position"),
                     "thread_total": payload.get("thread_total"),
                     "text_quality": quality,
+                    **timing,
                     "observed_at": node["observed_at"],
                     "extractor_version": node["extractor_version"],
                     "display_views_raw": displayed["display"] if displayed is not None else None,

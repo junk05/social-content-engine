@@ -89,6 +89,7 @@ class BrowserReviewExportTest(unittest.TestCase):
             text: str,
             likes: object,
             topic_tags: object = None,
+            published_at: object = None,
         ) -> str:
             return json.dumps(
                 {
@@ -97,6 +98,14 @@ class BrowserReviewExportTest(unittest.TestCase):
                     "username": username,
                     "text": text,
                     "topic_tags": topic_tags or [],
+                    "timestamp": published_at,
+                    "published_at_raw": published_at,
+                    "published_at": published_at,
+                    "published_timezone_basis": (
+                        "TIME_DATETIME_EXPLICIT_OFFSET"
+                        if published_at is not None
+                        else "NOT_OBSERVED"
+                    ),
                     "public_counters": {
                         "like_count": likes,
                         "reply_count": 0,
@@ -112,19 +121,28 @@ class BrowserReviewExportTest(unittest.TestCase):
                 1,
                 1,
                 "SEARCH_CARD",
-                payload(identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]),
+                payload(
+                    identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0,
+                    ["恋愛"], "2026-08-22T09:15:00+09:00",
+                ),
             ),
             (
                 2,
                 1,
                 "POST_DETAIL",
-                payload(identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0, ["恋愛"]),
+                payload(
+                    identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0,
+                    ["恋愛"], "2026-08-22T09:15:00+09:00",
+                ),
             ),
             (
                 3,
                 2,
                 "POST_DETAIL",
-                payload(identities[1][1], "child", "作者", "自己返信", 2, ["夫婦関係"]),
+                payload(
+                    identities[1][1], "child", "作者", "自己返信", 2,
+                    ["夫婦関係"], "2026-08-22T10:00:00+09:00",
+                ),
             ),
             (4, 3, "SEARCH_CARD", payload(identities[2][1], "pending", "別作者", "待機中", None)),
             (5, 4, "POST_DETAIL", payload(identities[3][1], "excluded", "作者", "除外返信", 1)),
@@ -204,8 +222,18 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("0", root["like_count"])
         self.assertEqual("", root["repost_count"])
         self.assertEqual("https://www.threads.com/@a/post/root", root["post_url"])
+        self.assertEqual("2026-08-22T09:15:00+09:00", root["published_at"])
+        self.assertEqual("2026-08-22", root["published_date"])
+        self.assertEqual("09:15:00+09:00", root["published_time"])
+        self.assertEqual("SATURDAY", root["published_weekday"])
+        self.assertEqual("2026-08-22T12:00:00Z", root["collected_at"])
         self.assertEqual("12000", root["rounded_views_normalized"])
         pending = next(row for row in posts if row["canonical_post_id"] == "pending")
+        self.assertEqual(
+            "", pending["published_at"],
+            "missing timing is never substituted from collection",
+        )
+        self.assertEqual("NOT_OBSERVED", pending["published_timezone_basis"])
         self.assertEqual("表示4,506回", pending["display_views_raw"])
         self.assertEqual("4506", pending["display_views_normalized"])
         self.assertEqual("DISPLAY_EXACT", pending["display_views_precision"])
@@ -215,6 +243,7 @@ class BrowserReviewExportTest(unittest.TestCase):
             ["ROOT", "SELF_REPLY", "EXCLUDED_NODE"], [row["node_type"] for row in nodes]
         )
         self.assertEqual("夫婦関係", nodes[1]["topic_tags"])
+        self.assertEqual("2026-08-22T10:00:00+09:00", nodes[1]["published_at"])
         self.assertEqual("1", nodes[1]["topic_tag_count"])
         self.assertEqual("EXCLUDED", nodes[-1]["relationship_eligibility"])
         second = export_browser_posts(self.database, output, since="2026-08-22T11:59:59Z")
