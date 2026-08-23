@@ -1,0 +1,10 @@
+{
+  "id": "CR-0029",
+  "title": "Unify browser detail Views observations",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Treat exact and rounded Threads detail-page displays as one versioned Views metric with immutable observation history and a latest projection.",
+  "scope": ["views observation history migration", "latest Views projection", "Human Review CSV latest and history export", "precision-aware analysis contract"],
+  "forbidden": ["overwriting historical observations", "treating rounded and exact values as precision-equivalent", "starting M5"]
+}
