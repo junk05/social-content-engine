@@ -2036,10 +2036,10 @@ class Repository:
                         FROM browser_observations old
                         WHERE old.browser_post_identity_id = ? AND old.id != ?
                           AND old.observation_type = 'POST_DETAIL'
-                          AND (SELECT quality_status
+                          AND COALESCE((SELECT quality_status
                                FROM browser_text_quality_assessments quality
                                WHERE quality.browser_observation_id = old.id
-                               ORDER BY quality.id DESC LIMIT 1) = 'VALID_TEXT'""",
+                               ORDER BY quality.id DESC LIMIT 1), 'VALID_TEXT') = 'VALID_TEXT'""",
                         (identity_id, observation_id),
                     ).fetchall():
                         previous_payload = json.loads(previous["canonical_payload_json"])
@@ -2910,6 +2910,58 @@ class Repository:
                 (timestamp, *identity_ids),
             )
         return len(queue_ids)
+
+    def reconcile_browser_topic_tag_text_quality(self) -> int:
+        """Append confirmed legacy tag-only quality after either assessment order."""
+        confirmed = 0
+        repaired_rows = self.connection.execute(
+            """SELECT id, browser_post_identity_id, canonical_payload_json, collected_at
+            FROM browser_observations
+            WHERE observation_type = 'POST_DETAIL'
+              AND extractor_version = 'threads_post_detail_extractor_v7'
+            ORDER BY id"""
+        ).fetchall()
+        with self.connection:
+            for repaired in repaired_rows:
+                repaired_payload = json.loads(repaired["canonical_payload_json"])
+                topic_tags = repaired_payload.get("topic_tags", [])
+                new_text = repaired_payload.get("text")
+                if not isinstance(topic_tags, list) or not topic_tags:
+                    continue
+                for previous in self.connection.execute(
+                    """SELECT old.id, old.canonical_payload_json,
+                              (SELECT quality_status
+                               FROM browser_text_quality_assessments quality
+                               WHERE quality.browser_observation_id = old.id
+                               ORDER BY quality.id DESC LIMIT 1) AS quality_status
+                    FROM browser_observations old
+                    WHERE old.browser_post_identity_id = ? AND old.id < ?
+                      AND old.observation_type = 'POST_DETAIL'""",
+                    (int(repaired["browser_post_identity_id"]), int(repaired["id"])),
+                ).fetchall():
+                    previous_payload = json.loads(previous["canonical_payload_json"])
+                    previous_text = previous_payload.get("text")
+                    if (
+                        previous["quality_status"] not in (None, VALID_TEXT)
+                        or not isinstance(previous_text, str)
+                        or previous_text not in topic_tags
+                        or previous_text == new_text
+                    ):
+                        continue
+                    self.connection.execute(
+                        """INSERT INTO browser_text_quality_assessments
+                        (browser_observation_id, quality_status, assessor_version,
+                         input_sha256, assessed_at)
+                        VALUES (?, 'INVALID_TEXT_TOPIC_TAG_METADATA', ?, ?, ?)""",
+                        (
+                            int(previous["id"]),
+                            "m4-browser-topic-tag-quality-v1",
+                            hashlib.sha256(previous_text.encode("utf-8")).hexdigest(),
+                            repaired["collected_at"],
+                        ),
+                    )
+                    confirmed += 1
+        return confirmed
 
     def claim_browser_detail(
         self, batch_id: int, *, claimed_at: Optional[str] = None

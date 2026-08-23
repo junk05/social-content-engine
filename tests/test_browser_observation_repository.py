@@ -167,6 +167,32 @@ class BrowserObservationRepositoryTest(unittest.TestCase):
                     ["VALID_TEXT", "INVALID_TEXT_TOPIC_TAG_METADATA"], statuses
                 )
 
+                late_old = observation(
+                    observation_type="POST_DETAIL", text="夫婦関係",
+                    metric_statuses=True,
+                )
+                late_old["post_url"] = "https://www.threads.net/@fixture/post/Late"
+                late_old["payload_sha256"] = browser_observation_payload_sha256(late_old)
+                late_old_saved = repository.add_browser_observation(late_old)
+                late_new = observation(
+                    observation_type="POST_DETAIL", text="別の本文です。",
+                    metric_statuses=True, topic_tags=["夫婦関係"],
+                )
+                late_new["post_url"] = late_old["post_url"]
+                late_new["collected_at"] = "2026-08-16T00:02:01+00:00"
+                late_new["payload_sha256"] = browser_observation_payload_sha256(late_new)
+                repository.add_browser_observation(late_new)
+                # Simulate a generic assessor running after the repaired detail.
+                self.assertEqual(
+                    "INVALID_TEXT_TOPIC_TAG_METADATA",
+                    repository.connection.execute(
+                        """SELECT quality_status FROM browser_text_quality_assessments
+                        WHERE browser_observation_id = ? ORDER BY id DESC LIMIT 1""",
+                        (late_old_saved["browser_observation_id"],),
+                    ).fetchone()[0],
+                )
+                self.assertEqual(0, repository.reconcile_browser_topic_tag_text_quality())
+
                 genuine = observation(
                     observation_type="POST_DETAIL", text="恋愛",
                     metric_statuses=True, topic_tags=["恋愛"],
