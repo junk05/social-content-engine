@@ -200,6 +200,6 @@
     ,{"id":"M4-FU08-002","owner":"COLLECTOR","title":"Emit shared Thread exploration diagnostics for qualifying root indicators","status":"COMPLETE","depends_on":["M4-FU08-001"]}
     ,{"id":"M4-FU08-003","owner":"DATA","title":"Persist completeness assessments and requeue incomplete root sequences","status":"COMPLETE","depends_on":["M4-FU08-002"]}
     ,{"id":"M4-FU08-004","owner":"QA_REVIEWER","title":"Verify completeness, recovery, branch safety, audit, and regressions","status":"COMPLETE","depends_on":["M4-FU08-003"]}
-    ,{"id":"M4-FU08-005","owner":"ORCHESTRATOR","title":"Run aggregate local audit and bounded live verification","status":"IN_PROGRESS","depends_on":["M4-FU08-004"]}
+    ,{"id":"M4-FU08-005","owner":"ORCHESTRATOR","title":"Run aggregate local audit and bounded live verification","status":"COMPLETE","depends_on":["M4-FU08-004"]}
   ]
 }

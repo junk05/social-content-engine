@@ -300,7 +300,7 @@ The audit stores no live source text, URL, username, or credential.
 
 ### M4-FU08 — Thread Indicator Completeness
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU08_THREAD_COMPLETENESS.md` (`CR-0025`).
 DOM-confirmed root `1 / N` indicators require the shared branch-aware extractor
@@ -308,6 +308,10 @@ to record a completeness assessment. The indicator is not relationship
 evidence; other-author branches remain excluded. Incomplete sequences are
 non-destructively returned to an explicit re-enrichment queue. M5 remains
 unauthorized.
+
+HG-03 passed with extractor v12: six current qualifying indicator roots reached
+complete observed chains; zero current root-only or incomplete candidates
+remained. Historical incomplete assessments are retained as audit evidence.
 
 ## Deferred until later milestones
 

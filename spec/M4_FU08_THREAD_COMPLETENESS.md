@@ -1,6 +1,6 @@
 # M4-FU08 — Thread Sequence Completeness from Observed Indicators
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0025`.
 
@@ -70,3 +70,11 @@ Pattern analysis.
 4. recovery is idempotent and does not touch excluded/processing roots;
 5. audit reports the requested aggregate counts;
 6. branch-regression, full test suite, validation, and CI pass.
+
+## HG-03 result — 2026-08-23
+
+PASS. After the user re-enriched live roots with extractor v12, all six current
+qualifying `1 / N` roots reached `COMPLETE`; zero current root-only or
+incomplete candidates remained. Four prior root-only assessments remain
+immutable historical audit evidence. Aggregate, source-text-free evidence is
+`spec/evidence/M4_FU08_HG03_LIVE_VERIFICATION.json`.
