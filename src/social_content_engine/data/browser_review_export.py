@@ -34,6 +34,7 @@ POST_COLUMNS = [
     "raw_sequence_indicator",
     "thread_position",
     "thread_total",
+    "clean_sequence_node_count",
     "text_quality",
     "first_line",
     "detail_status",
@@ -409,6 +410,19 @@ def _latest_source_row(
     return row, str(row["quality_status"] or "UNASSESSED") if row is not None else "UNAVAILABLE"
 
 
+def _latest_root_detail_payload(
+    connection: sqlite3.Connection, identity_id: int
+) -> Dict[str, Any]:
+    """Return latest root-detail metadata without changing source-text selection."""
+    row = connection.execute(
+        """SELECT canonical_payload_json FROM browser_observations
+        WHERE browser_post_identity_id = ? AND observation_type = 'POST_DETAIL'
+        ORDER BY collected_at DESC, id DESC LIMIT 1""",
+        (identity_id,),
+    ).fetchone()
+    return _payload(row)
+
+
 def _latest_counter(connection: sqlite3.Connection, identity_id: int, key: str) -> Any:
     for row in connection.execute(
         """SELECT canonical_payload_json FROM browser_observations
@@ -474,6 +488,7 @@ def build_post_rows(
             else "DETAIL_PENDING"
         )
         nodes = _latest_clean_thread_rows(connection, identity_id)
+        sequence_metadata = _latest_root_detail_payload(connection, identity_id)
         if only_valid_text and quality != "VALID_TEXT":
             continue
         if only_detail_enriched and detail_status != "DETAIL_ENRICHED":
@@ -496,9 +511,10 @@ def build_post_rows(
             "source_text": text,
             "topic_tags": _render_topic_tags(topic_tags),
             "topic_tag_count": len(topic_tags),
-            "raw_sequence_indicator": payload.get("raw_sequence_indicator"),
-            "thread_position": payload.get("thread_position"),
-            "thread_total": payload.get("thread_total"),
+            "raw_sequence_indicator": sequence_metadata.get("raw_sequence_indicator"),
+            "thread_position": sequence_metadata.get("thread_position"),
+            "thread_total": sequence_metadata.get("thread_total"),
+            "clean_sequence_node_count": len(nodes),
             "text_quality": quality,
             "first_line": _first_line(text),
             "detail_status": detail_status,

@@ -136,6 +136,23 @@ class BrowserReviewExportTest(unittest.TestCase):
                 ),
             ),
             (
+                6,
+                1,
+                "POST_DETAIL",
+                json.dumps(
+                    {
+                        **json.loads(payload(
+                            identities[0][1], "root", "作者", "日本語の本文です。\n続き", 0,
+                            ["恋愛"], "2026-08-22T09:15:00+09:00",
+                        )),
+                        "raw_sequence_indicator": "1 / 4",
+                        "thread_position": 1,
+                        "thread_total": 4,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+            (
                 3,
                 2,
                 "POST_DETAIL",
@@ -218,7 +235,10 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual("日本語の本文です。", root["first_line"])
         self.assertEqual("恋愛", root["topic_tags"])
         self.assertEqual("1", root["topic_tag_count"])
-        self.assertEqual("", root["raw_sequence_indicator"])
+        self.assertEqual("1 / 4", root["raw_sequence_indicator"])
+        self.assertEqual("1", root["thread_position"])
+        self.assertEqual("4", root["thread_total"])
+        self.assertEqual("2", root["clean_sequence_node_count"])
         self.assertEqual("0", root["like_count"])
         self.assertEqual("", root["repost_count"])
         self.assertEqual("https://www.threads.com/@a/post/root", root["post_url"])
