@@ -291,13 +291,17 @@ legacy tag-only observations remain immutable with appended quality evidence.
 
 ### M4-FU13 — Human Review Projection Repair
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU13_HUMAN_REVIEW_PROJECTION.md` (`CR-0030`).
 The topic-tag extractor remains unchanged. Human Review source selection and
 queue-state projection are repaired without deleting legacy observations; four
 legacy v1 roots are explicitly returned to the durable detail queue. M5 remains
 unauthorized.
+
+All ten named legacy roots now project their latest repaired detail evidence.
+The 266-root audit reports zero stale selections when newer non-invalid detail
+evidence exists and zero queue-state projection mismatches.
 
 ### M4-FU07 — Sequence Indicator and Display Views
 

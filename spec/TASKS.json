@@ -220,6 +220,6 @@
     ,{"id":"M4-FU12-003","owner":"QA_REVIEWER","title":"Verify Views history, latest CSV projection, and precision-aware semantics","status":"COMPLETE","depends_on":["M4-FU12-002"]}
     ,{"id":"M4-FU13-001","owner":"DATA","title":"Repair deterministic Human Review source and queue projections","status":"COMPLETE","depends_on":["M4-FU12-003"]}
     ,{"id":"M4-FU13-002","owner":"COLLECTOR","title":"Requeue four legacy topic-tag roots without deleting evidence","status":"COMPLETE","depends_on":["M4-FU13-001"]}
-    ,{"id":"M4-FU13-003","owner":"QA_REVIEWER","title":"Audit ten repaired roots and the full 266-root projection","status":"IN_PROGRESS","depends_on":["M4-FU13-002"]}
+    ,{"id":"M4-FU13-003","owner":"QA_REVIEWER","title":"Audit ten repaired roots and the full 266-root projection","status":"COMPLETE","depends_on":["M4-FU13-002"]}
   ]
 }

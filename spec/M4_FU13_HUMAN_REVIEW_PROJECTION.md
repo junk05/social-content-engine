@@ -1,6 +1,6 @@
 # M4-FU13 — Human Review Projection Repair
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0030`.
 
@@ -24,3 +24,14 @@ analysis path, not browser ingestion. Therefore `UNASSESSED` is a valid Source
 Store state and every Human Review projection must handle it explicitly.
 
 The topic-tag extractor is unchanged. M5 remains out of scope.
+
+## Completion evidence
+
+The named ten roots now select their latest repaired `POST_DETAIL` evidence and
+all ten are `DETAIL_ENRICHED`. Across 266 canonical roots, stale selection in
+the presence of newer non-invalid evidence fell from 260 to zero and projected
+queue-state mismatches fell from four to zero. Two explicitly excluded roots
+retain invalid search-card evidence because no detail alternative exists; they
+remain visible as invalid audit records, not clean evidence. Aggregate,
+source-free results are recorded in
+`spec/evidence/M4_FU13_PROJECTION_AUDIT.json`.

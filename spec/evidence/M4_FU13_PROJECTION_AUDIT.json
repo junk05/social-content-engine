@@ -1,0 +1,45 @@
+{
+  "contract_version": "M4_FU13_PROJECTION_AUDIT_V1",
+  "audit_date": "2026-08-24",
+  "source_content_committed": false,
+  "before": {
+    "canonical_roots": 266,
+    "selected_invalid_observations": 8,
+    "newer_non_invalid_observation_existed_but_old_was_selected": 260,
+    "queue_absent_projected_as_pending": 4,
+    "selected_extractor_versions": {
+      "threads_post_detail_extractor_v1": 4,
+      "threads_post_detail_extractor_v4": 48,
+      "threads_post_detail_extractor_v6": 182,
+      "threads_post_detail_extractor_v7": 30,
+      "threads_search_card_extractor_v1": 2
+    }
+  },
+  "after": {
+    "canonical_roots": 266,
+    "selected_invalid_observations": 2,
+    "selected_invalid_observations_are_explicitly_excluded_without_detail_alternative": true,
+    "newer_non_invalid_observation_existed_but_old_was_selected": 0,
+    "csv_queue_state_mismatches": 0,
+    "selected_extractor_versions": {
+      "threads_post_detail_extractor_v14": 259,
+      "threads_post_detail_extractor_v15": 1,
+      "threads_post_detail_extractor_v16": 4,
+      "threads_search_card_extractor_v1": 2
+    }
+  },
+  "named_legacy_audit": {
+    "roots": 10,
+    "csv_matches_latest_post_detail": 10,
+    "selected_text_is_not_legacy_metadata": 10,
+    "detail_enriched": 10,
+    "topic_tags_observed_in_current_dom": 6,
+    "topic_tags_not_observed_in_current_dom": 4
+  },
+  "quality_assessment": {
+    "canonical_roots_with_latest_unassessed_detail": 264,
+    "assessment_stage": "CLEAN_DATASET_ANALYSIS",
+    "ingestion_auto_assessment_expected": false,
+    "projection_treats_unassessed_as_non_invalid_but_not_as_validated": true
+  }
+}
