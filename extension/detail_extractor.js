@@ -3,7 +3,7 @@
 // Versioned, read-only extraction for an already open Threads post-detail page.
 // Navigation, batching, DOM observation, and transport are intentionally absent.
 (function exposeThreadsPostDetailExtractor(scope) {
-  const VERSION = "threads_post_detail_extractor_v18";
+  const VERSION = "threads_post_detail_extractor_v19";
   const ROOT_RELATIONSHIP_EVIDENCE = "ROOT_DETAIL_PAGE";
   const SELF_REPLY_RELATIONSHIP_EVIDENCE = "DOM_CONTIGUOUS_ROOT_AUTHOR_CHAIN";
   const APPROXIMATE_VIEWS_NORMALIZER_VERSION = "rounded-views-normalizer-v1";
@@ -725,6 +725,20 @@
   function visibleActivityViewCount(root) {
     return visibleActivityDialogViewCount(root);
   }
+  function followsObservedEngagementControl(candidate, root) {
+    if (!candidate || typeof candidate.compareDocumentPosition !== "function") return false;
+    for (const control of root.querySelectorAll('button, [role="button"]')) {
+      if (!isVisible(control)) continue;
+      const ariaHint = typeof control.getAttribute === "function"
+        ? metricHint(control.getAttribute("aria-label")) : null;
+      if (!ariaHint && !metricIconHint(control)) continue;
+      // DOCUMENT_POSITION_FOLLOWING (4): candidate occurs after this observed
+      // engagement control. Threads renders the reply composer below the root
+      // action row, while authored body content precedes that row.
+      if (control.compareDocumentPosition(candidate) & 4) return true;
+    }
+    return false;
+  }
   function visiblePostText(root, excludedValues, sequenceIndicator = null) {
     const excluded = new Set(excludedValues.filter(Boolean).map((value) => value.toLowerCase()));
     const dateMetadata = /^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/;
@@ -739,6 +753,7 @@
           "[data-lexical-editor]", "[aria-multiline]",
           "[aria-placeholder]", "[data-placeholder]",
         ].join(", "))) continue;
+        if (followsObservedEngagementControl(candidate, root)) continue;
         if (isTopicElement(candidate)) continue;
         const value = withoutObservedSequenceIndicator(
           renderedText(candidate), sequenceIndicator,

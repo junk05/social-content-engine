@@ -8,12 +8,13 @@ if (!globalThis.crypto) globalThis.crypto = require("node:crypto").webcrypto;
 require(path.join(__dirname, "..", "detail_extractor.js"));
 
 class Element {
-  constructor(attributes = {}, textContent = "", excluded = false) {
+  constructor(attributes = {}, textContent = "", excluded = false, sourceIndex = null) {
     this.attributes = attributes;
     this.textContent = textContent;
     this.innerText = textContent;
     this.hidden = Object.hasOwn(attributes, "hidden");
     this.excluded = excluded;
+    this.sourceIndex = sourceIndex;
   }
   getAttribute(name) { return this.attributes[name] ?? null; }
   closest(selector) {
@@ -40,6 +41,12 @@ class Element {
   querySelector(selector) {
     return selector === "time[datetime]" && this.containsTime ? {} : null;
   }
+  compareDocumentPosition(other) {
+    if (!Number.isInteger(this.sourceIndex) || !Number.isInteger(other?.sourceIndex)) return 0;
+    if (this.sourceIndex < other.sourceIndex) return 4;
+    if (this.sourceIndex > other.sourceIndex) return 2;
+    return 0;
+  }
 }
 
 function attributes(value) {
@@ -60,15 +67,15 @@ function fixturePage(name) {
   const html = fs.readFileSync(path.join(__dirname, "fixtures", name), "utf8");
   const anchors = Array.from(html.matchAll(/<a\s+([^>]*)>([\s\S]*?)<\/a>/g),
     (match) => {
-      const element = new Element(attributes(match[1]), stripTags(match[2]));
+      const element = new Element(attributes(match[1]), stripTags(match[2]), false, match.index);
       element.containsTime = /<time\s+[^>]*datetime=/.test(match[2]);
       return element;
     });
   const labelled = Array.from(html.matchAll(/<[^>]+aria-label="([^"]+)"[^>]*>/g),
-    (match) => new Element(attributes(match[0])));
+    (match) => new Element(attributes(match[0]), "", false, match.index));
   const candidates = Array.from(
     html.matchAll(/<(div|span)\s+([^>]*(?:dir="auto"|data-testid="post-text")[^>]*)>([\s\S]*?)<\/\1>/g),
-    (match) => new Element(attributes(match[2]), stripHiddenAndTags(match[3])),
+    (match) => new Element(attributes(match[2]), stripHiddenAndTags(match[3]), false, match.index),
   );
   const sequenceIndicators = Array.from(
     html.matchAll(/<(div|span)\s+([^>]*(?:x1rg5ohu|thread-sequence-indicator)[^>]*)>([^<]*)<\/\1>/g),
@@ -91,6 +98,9 @@ function fixturePage(name) {
       if (selector === 'a[href*="/post/"]') return anchors.filter((item) => (item.getAttribute("href") || "").includes("/post/"));
       if (selector === 'a[href^="/@"]') return anchors.filter((item) => (item.getAttribute("href") || "").startsWith("/@"));
       if (selector === "[aria-label]") return labelled;
+      if (selector === 'button, [role="button"]') return labelled.filter(
+        (item) => item.getAttribute("role") === "button",
+      );
       if (selector === '[data-testid="post-text"]') return candidates.filter((item) => item.getAttribute("data-testid") === "post-text");
       if (selector === '[dir="auto"]') return candidates.filter((item) => item.getAttribute("dir") === "auto");
       if (selector.includes('[data-testid="topic-tag"]')) return candidates.filter((item) => (
@@ -153,7 +163,7 @@ async function main() {
   assert.match(source, /visiblePostText\(\s*postRoot,/);
   assert.match(source, /visibleActivityDialogViewCount\(root\)/,
     "root metrics and text are card-scoped while exact Activity views are dialog-scoped");
-  assert.equal(extractor.version, "threads_post_detail_extractor_v18");
+  assert.equal(extractor.version, "threads_post_detail_extractor_v19");
   const context = {
     collectedAt: "2026-08-16T03:04:05.000Z",
     pageUrl: "https://www.threads.com/@Sample.User/post/AbC_123?source=fixture",
