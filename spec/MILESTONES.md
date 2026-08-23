@@ -236,13 +236,18 @@ remain Git-ignored. M5 remains unauthorized.
 
 ### M4-FU03 — Post-S8 Thread Coverage Diagnostic
 
-Status: `IN_PROGRESS`
+Status: `COMPLETE`
 
 Approved specification: `spec/M4_FU03_THREAD_COVERAGE_DIAGNOSTIC.md`
 (`CR-0020`). Thread Structural Pattern refresh is paused while the isolated
 post-S8 cohort is audited and one to three human-confirmed self-reply roots are
 diagnosed with branch evidence intact. First-Line and Post results remain
 unchanged. M5 remains unauthorized.
+
+HG-03 passed after the collector waited for DOM-confirmed `1 / N` children
+before strict branch-aware extraction: six current qualifying roots were
+complete and no current root-only or incomplete candidates remained. S8 branch
+safety stays enforced; Thread Structural Pattern regeneration remains paused.
 
 ### M4-FU04 — Collected Post Management
 

@@ -1,6 +1,6 @@
 # M4-FU03 — Post-S8 Thread Coverage Diagnostic
 
-STATUS: `IN_PROGRESS`
+STATUS: `COMPLETE`
 
 Change record: `CR-0020`.
 
@@ -57,3 +57,13 @@ reasons, and relationship evidence.
 M4-FU03 completes only after the S8 regression remains green and live evidence
 shows true root-author chains included while replies below other-author branches
 remain excluded. Thread Pattern regeneration remains paused until then.
+
+## HG-03 result — 2026-08-23
+
+PASS. The shared extractor now waits for DOM-confirmed root `1 / N` sequences
+to expose their expected visible nodes before preserving the existing strict
+branch rule. The post-enrichment aggregate recorded six current qualifying
+roots as complete, with zero current root-only, incomplete, or re-enrichment
+candidates. S8 branch regression remains green; Thread Pattern regeneration
+stays paused. Source-text-free evidence is
+`spec/evidence/M4_FU03_HG03_THREAD_COVERAGE_RESOLUTION.json`.

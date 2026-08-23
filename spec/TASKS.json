@@ -172,7 +172,7 @@
     ,{"id":"M4-FU03-002","owner":"DATA","title":"Audit post-S8 v6 detail and Thread Sequence coverage","status":"COMPLETE","depends_on":["M4-FU03-001"]}
     ,{"id":"M4-FU03-003","owner":"COLLECTOR","title":"Add privacy-bounded multi-form Thread candidate diagnostics","status":"COMPLETE","depends_on":["M4-FU03-002"]}
     ,{"id":"M4-FU03-004","owner":"QA_REVIEWER","title":"Verify S8 branch regression and diagnostic privacy boundary","status":"COMPLETE","depends_on":["M4-FU03-003"]}
-    ,{"id":"M4-FU03-005","owner":"ORCHESTRATOR","title":"Run one-to-three-root HG-03 diagnostic and repair false negatives","status":"IN_PROGRESS","depends_on":["M4-FU03-004"]}
+    ,{"id":"M4-FU03-005","owner":"ORCHESTRATOR","title":"Run one-to-three-root HG-03 diagnostic and repair false negatives","status":"COMPLETE","depends_on":["M4-FU03-004"]}
     ,{"id":"M4-FU04-001","owner":"ORCHESTRATOR","title":"Approve collected-root management and non-destructive exclusion contract","status":"COMPLETE","depends_on":["M4-FU01-009"]}
     ,{"id":"M4-FU04-002","owner":"DATA","title":"Persist current exclusion state and immutable action audit trail","status":"COMPLETE","depends_on":["M4-FU04-001"]}
     ,{"id":"M4-FU04-003","owner":"DATA","title":"Expose closed local list, exclude, and re-enrich receiver operations","status":"COMPLETE","depends_on":["M4-FU04-002"]}
