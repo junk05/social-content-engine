@@ -1,0 +1,14 @@
+{
+  "evidence_version": "m4-fu14-reply-composer-audit-v1",
+  "audited_at": "2026-08-24",
+  "matched_bad_observations": 5,
+  "affected_canonical_roots": 5,
+  "extractor_version_distribution": {
+    "threads_post_detail_extractor_v14": 5
+  },
+  "quality_assessments_appended": 5,
+  "roots_requeued": 5,
+  "source_observations_deleted": 0,
+  "live_source_content_stored": false,
+  "live_verification_status": "HG_03_PENDING"
+}

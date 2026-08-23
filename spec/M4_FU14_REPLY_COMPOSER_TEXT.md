@@ -33,3 +33,12 @@ over a newer non-invalid detail observation. M5 remains unauthorized.
 5. affected roots can be re-enriched without deleting observations;
 6. CSV no longer selects confirmed composer metadata after reobservation;
 7. full regression, repository validation, and CI pass.
+
+## Local audit
+
+Five canonical roots selected an identical reply-composer placeholder from
+extractor v14. All five immutable observations now have append-only confirmed
+invalid quality evidence and all five roots are `DETAIL_PENDING` for an
+extractor-v17 reobservation. Aggregate, source-free evidence is recorded in
+`spec/evidence/M4_FU14_REPLY_COMPOSER_AUDIT.json`. HG-03 live reobservation and
+CSV verification remain pending.

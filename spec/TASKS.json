@@ -222,7 +222,7 @@
     ,{"id":"M4-FU13-002","owner":"COLLECTOR","title":"Requeue four legacy topic-tag roots without deleting evidence","status":"COMPLETE","depends_on":["M4-FU13-001"]}
     ,{"id":"M4-FU13-003","owner":"QA_REVIEWER","title":"Audit ten repaired roots and the full 266-root projection","status":"COMPLETE","depends_on":["M4-FU13-002"]}
     ,{"id":"M4-FU14-001","owner":"COLLECTOR","title":"Exclude semantic reply composer surfaces from shared detail body extraction","status":"COMPLETE","depends_on":["M4-FU13-003"]}
-    ,{"id":"M4-FU14-002","owner":"DATA","title":"Preserve confirmed reply composer defects and requeue affected roots","status":"IN_PROGRESS","depends_on":["M4-FU14-001"]}
+    ,{"id":"M4-FU14-002","owner":"DATA","title":"Preserve confirmed reply composer defects and requeue affected roots","status":"COMPLETE","depends_on":["M4-FU14-001"]}
     ,{"id":"M4-FU14-003","owner":"QA_REVIEWER","title":"Verify repaired live observations and Human Review CSV","status":"PENDING","depends_on":["M4-FU14-002"]}
   ]
 }
