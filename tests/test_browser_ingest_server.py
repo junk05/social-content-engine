@@ -71,6 +71,24 @@ class BrowserIngestServerTest(unittest.TestCase):
         self.assertEqual(2, self.repository.count("browser_observations"))
         self.assertEqual(1, self.repository.count("browser_post_identities"))
 
+    def test_accepts_direct_publication_time_with_explicit_offset(self) -> None:
+        payload = observation(
+            observation_type="POST_DETAIL", metric_statuses=True,
+            timestamp="2026-08-22T09:15:00+09:00",
+            published_at_raw="2026-08-22T09:15:00+09:00",
+            published_at="2026-08-22T09:15:00+09:00",
+            published_timezone_basis="TIME_DATETIME_EXPLICIT_OFFSET",
+        )
+        accepted = self.post(payload)
+        self.assertEqual(201, accepted.status)
+        stored = self.repository.connection.execute(
+            "SELECT canonical_payload_json FROM browser_observations"
+        ).fetchone()
+        self.assertEqual(
+            "2026-08-22T09:15:00+09:00",
+            json.loads(str(stored["canonical_payload_json"]))["published_at"],
+        )
+
     def test_null_origin_post_requires_exact_extension_identity_header(self) -> None:
         payload = observation()
         accepted = self.service.handle_post(
