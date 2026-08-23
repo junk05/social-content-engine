@@ -292,7 +292,10 @@ if (typeof importScripts === "function") {
       && typeof post.author_username === "string"
       && /^[A-Za-z0-9._-]+$/.test(post.author_username)
       && isCanonicalThreadsPostUrl(post.post_url)
-      && ["DETAIL_PENDING", "DETAIL_PROCESSING", "DETAIL_ENRICHED", "DETAIL_FAILED", "EXCLUDED"]
+      && [
+        "DETAIL_PENDING", "DETAIL_PROCESSING", "DETAIL_ENRICHED", "DETAIL_FAILED",
+        "EXCLUDED", "NOT_QUEUED",
+      ]
         .includes(post.detail_status)
       && Number.isInteger(post.attempt_count) && post.attempt_count >= 0
       && (post.last_error === null || typeof post.last_error === "string")
@@ -315,7 +318,9 @@ if (typeof importScripts === "function") {
   }
 
   async function fetchCollectedPosts(status = "ALL", sort = "newest", limit = 200, options = {}) {
-    const statuses = ["ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"];
+    const statuses = [
+      "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED", "NOT_QUEUED",
+    ];
     if (!statuses.includes(status) || !["newest", "oldest", "error_first"].includes(sort)
         || !Number.isInteger(limit) || limit < 1 || limit > 500) {
       return { accepted: false, reason: "invalid_list_request", posts: [] };

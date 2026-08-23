@@ -102,7 +102,19 @@ EXPORT_STATUS_FILTERS = {
     "DETAIL_FAILED",
     "DETAIL_ENRICHED",
     "EXCLUDED",
+    "NOT_QUEUED",
 }
+
+_SOURCE_SELECTION_ORDER_SQL = """
+    CASE WHEN assessment.quality_status IN (
+      'INVALID_TEXT_DATE_METADATA',
+      'INVALID_TEXT_TOPIC_TAG_METADATA',
+      'TEXT_UNAVAILABLE'
+    ) THEN 0 ELSE 1 END DESC,
+    (observation.observation_type = 'POST_DETAIL') DESC,
+    observation.collected_at DESC,
+    observation.id DESC
+"""
 
 
 def connect_read_only(path: Path) -> sqlite3.Connection:
@@ -232,13 +244,21 @@ def _queue(connection: sqlite3.Connection, identity_id: int) -> Optional[sqlite3
     )
 
 
+def _projected_detail_status(queue: Optional[sqlite3.Row]) -> str:
+    if queue is None:
+        return "NOT_QUEUED"
+    if bool(queue["enrichment_excluded"]):
+        return "EXCLUDED"
+    return str(queue["status"])
+
+
 def _matches_status_filter(queue: Optional[sqlite3.Row], status_filter: str) -> bool:
     if status_filter not in EXPORT_STATUS_FILTERS:
         raise ValueError("invalid export status filter")
     if status_filter == "ALL":
         return True
     if queue is None:
-        return status_filter == "DETAIL_PENDING"
+        return status_filter == "NOT_QUEUED"
     excluded = bool(queue["enrichment_excluded"])
     if status_filter == "EXCLUDED":
         return excluded
@@ -434,9 +454,7 @@ def _latest_source_row(
               FROM browser_text_quality_assessments latest
               WHERE latest.browser_observation_id = observation.id)
         WHERE observation.browser_post_identity_id = ?
-        ORDER BY (observation.observation_type = 'POST_DETAIL') DESC,
-                 (assessment.quality_status = 'VALID_TEXT') DESC,
-                 observation.collected_at DESC, observation.id DESC LIMIT 1""",
+        ORDER BY {0} LIMIT 1""".format(_SOURCE_SELECTION_ORDER_SQL),
         (identity_id,),
     ).fetchone()
     return row, str(row["quality_status"] or "UNASSESSED") if row is not None else "UNAVAILABLE"
@@ -512,13 +530,7 @@ def build_post_rows(
         source, quality = _latest_source_row(connection, identity_id)
         payload = _payload(source)
         queue = _queue(connection, identity_id)
-        detail_status = (
-            "EXCLUDED"
-            if queue is not None and bool(queue["enrichment_excluded"])
-            else str(queue["status"])
-            if queue is not None
-            else "DETAIL_PENDING"
-        )
+        detail_status = _projected_detail_status(queue)
         nodes = _latest_clean_thread_rows(connection, identity_id)
         sequence_metadata = _latest_root_detail_payload(connection, identity_id)
         if only_valid_text and quality != "VALID_TEXT":
@@ -626,9 +638,7 @@ def _node_source(
               FROM browser_text_quality_assessments latest
               WHERE latest.browser_observation_id = observation.id)
         WHERE observation.browser_post_identity_id = ?
-        ORDER BY (observation.observation_type = 'POST_DETAIL') DESC,
-                 (assessment.quality_status = 'VALID_TEXT') DESC,
-                 observation.collected_at DESC, observation.id DESC LIMIT 1""",
+        ORDER BY {0} LIMIT 1""".format(_SOURCE_SELECTION_ORDER_SQL),
         (node_id,),
     ).fetchone()
     quality = str(row["quality_status"] or "UNASSESSED") if row is not None else "UNAVAILABLE"

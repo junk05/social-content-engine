@@ -1,0 +1,19 @@
+{
+  "id": "CR-0030",
+  "title": "Repair Human Review source and queue projections",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-24",
+  "approved_decision": "Prefer current non-invalid source evidence deterministically, represent absent detail queues explicitly, and re-enrich four legacy topic-tag candidates without deleting observations.",
+  "scope": [
+    "shared Human Review source selection",
+    "NOT_QUEUED detail projection",
+    "legacy candidate queue recovery",
+    "266-root projection audit"
+  ],
+  "forbidden": [
+    "changing topic tag extraction",
+    "deleting source observations",
+    "starting M5"
+  ]
+}

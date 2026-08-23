@@ -8,6 +8,7 @@ from pathlib import Path
 
 from social_content_engine.data.browser_review_export import (
     audit_browser_coverage,
+    build_post_rows,
     connect_read_only,
     export_browser_posts,
     render_browser_review_csv,
@@ -315,6 +316,78 @@ class BrowserReviewExportTest(unittest.TestCase):
         self.assertEqual(1, excluded_count)
         self.assertIn("root", excluded.decode("utf-8-sig"))
         self.assertIn(",EXCLUDED,", excluded.decode("utf-8-sig"))
+
+    def test_source_selection_is_explicit_and_never_prefers_invalid_over_unassessed(self) -> None:
+        with sqlite3.connect(self.database) as connection:
+            connection.row_factory = sqlite3.Row
+            newest = json.loads(
+                connection.execute(
+                    "SELECT canonical_payload_json FROM browser_observations WHERE id = 6"
+                ).fetchone()[0]
+            )
+            newest["text"] = "最新の未評価本文"
+            connection.execute(
+                "UPDATE browser_observations SET canonical_payload_json = ? WHERE id = 6",
+                (json.dumps(newest, ensure_ascii=False),),
+            )
+            connection.execute(
+                """UPDATE browser_text_quality_assessments
+                SET quality_status = 'INVALID_TEXT_TOPIC_TAG_METADATA' WHERE id = 2"""
+            )
+            rows = build_post_rows(connection)
+            root = next(row for row in rows if row["canonical_post_id"] == "root")
+            self.assertEqual("最新の未評価本文", root["source_text"])
+            self.assertEqual("UNASSESSED", root["text_quality"])
+
+            invalid = dict(newest)
+            invalid["text"] = "topic-only"
+            connection.execute(
+                """INSERT INTO browser_observations VALUES
+                (7, 1, 'POST_DETAIL', ?, '2026-08-22T13:00:00Z', 'fixture-v2', 'hash')""",
+                (json.dumps(invalid, ensure_ascii=False),),
+            )
+            connection.execute(
+                """INSERT INTO browser_text_quality_assessments
+                VALUES (6, 7, 'INVALID_TEXT_TOPIC_TAG_METADATA')"""
+            )
+            rows = build_post_rows(connection)
+            root = next(row for row in rows if row["canonical_post_id"] == "root")
+            self.assertEqual("最新の未評価本文", root["source_text"])
+            self.assertEqual("UNASSESSED", root["text_quality"])
+
+    def test_queue_absence_is_not_projected_as_pending(self) -> None:
+        with sqlite3.connect(self.database) as connection:
+            connection.row_factory = sqlite3.Row
+            payload = connection.execute(
+                "SELECT canonical_payload_json FROM browser_observations WHERE id = 4"
+            ).fetchone()[0]
+            connection.execute(
+                """INSERT INTO browser_post_identities VALUES
+                (5, 'https://www.threads.com/@legacy/post/notqueued', 'notqueued',
+                 'DETAIL_ENRICHED', '2026-08-22T12:00:00Z', '2026-08-22T12:00:00Z')"""
+            )
+            connection.execute(
+                """INSERT INTO browser_observations VALUES
+                (8, 5, 'SEARCH_CARD', ?, '2026-08-22T12:00:00Z', 'fixture-v1', 'hash')""",
+                (payload,),
+            )
+            rows = build_post_rows(connection)
+            row = next(item for item in rows if item["canonical_post_id"] == "notqueued")
+            self.assertEqual("NOT_QUEUED", row["detail_status"])
+            self.assertEqual(
+                ["notqueued"],
+                [
+                    item["canonical_post_id"]
+                    for item in build_post_rows(connection, status_filter="NOT_QUEUED")
+                ],
+            )
+            self.assertNotIn(
+                "notqueued",
+                [
+                    item["canonical_post_id"]
+                    for item in build_post_rows(connection, status_filter="DETAIL_PENDING")
+                ],
+            )
 
 
 if __name__ == "__main__":

@@ -3209,7 +3209,53 @@ class Repository:
                 (canonical_url,),
             ).fetchone()
             if row is None:
-                raise KeyError("collected root queue item not found: " + canonical_url)
+                identity = self.connection.execute(
+                    """SELECT browser_post_identities.id AS identity_id,
+                              source.id AS source_observation_id
+                    FROM browser_post_identities
+                    JOIN browser_observations AS source
+                      ON source.id = (
+                        SELECT selected.id FROM browser_observations AS selected
+                        WHERE selected.browser_post_identity_id = browser_post_identities.id
+                          AND selected.observation_type = 'SEARCH_CARD'
+                        ORDER BY selected.collected_at DESC, selected.id DESC LIMIT 1
+                      )
+                    WHERE browser_post_identities.post_url = ?""",
+                    (canonical_url,),
+                ).fetchone()
+                if identity is None:
+                    raise KeyError("collected root not found: " + canonical_url)
+                cursor = self.connection.execute(
+                    """INSERT INTO browser_detail_enrichment_queue
+                    (browser_post_identity_id, source_observation_id, status,
+                     enqueued_at, updated_at)
+                    VALUES (?, ?, 'DETAIL_PENDING', ?, ?)""",
+                    (
+                        identity["identity_id"],
+                        identity["source_observation_id"],
+                        timestamp,
+                        timestamp,
+                    ),
+                )
+                if cursor.lastrowid is None:
+                    raise RuntimeError("SQLite did not return a detail queue id")
+                queue_item_id = int(cursor.lastrowid)
+                self.connection.execute(
+                    """UPDATE browser_post_identities SET status = 'DETAIL_PENDING',
+                       updated_at = ? WHERE id = ?""",
+                    (timestamp, identity["identity_id"]),
+                )
+                self.connection.execute(
+                    """INSERT INTO browser_detail_enrichment_exclusion_actions
+                    (browser_detail_queue_id, action, exclusion_reason, acted_at)
+                    VALUES (?, 'REQUEUED', NULL, ?)""",
+                    (queue_item_id, timestamp),
+                )
+                return {
+                    "queue_item_id": queue_item_id,
+                    "changed": True,
+                    "excluded": False,
+                }
             if row["status"] == "DETAIL_PROCESSING":
                 raise ValueError("DETAIL_PROCESSING item cannot be requeued")
             was_excluded = bool(row["enrichment_excluded"])
@@ -3714,7 +3760,14 @@ class Repository:
         self, *, status_filter: str = "ALL", sort: str = "newest", limit: int = 200
     ) -> Sequence[Dict[str, Any]]:
         """Return local review metadata for human-selected roots without source text."""
-        allowed_filters = {"ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED"}
+        allowed_filters = {
+            "ALL",
+            "DETAIL_PENDING",
+            "DETAIL_FAILED",
+            "DETAIL_ENRICHED",
+            "EXCLUDED",
+            "NOT_QUEUED",
+        }
         if status_filter not in allowed_filters:
             raise ValueError("invalid collected-root status filter")
         if sort not in {"newest", "oldest", "error_first"}:
@@ -3725,8 +3778,13 @@ class Repository:
         parameters: list[Any] = []
         if status_filter == "EXCLUDED":
             where = "AND queue.enrichment_excluded = 1"
+        elif status_filter == "NOT_QUEUED":
+            where = "AND queue.id IS NULL"
         elif status_filter != "ALL":
-            where = "AND queue.enrichment_excluded = 0 AND queue.status = ?"
+            where = (
+                "AND queue.id IS NOT NULL AND queue.enrichment_excluded = 0 "
+                "AND queue.status = ?"
+            )
             parameters.append(status_filter)
         order = {
             "newest": "collected_at DESC, identity.id DESC",
@@ -3743,7 +3801,7 @@ class Repository:
                       queue.exclusion_reason, queue.excluded_at,
                       MIN(search.collected_at) AS collected_at
             FROM browser_post_identities AS identity
-            JOIN browser_detail_enrichment_queue AS queue
+            LEFT JOIN browser_detail_enrichment_queue AS queue
               ON queue.browser_post_identity_id = identity.id
             JOIN browser_observations AS search
               ON search.browser_post_identity_id = identity.id
@@ -3791,14 +3849,24 @@ class Repository:
                 )
             post_url = str(row["post_url"])
             username = post_url.split("/@", 1)[1].split("/post/", 1)[0]
-            excluded = bool(row["enrichment_excluded"])
+            queue_exists = row["queue_status"] is not None
+            excluded = queue_exists and bool(row["enrichment_excluded"])
+            detail_status = (
+                "NOT_QUEUED"
+                if not queue_exists
+                else "EXCLUDED"
+                if excluded
+                else str(row["queue_status"])
+            )
             result.append(
                 {
                     "collected_at": str(row["collected_at"]),
                     "author_username": username,
                     "post_url": post_url,
-                    "detail_status": "EXCLUDED" if excluded else str(row["queue_status"]),
-                    "attempt_count": int(row["attempt_count"]),
+                    "detail_status": detail_status,
+                    "attempt_count": 0
+                    if row["attempt_count"] is None
+                    else int(row["attempt_count"]),
                     "last_error": None
                     if row["last_error_code"] is None
                     else str(row["last_error_code"]),

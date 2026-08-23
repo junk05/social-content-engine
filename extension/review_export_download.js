@@ -7,7 +7,7 @@
     THREAD_NODES: "threads_thread_nodes.csv",
   });
   const STATUSES = new Set([
-    "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED",
+    "ALL", "DETAIL_PENDING", "DETAIL_FAILED", "DETAIL_ENRICHED", "EXCLUDED", "NOT_QUEUED",
   ]);
 
   async function download(kind, status = "ALL", options = {}) {

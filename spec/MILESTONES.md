@@ -289,6 +289,16 @@ HG-03 passed for 30 reobserved roots. Every root stored body and topic metadata
 separately, none had body equal to an observed topic label, and all 30 confirmed
 legacy tag-only observations remain immutable with appended quality evidence.
 
+### M4-FU13 — Human Review Projection Repair
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU13_HUMAN_REVIEW_PROJECTION.md` (`CR-0030`).
+The topic-tag extractor remains unchanged. Human Review source selection and
+queue-state projection are repaired without deleting legacy observations; four
+legacy v1 roots are explicitly returned to the durable detail queue. M5 remains
+unauthorized.
+
 ### M4-FU07 — Sequence Indicator and Display Views
 
 Status: `COMPLETE`

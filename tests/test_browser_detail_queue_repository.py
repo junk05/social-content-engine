@@ -36,6 +36,35 @@ def prepare_before_assignment_reconciliation(path: Path) -> None:
 
 
 class BrowserDetailQueueRepositoryTest(unittest.TestCase):
+    def test_missing_legacy_queue_is_explicit_and_can_be_recreated(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with Repository(Path(directory) / "not-queued.sqlite3") as repository:
+                saved = repository.add_browser_observation(rich_observation())
+                repository.connection.execute("DELETE FROM browser_detail_enrichment_queue")
+                repository.connection.execute(
+                    "UPDATE browser_post_identities SET status = 'DETAIL_ENRICHED'"
+                )
+                repository.connection.commit()
+                posts = repository.list_collected_browser_roots()
+                self.assertEqual("NOT_QUEUED", posts[0]["detail_status"])
+                self.assertEqual([], repository.list_collected_browser_roots(
+                    status_filter="DETAIL_PENDING"
+                ))
+                self.assertEqual(1, len(repository.list_collected_browser_roots(
+                    status_filter="NOT_QUEUED"
+                )))
+                result = repository.requeue_browser_detail_enrichment(saved["post_url"])
+                self.assertTrue(result["changed"])
+                self.assertEqual("DETAIL_PENDING", repository.connection.execute(
+                    "SELECT status FROM browser_detail_enrichment_queue"
+                ).fetchone()[0])
+                self.assertEqual("DETAIL_PENDING", repository.connection.execute(
+                    "SELECT status FROM browser_post_identities"
+                ).fetchone()[0])
+                self.assertEqual("REQUEUED", repository.connection.execute(
+                    "SELECT action FROM browser_detail_enrichment_exclusion_actions"
+                ).fetchone()[0])
+
     def test_requeue_only_enriched_roots_missing_currently_observable_metrics(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with Repository(Path(directory) / "missing-engagement.sqlite3") as repository:
