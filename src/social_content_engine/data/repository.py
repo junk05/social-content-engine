@@ -2607,6 +2607,13 @@ class Repository:
             "SELECT assessment_status, COUNT(*) AS count FROM browser_thread_extraction_assessments GROUP BY assessment_status"
         ).fetchall()
         counts = {str(row["assessment_status"]): int(row["count"]) for row in rows}
+        qualifying = self.connection.execute(
+            """SELECT COUNT(*) FROM browser_post_identities identity
+            JOIN browser_observations detail ON detail.id = identity.current_observation_id
+             AND detail.observation_type = 'POST_DETAIL'
+            WHERE json_extract(detail.canonical_payload_json, '$.thread_position') = 1
+              AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1"""
+        ).fetchone()
         candidates = self.connection.execute(
             """SELECT COUNT(*) FROM browser_detail_enrichment_queue queue
             JOIN browser_post_identities identity ON identity.id = queue.browser_post_identity_id
@@ -2618,12 +2625,20 @@ class Repository:
               AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
               AND (assessment.id IS NULL OR assessment.assessment_status IN ('THREAD_CHILDREN_NOT_CAPTURED', 'INCOMPLETE_THREAD_EXTRACTION'))"""
         ).fetchone()
+        root_only = self.connection.execute(
+            """SELECT COUNT(*) FROM browser_post_identities identity
+            JOIN browser_observations detail ON detail.id = identity.current_observation_id
+             AND detail.observation_type = 'POST_DETAIL'
+            LEFT JOIN browser_thread_extraction_assessments assessment ON assessment.detail_observation_id = detail.id
+            WHERE json_extract(detail.canonical_payload_json, '$.thread_position') = 1
+              AND json_extract(detail.canonical_payload_json, '$.thread_total') > 1
+              AND (assessment.id IS NULL OR assessment.assessment_status = 'THREAD_CHILDREN_NOT_CAPTURED')"""
+        ).fetchone()
         return {
-            "indicator_root_count": sum(counts.get(key, 0) for key in (
-                "COMPLETE", "THREAD_CHILDREN_NOT_CAPTURED", "INCOMPLETE_THREAD_EXTRACTION")),
+            "indicator_root_count": int(qualifying[0]),
             "complete_count": counts.get("COMPLETE", 0),
             "incomplete_count": counts.get("INCOMPLETE_THREAD_EXTRACTION", 0),
-            "self_reply_count_zero_candidates": counts.get("THREAD_CHILDREN_NOT_CAPTURED", 0),
+            "self_reply_count_zero_candidates": int(root_only[0]),
             "reenrichment_candidate_count": int(candidates[0]),
         }
 
