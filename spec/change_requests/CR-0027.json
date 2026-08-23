@@ -1,0 +1,23 @@
+{
+  "id": "CR-0027",
+  "title": "Repair browser-observed engagement metric extraction",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Audit one to three already-selected Threads detail pages read-only, then repair deterministic Like, Reply, Repost, and Quote extraction and re-enrich only roots with missing engagement observations.",
+  "scope": [
+    "read-only engagement-control DOM audit",
+    "deterministic display metric normalization and provenance",
+    "non-destructive missing-engagement re-enrichment targeting",
+    "Human Review CSV verification",
+    "bounded five-post live verification"
+  ],
+  "forbidden": [
+    "using source-post body numbers as engagement metrics",
+    "inferring missing metrics as zero",
+    "using generated CSS classes as the extraction contract",
+    "unconditional re-enrichment of all roots",
+    "structural pattern re-analysis",
+    "starting M5"
+  ]
+}

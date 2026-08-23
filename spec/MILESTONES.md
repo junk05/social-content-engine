@@ -332,6 +332,16 @@ raw/normalized explicit-offset publication timestamps separately from capture
 time, and local Human Review CSVs include deterministic date/time/weekday
 derivations. M5 remains unauthorized.
 
+### M4-FU10 — Engagement Metric Observation Repair
+
+Status: `IN_PROGRESS`
+
+Approved specification: `spec/M4_FU10_ENGAGEMENT_METRICS.md` (`CR-0027`).
+This follow-up first audits actual read-only engagement control DOM forms on
+already-selected detail pages, then repairs independent Like, Reply, Repost,
+and Quote observations without treating missing values as zero. It does not
+authorize Structural re-analysis or M5.
+
 ## Deferred until later milestones
 
 - content generation and automatic publishing

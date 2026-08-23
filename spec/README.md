@@ -28,6 +28,7 @@ This directory is the project SSOT.
 - `M4_FU07_SEQUENCE_AND_DISPLAY_VIEWS.md`: sequence UI separation and exact/rounded display Views
 - `M4_FU08_THREAD_COMPLETENESS.md`: indicator-backed Thread extraction completeness and recovery
 - `M4_FU09_PUBLICATION_TIMING.md`: direct semantic publication-time observation and CSV timing fields
+- `M4_FU10_ENGAGEMENT_METRICS.md`: read-only engagement-control audit and deterministic metric repair
 - `THREADS_API_CAPABILITIES.json`: evidence-backed API capability matrix
 - `DATA_MODEL.md`: raw, normalized, and provenance boundaries
 - `HUMAN_GATES.md`: the only conditions requiring human action
