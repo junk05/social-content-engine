@@ -1,0 +1,21 @@
+{
+  "id": "CR-0028",
+  "title": "Repair Human Review CSV sequence metadata projection",
+  "status": "APPROVED",
+  "approved_by": "USER",
+  "approved_at": "2026-08-23",
+  "approved_decision": "Trace DOM-to-CSV sequence metadata without changing relationship extraction, then export the latest POST_DETAIL sequence indicator independently from source-text selection.",
+  "scope": [
+    "data-flow audit from extractor through receiver, provenance, projection, and CSV",
+    "deterministic Human Review CSV projection repair",
+    "expected thread total versus clean sequence-node comparison",
+    "bounded one-root live verification"
+  ],
+  "forbidden": [
+    "changing branch-aware relationship eligibility",
+    "inferring self replies from sequence indicators",
+    "altering immutable historical observations",
+    "structural pattern re-analysis",
+    "starting M5"
+  ]
+}
